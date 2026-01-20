@@ -13,6 +13,7 @@ export function SendPage() {
 
   return (
     <div className="flex-1 flex flex-col px-8 py-10 max-w-5xl mx-auto w-full space-y-12">
+      {/* File/Folder/Text/Paste selection grid */}
       <section className="space-y-5">
         <h3 className="text-sm font-semibold px-2 text-foreground/80 tracking-tight">Selection</h3>
         <div className="flex gap-4">
@@ -25,6 +26,7 @@ export function SendPage() {
         </div>
       </section>
 
+      {/* Discovery list of available nodes on the local network */}
       <section className="space-y-5">
         <div className="flex items-center justify-between px-2">
           <h3 className="text-sm font-semibold text-foreground/70 tracking-tight">Nearby devices</h3>
