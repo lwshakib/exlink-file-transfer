@@ -1,4 +1,4 @@
-import { File, Folder, Clipboard, RotateCcw, Target, Heart, Settings2, Smartphone, AlignLeft } from "lucide-react";
+import { File, Folder, Clipboard, RotateCcw, Target, Heart, Settings2, Smartphone, AlignLeft, Laptop, Monitor } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -50,8 +50,8 @@ export function SendPage() {
         <div className="space-y-3">
           {[
             { name: "Adorable Pear", id: "#100", type: "Tecno", icon: Smartphone },
-            { name: "Brave Lion", id: "#102", type: "Windows", icon: Smartphone },
-            { name: "Calm Ocean", id: "#105", type: "Linux", icon: Smartphone },
+            { name: "Brave Lion", id: "#102", type: "Windows", icon: Laptop },
+            { name: "Calm Ocean", id: "#105", type: "Linux", icon: Monitor },
           ].map((device) => (
             <Card key={device.name} className="w-full p-4.5 flex items-center justify-between bg-muted/20 border border-border/40 hover:bg-muted/30 transition-all cursor-pointer group rounded-2xl relative">
               <div className="flex items-center gap-5">
