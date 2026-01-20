@@ -48,26 +48,32 @@ export function SendPage() {
 
         {/* Device List */}
         <div className="space-y-3">
-          <Card className="w-full p-4.5 flex items-center justify-between bg-muted/20 border border-border/40 hover:bg-muted/30 transition-all cursor-pointer group rounded-2xl relative">
-            <div className="flex items-center gap-5">
-              <div className="h-[68px] w-[68px] flex items-center justify-center bg-muted/40 rounded-[20px]">
-                <Smartphone className="h-9 w-9 text-foreground/90" strokeWidth={1.2} />
-              </div>
-              <div className="flex flex-col gap-1 items-start">
-                <h4 className="text-[22px] font-bold text-foreground leading-tight tracking-tight">Adorable Pear</h4>
-                <div className="flex gap-2">
-                  <Badge variant="secondary" className="bg-muted/60 text-foreground/50 font-mono text-[10px] px-2.5 py-0.5 border-none rounded-[4px] uppercase font-bold">#100</Badge>
-                  <Badge variant="secondary" className="bg-muted/60 text-foreground/50 font-mono text-[10px] px-2.5 py-0.5 border-none rounded-[4px] uppercase font-bold">Tecno</Badge>
+          {[
+            { name: "Adorable Pear", id: "#100", type: "Tecno", icon: Smartphone },
+            { name: "Brave Lion", id: "#102", type: "Windows", icon: Smartphone },
+            { name: "Calm Ocean", id: "#105", type: "Linux", icon: Smartphone },
+          ].map((device) => (
+            <Card key={device.name} className="w-full p-4.5 flex items-center justify-between bg-muted/20 border border-border/40 hover:bg-muted/30 transition-all cursor-pointer group rounded-2xl relative">
+              <div className="flex items-center gap-5">
+                <div className="h-[68px] w-[68px] flex items-center justify-center bg-muted/40 rounded-[20px]">
+                  <device.icon className="h-9 w-9 text-foreground/90" strokeWidth={1.2} />
+                </div>
+                <div className="flex flex-col gap-1 items-start">
+                  <h4 className="text-[22px] font-bold text-foreground leading-tight tracking-tight">{device.name}</h4>
+                  <div className="flex gap-2">
+                    <Badge variant="secondary" className="bg-muted/60 text-foreground/50 font-mono text-[10px] px-2.5 py-0.5 border-none rounded-[4px] uppercase font-bold">{device.id}</Badge>
+                    <Badge variant="secondary" className="bg-muted/60 text-foreground/50 font-mono text-[10px] px-2.5 py-0.5 border-none rounded-[4px] uppercase font-bold">{device.type}</Badge>
+                  </div>
                 </div>
               </div>
-            </div>
-            
-            <div className="flex items-center pr-1">
-              <Button variant="ghost" size="icon" className="rounded-full text-foreground/30 hover:text-foreground hover:bg-muted/50 transition-colors h-12 w-12 flex items-center justify-center">
-                <Heart className="h-6.5 w-6.5" strokeWidth={1.5} />
-              </Button>
-            </div>
-          </Card>
+              
+              <div className="flex items-center pr-1">
+                <Button variant="ghost" size="icon" className="rounded-full text-foreground/30 hover:text-foreground hover:bg-muted/50 transition-colors h-12 w-12 flex items-center justify-center">
+                  <Heart className="h-6.5 w-6.5" strokeWidth={1.5} />
+                </Button>
+              </div>
+            </Card>
+          ))}
         </div>
       </section>
 
