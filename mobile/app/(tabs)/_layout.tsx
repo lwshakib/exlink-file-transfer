@@ -1,9 +1,11 @@
-import { Stack } from "expo-router";
+import { Stack, Tabs } from "expo-router";
 
 export default function TabLayout() {
     return (
-        <Stack>
-            
-        </Stack>
+        <Tabs>
+            <Tabs.Screen name="send" />
+            <Tabs.Screen name="receive" />
+            <Tabs.Screen name="settings" />
+        </Tabs>
     )
 }
