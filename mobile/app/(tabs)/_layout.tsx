@@ -7,7 +7,7 @@ export default function TabLayout() {
   return (
     <Tabs
       screenOptions={{
-        headerShown: false,
+        headerShown: false
       }}
       tabBar={({ navigation, state, descriptors, insets }) => (
         <BottomNavigation.Bar
@@ -50,15 +50,6 @@ export default function TabLayout() {
         />
       )}>
       <Tabs.Screen
-        name="send"
-        options={{
-          title: "Send",
-          tabBarIcon: ({ color, size }) => (
-            <MaterialCommunityIcons name="send" color={color} size={size} />
-          ),
-        }}
-      />
-      <Tabs.Screen
         name="receive"
         options={{
           title: "Receive",
@@ -67,6 +58,16 @@ export default function TabLayout() {
           ),
         }}
       />
+      <Tabs.Screen
+        name="send"
+        options={{
+          title: "Send",
+          tabBarIcon: ({ color, size }) => (
+            <MaterialCommunityIcons name="send" color={color} size={size} />
+          ),
+        }}
+      />
+
       <Tabs.Screen
         name="settings"
         options={{
