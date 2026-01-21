@@ -133,13 +133,6 @@ function InnerLayout() {
               <ThemeProvider value={paperTheme}>
                 <Stack screenOptions={{ headerShown: false }}>
                   <Stack.Screen name="(tabs)" />
-                  <Stack.Screen 
-                    name="sending" 
-                    options={{ 
-                      presentation: 'modal',
-                      animation: 'fade_from_bottom' 
-                    }} 
-                  />
                 </Stack>
               </ThemeProvider>
             </PaperProvider>

@@ -545,7 +545,7 @@ function App() {
                       <Button 
                         variant="ghost" 
                         onClick={() => {
-                           if (transferData.status === 'completed') {
+                           if (transferData.status === 'completed' || transferData.status === 'error') {
                              setTransferData(null);
                              setShowAdvanced(false);
                            } else {
@@ -554,8 +554,8 @@ function App() {
                         }}
                         className="text-foreground/70 hover:text-foreground hover:bg-muted/50 flex gap-2 h-10 px-6 rounded-full text-sm font-bold"
                       >
-                         {transferData.status === 'completed' ? <UserCheck size={20} className="text-[var(--accent-primary)]" /> : <X size={20} className="text-foreground/40" />} 
-                         {transferData.status === 'completed' ? 'Done' : 'Cancel'}
+                         {transferData.status === 'completed' || transferData.status === 'error' ? <UserCheck size={20} className="text-[var(--accent-primary)]" /> : <X size={20} className="text-foreground/40" />} 
+                         {transferData.status === 'completed' || transferData.status === 'error' ? 'Done' : 'Cancel'}
                       </Button>
                    </div>
                 </footer>
@@ -688,7 +688,7 @@ function App() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="absolute inset-0 bg-background flex flex-col items-center justify-center p-0 z-[100]"
+              className="absolute inset-0 bg-background flex flex-col items-center justify-center p-0 z-[120]"
             >
               <div className="flex flex-col items-center max-w-2xl w-full px-8 text-center space-y-12">
                 <div className="relative">

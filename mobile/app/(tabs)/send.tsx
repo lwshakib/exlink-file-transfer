@@ -11,6 +11,7 @@ import { BottomSheetModal, BottomSheetView, BottomSheetBackdrop } from "@gorhom/
 import { useRouter } from "expo-router";
 import { useSelection, SelectedItem } from "@/hooks/useSelection";
 import SelectionDetailsPortal from "@/components/SelectionDetailsPortal";
+import SendingPortal from "@/components/SendingPortal";
 
 import * as Device from "expo-device";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -37,6 +38,8 @@ export default function SendScreen() {
 
   const bottomSheetModalRef = useRef<BottomSheetModal>(null);
   const [selectionSheetVisible, setSelectionSheetVisible] = useState(false);
+  const [sendingPortalVisible, setSendingPortalVisible] = useState(false);
+  const [selectedDevice, setSelectedDevice] = useState<NearbyDevice | null>(null);
   const snapPoints = useMemo(() => ['45%'], []);
 
   useEffect(() => {
@@ -57,16 +60,8 @@ export default function SendScreen() {
       return;
     }
     
-    router.push({
-      pathname: "/sending",
-      params: { 
-        deviceName: device.name, 
-        deviceId: getPortLabel(device.ip), 
-        os: device.os || device.brand || 'Computer',
-        targetIp: device.ip,
-        targetPort: device.port || 3030
-      }
-    });
+    setSelectedDevice(device);
+    setSendingPortalVisible(true);
   };
 
   const performSubnetScan = async () => {
@@ -517,6 +512,19 @@ export default function SendScreen() {
       <SelectionDetailsPortal 
         visible={selectionSheetVisible} 
         onDismiss={() => setSelectionSheetVisible(false)} 
+      />
+
+      <SendingPortal
+        visible={sendingPortalVisible}
+        onDismiss={() => setSendingPortalVisible(false)}
+        targetDevice={selectedDevice ? {
+          name: selectedDevice.name,
+          id: getPortLabel(selectedDevice.ip).replace('#', ''),
+          os: selectedDevice.os || selectedDevice.brand || 'Computer',
+          ip: selectedDevice.ip,
+          port: selectedDevice.port || 3030,
+          platform: selectedDevice.platform
+        } : null}
       />
     </SafeAreaView>
   );
