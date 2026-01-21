@@ -43,6 +43,7 @@ const SendingPortal = ({ visible, onDismiss, targetDevice }: SendingPortalProps)
   const [totalTransferSize, setTotalTransferSize] = useState(0);
   const [currentSpeed, setCurrentSpeed] = useState(0);
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [displayItems, setDisplayItems] = useState<any[]>([]);
   
   const lastUploadedRef = useRef(0);
   const prevBytesRef = useRef(0);
@@ -56,6 +57,7 @@ const SendingPortal = ({ visible, onDismiss, targetDevice }: SendingPortalProps)
   useEffect(() => {
     if (visible && targetDevice && !hasStartedRef.current) {
       hasStartedRef.current = true;
+      setDisplayItems([...selectedItems]);
       // Reset only when starting a new session
       setStatus('waiting');
       setProgress(0);
@@ -152,6 +154,7 @@ const SendingPortal = ({ visible, onDismiss, targetDevice }: SendingPortalProps)
     abortController.current.abort();
     abortController.current = new AbortController();
     const signal = abortController.current.signal;
+    const itemsToSend = [...selectedItems];
 
     try {
       const brand = Device.brand || Device.modelName || "Mobile";
@@ -177,8 +180,8 @@ const SendingPortal = ({ visible, onDismiss, targetDevice }: SendingPortalProps)
           name,
           platform: 'mobile',
           brand,
-          totalFiles: selectedItems.length,
-          totalSize: selectedItems.reduce((acc, item) => acc + (item.size || 0), 0)
+          totalFiles: itemsToSend.length,
+          totalSize: itemsToSend.reduce((acc, item) => acc + (item.size || 0), 0)
         }),
         signal: signal
       });
@@ -191,7 +194,7 @@ const SendingPortal = ({ visible, onDismiss, targetDevice }: SendingPortalProps)
       if (data.status === 'accepted') {
         setStatus('sending');
         // Start upload flow
-        setTimeout(() => uploadFiles(pollId!), 100);
+        setTimeout(() => uploadFiles(pollId!, itemsToSend), 100);
       } else {
         setStatus('refused');
       }
@@ -210,15 +213,15 @@ const SendingPortal = ({ visible, onDismiss, targetDevice }: SendingPortalProps)
     }
   };
 
-  const uploadFiles = async (myId: string) => {
+  const uploadFiles = async (myId: string, items: any[]) => {
     if (!targetDevice) return;
-    let totalBytes = selectedItems.reduce((acc, item) => acc + (item.size || 0), 0);
+    let totalBytes = items.reduce((acc, item) => acc + (item.size || 0), 0);
     setTotalTransferSize(totalBytes);
     let uploadedOverall = 0;
     lastUploadedRef.current = 0;
 
-    for (let i = 0; i < selectedItems.length; i++) {
-        const item = selectedItems[i];
+    for (let i = 0; i < items.length; i++) {
+        const item = items[i];
         setCurrentFile(item.name);
         setCurrentFileIndex(i);
         
@@ -273,8 +276,7 @@ const SendingPortal = ({ visible, onDismiss, targetDevice }: SendingPortalProps)
              }
         }
     }
-    setCurrentFileIndex(selectedItems.length);
-
+    
     try {
         const myIp = await Network.getIpAddressAsync();
         const pollId = (myIp && myIp.includes('.')) ? myIp.split('.').pop()! : 'mobile';
@@ -284,13 +286,18 @@ const SendingPortal = ({ visible, onDismiss, targetDevice }: SendingPortalProps)
     setStatus('done');
     setProgress(1); // Explicitly set to 1 to ensure full progress bar
     setDownloadedBytes(totalBytes);
-    setCurrentFileIndex(selectedItems.length);
+    setCurrentFileIndex(items.length);
     setCurrentSpeed(0);
-    clearSelection();
   };
 
   const handleCancel = async () => {
     abortController.current.abort();
+    
+    // Clear selection if we finished successfully
+    if (status === 'done') {
+      clearSelection();
+    }
+
     if (targetDevice) {
       try {
         const myIp = await Network.getIpAddressAsync();
@@ -358,7 +365,7 @@ const SendingPortal = ({ visible, onDismiss, targetDevice }: SendingPortalProps)
                 </View>
 
                 <ScrollView style={styles.itemList} contentContainerStyle={styles.itemListContent}>
-                  {selectedItems.map((item, idx) => {
+                  {displayItems.map((item, idx) => {
                     const isCurrent = status === 'sending' && idx === currentFileIndex;
                     const isDone = status === 'done' || (status === 'sending' && idx < currentFileIndex);
                     
