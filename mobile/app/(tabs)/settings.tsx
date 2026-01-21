@@ -1,10 +1,82 @@
 import React, { useState, useEffect } from "react";
 import { StyleSheet, View, ScrollView, TouchableOpacity } from "react-native";
-import { Text, useTheme, Switch, IconButton, Checkbox, Menu, Divider } from "react-native-paper";
+import { Text, useTheme, Switch, IconButton, Checkbox, Portal, Dialog, RadioButton, Button, Divider } from "react-native-paper";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useTheme as useAppTheme, ColorTheme } from "@/hooks/useTheme";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+
+const SettingRow = ({ label, children }: { label: string; children: React.ReactNode }) => (
+  <View style={styles.settingRow}>
+    <Text variant="bodyLarge" style={styles.settingLabel}>{label}</Text>
+    <View style={styles.settingControl}>
+      {children}
+    </View>
+  </View>
+);
+
+const TonalBox = ({ text, icon, onPress }: { text?: string; icon?: string; onPress?: () => void }) => {
+  const theme = useTheme();
+  return (
+    <TouchableOpacity 
+      style={[styles.tonalBox, { backgroundColor: theme.colors.surfaceVariant }]} 
+      onPress={onPress}
+      activeOpacity={0.7}
+    >
+      <View style={styles.tonalBoxContent}>
+        {text && <Text variant="bodyMedium" style={styles.tonalBoxText}>{text}</Text>}
+        {icon && <MaterialCommunityIcons name={icon as any} size={20} color={theme.colors.onSurfaceVariant} />}
+      </View>
+    </TouchableOpacity>
+  );
+};
+
+const SelectableSetting = ({ 
+  label,
+  value, 
+  options, 
+  visible, 
+  onOpen, 
+  onClose, 
+  onSelect 
+}: { 
+  label: string;
+  value: string; 
+  options: string[]; 
+  visible: boolean; 
+  onOpen: () => void; 
+  onClose: () => void; 
+  onSelect: (val: string) => void;
+}) => {
+  const theme = useTheme();
+  return (
+    <>
+      <TonalBox text={value} icon="menu-down" onPress={onOpen} />
+      <Portal>
+        <Dialog visible={visible} onDismiss={onClose} style={{ backgroundColor: theme.colors.elevation.level3 }}>
+          <Dialog.Title>{label}</Dialog.Title>
+          <Dialog.Content>
+            <RadioButton.Group onValueChange={val => { onSelect(val); onClose(); }} value={value}>
+              {options.map((option) => (
+                <View key={option} style={styles.radioRow}>
+                  <RadioButton.Item 
+                    label={option} 
+                    value={option} 
+                    style={{ paddingHorizontal: 0 }}
+                    labelStyle={{ color: theme.colors.onSurface }}
+                  />
+                </View>
+              ))}
+            </RadioButton.Group>
+          </Dialog.Content>
+          <Dialog.Actions>
+            <Button onPress={onClose}>Cancel</Button>
+          </Dialog.Actions>
+        </Dialog>
+      </Portal>
+    </>
+  );
+};
 
 export default function SettingsScreen() {
   const theme = useTheme();
@@ -30,64 +102,6 @@ export default function SettingsScreen() {
   const [colorMenuVisible, setColorMenuVisible] = useState(false);
   const [langMenuVisible, setLangMenuVisible] = useState(false);
 
-  const SettingRow = ({ label, children }: { label: string; children: React.ReactNode }) => (
-    <View style={styles.settingRow}>
-      <Text variant="bodyLarge" style={styles.settingLabel}>{label}</Text>
-      <View style={styles.settingControl}>
-        {children}
-      </View>
-    </View>
-  );
-
-  const TonalBox = ({ text, icon, onPress }: { text?: string; icon?: string; onPress?: () => void }) => (
-    <TouchableOpacity 
-      style={[styles.tonalBox, { backgroundColor: theme.colors.surfaceVariant }]} 
-      onPress={onPress}
-      activeOpacity={0.7}
-    >
-      <View style={styles.tonalBoxContent}>
-        {text && <Text variant="bodyMedium" style={styles.tonalBoxText}>{text}</Text>}
-        {icon && <MaterialCommunityIcons name={icon as any} size={20} color={theme.colors.onSurfaceVariant} />}
-      </View>
-    </TouchableOpacity>
-  );
-
-  const SelectableSetting = ({ 
-    value, 
-    options, 
-    visible, 
-    onOpen, 
-    onClose, 
-    onSelect 
-  }: { 
-    value: string; 
-    options: string[]; 
-    visible: boolean; 
-    onOpen: () => void; 
-    onClose: () => void; 
-    onSelect: (val: string) => void;
-  }) => (
-    <Menu
-      visible={visible}
-      onDismiss={onClose}
-      anchor={
-        <TonalBox text={value} icon="menu-down" onPress={onOpen} />
-      }
-      contentStyle={{ backgroundColor: theme.colors.elevation.level3 }}
-    >
-      {options.map((option) => (
-        <Menu.Item 
-          key={option} 
-          onPress={() => {
-            onSelect(option);
-            onClose();
-          }} 
-          title={option} 
-        />
-      ))}
-    </Menu>
-  );
-
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
@@ -98,7 +112,8 @@ export default function SettingsScreen() {
           <Text variant="titleMedium" style={styles.sectionHeader}>General</Text>
           <SettingRow label="Theme">
             <SelectableSetting 
-              value={colorScheme === "dark" ? "Dark" : "Light"}
+              label="Select Theme"
+              value={colorScheme.charAt(0).toUpperCase() + colorScheme.slice(1)}
               options={["System", "Light", "Dark"]}
               visible={themeMenuVisible}
               onOpen={() => setThemeMenuVisible(true)}
@@ -108,6 +123,7 @@ export default function SettingsScreen() {
           </SettingRow>
           <SettingRow label="Color">
             <SelectableSetting 
+              label="Select Color"
               value={selectedColor}
               options={["LocalSend", "Emerald", "Violet", "Blue", "Amber", "Rose", "Random"]}
               visible={colorMenuVisible}
@@ -118,6 +134,7 @@ export default function SettingsScreen() {
           </SettingRow>
           <SettingRow label="Language">
             <SelectableSetting 
+              label="Select Language"
               value="System"
               options={["System", "English", "Spanish", "French", "German"]}
               visible={langMenuVisible}
@@ -284,6 +301,10 @@ const styles = StyleSheet.create({
   },
   miniIcon: {
     margin: 0,
+  },
+  radioRow: {
+    flexDirection: "row",
+    alignItems: "center",
   },
   footer: {
     marginTop: 16,

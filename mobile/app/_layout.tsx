@@ -14,7 +14,7 @@ import {
 } from "react-native-paper";
 
 import { ThemeVariations } from "../constants/Colors";
-import { useTheme } from "@/hooks/useTheme";
+import { ThemeProvider as AppThemeProvider, useAppTheme } from "@/context/ThemeContext";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import { SelectionProvider } from "@/hooks/useSelection";
@@ -24,27 +24,9 @@ import * as Network from "expo-network";
 import * as Device from "expo-device";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-export default function RootLayout() {
-  const { colorScheme, selectedColor, isLoaded } = useTheme();
+function InnerLayout() {
+  const { colorScheme, selectedVariation, isLoaded } = useAppTheme();
   
-  // Random theme selection if "Random" is chosen
-  const [randomVariationIndex, setRandomVariationIndex] = useState(0);
-
-  useEffect(() => {
-    if (selectedColor === "Random") {
-      const index = Math.floor(Math.random() * ThemeVariations.length);
-      setRandomVariationIndex(index);
-    }
-  }, [selectedColor, isLoaded]);
-
-  const selectedVariation = useMemo(() => {
-    if (!isLoaded) return ThemeVariations[0];
-    if (selectedColor === "Random") {
-      return ThemeVariations[randomVariationIndex];
-    }
-    return ThemeVariations.find(v => v.name === selectedColor) || ThemeVariations[0];
-  }, [selectedColor, randomVariationIndex, isLoaded]);
-
   const paperTheme = useMemo(() => {
     const { LightTheme, DarkTheme } = adaptNavigationTheme({
       reactNavigationLight: NavigationDefaultTheme,
@@ -166,5 +148,13 @@ export default function RootLayout() {
         </SelectionProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
+  );
+}
+
+export default function RootLayout() {
+  return (
+    <AppThemeProvider>
+      <InnerLayout />
+    </AppThemeProvider>
   );
 }
