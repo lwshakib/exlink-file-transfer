@@ -9,6 +9,7 @@ import * as Network from "expo-network";
 import * as FileSystem from "expo-file-system/legacy";
 import { uniqueNamesGenerator, adjectives, animals } from "unique-names-generator";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import HistoryPortal from "@/components/HistoryPortal";
 
 export default function ReceiveScreen() {
   const theme = useTheme();
@@ -31,6 +32,7 @@ export default function ReceiveScreen() {
   const [currentSpeed, setCurrentSpeed] = useState(0);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
+  const [historyVisible, setHistoryVisible] = useState(false);
   
   const lastDownloadedRef = useRef(0);
   const prevBytesRef = useRef(0);
@@ -159,7 +161,8 @@ export default function ReceiveScreen() {
         const myIp = await Network.getIpAddressAsync();
         if (!myIp || myIp.includes(':')) return;
 
-        const pollId = deviceId || (myIp.includes('.') ? myIp.split('.').pop() : myIp);
+        // Consistent pollId generation
+        const pollId = deviceId || (myIp.includes('.') ? myIp.split('.').pop()! : "000");
 
         // If we have a pending request, check specifically if it still exists
         // But DON'T clear it if we are already transferring or finished
@@ -370,7 +373,7 @@ export default function ReceiveScreen() {
         <IconButton
           icon="history"
           size={24}
-          onPress={() => router.push("/history")}
+          onPress={() => setHistoryVisible(true)}
         />
         <IconButton icon="information-outline" size={24} onPress={() => {}} />
       </View>
@@ -657,6 +660,11 @@ export default function ReceiveScreen() {
           </SafeAreaView>
         </Modal>
       </Portal>
+
+      <HistoryPortal 
+        visible={historyVisible} 
+        onDismiss={() => setHistoryVisible(false)} 
+      />
     </SafeAreaView>
   );
 }

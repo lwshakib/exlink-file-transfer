@@ -3,7 +3,6 @@ import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 import express, { Request, Response } from 'express'
 import cors from 'cors'
-import multer from 'multer'
 import fs from 'node:fs'
 import os from 'node:os'
 import dgram from 'node:dgram'
@@ -139,11 +138,7 @@ const serverApp = express()
 serverApp.use(cors())
 serverApp.use(express.json())
 
-const storage = multer.diskStorage({
-  destination: (_req, _file, cb) => cb(null, uploadDir),
-  filename: (_req, file, cb) => cb(null, `${Date.now()}-${file.originalname}`)
-})
-const upload = multer({ storage })
+import busboy from 'busboy'
 
 // Endpoints
 serverApp.post('/upload', (req: Request, res: Response) => {
@@ -151,86 +146,101 @@ serverApp.post('/upload', (req: Request, res: Response) => {
     ? req.headers['x-transfer-id'][0] 
     : (req.headers['x-transfer-id'] as string || Math.random().toString(36).substring(7))
 
+  console.log(`[Upload] New request starting: ${transferId}, content-length: ${req.headers['content-length']}`)
+  console.log(`[Upload] Content-Type: ${req.headers['content-type']}`)
   activeRequests.set(transferId, req)
-  
-  // Use a more robust way to track progress that doesn't interfere with multer
-  const totalSize = parseInt(req.headers['content-length'] || '0')
-  let receivedSize = 0
-  let lastUpdateTime = 0
-  const THROTTLE_MS = 200
 
-  // We observe the data event but don't pause/resume the stream.
-  // This is generally safe in modern Node.js even if multer is pipe()ing the stream.
-  const onData = (chunk: Buffer) => {
-    receivedSize += chunk.length
+  // Busboy requires Content-Type header. If expo-file-system doesn't set it, we'll add a default
+  const headers = { ...req.headers }
+  if (!headers['content-type']) {
+    console.log(`[Upload] ⚠️  Missing Content-Type, setting default multipart/form-data`)
+    headers['content-type'] = 'multipart/form-data'
+  }
+
+  const bb = busboy({ headers })
+  const totalSize = parseInt(req.headers['content-length'] || '0')
+  let receivedBytes = 0
+  let lastUpdateTime = 0
+  const THROTTLE_MS = 100
+
+  // Track raw request progress for smoother UI and less busboy interference
+  req.on('data', (chunk) => {
+    receivedBytes += chunk.length
     const now = Date.now()
-    if (totalSize > 0 && win && (receivedSize === chunk.length || now - lastUpdateTime > THROTTLE_MS)) {
+    if (win && (now - lastUpdateTime > THROTTLE_MS || receivedBytes === totalSize)) {
       lastUpdateTime = now
-      win.webContents.send('upload-progress', { 
-        id: transferId, 
-        progress: receivedSize / totalSize,
-        processedBytes: receivedSize,
+      win.webContents.send('upload-progress', {
+        id: transferId,
+        progress: totalSize > 0 ? receivedBytes / totalSize : 0,
+        processedBytes: receivedBytes,
         totalBytes: totalSize,
-        // Information about the file is added by multer later, 
-        // but we can provide a generic label for now.
         currentFile: 'Receiving file...',
         currentIndex: 1,
         totalFiles: 1
       })
     }
-  }
-
-  req.on('data', onData)
-
-  upload.single('file')(req, res, (err) => {
-    // Cleanup the listener
-    req.removeListener('data', onData)
-    activeRequests.delete(transferId)
-    
-    if (err) {
-      console.error(`Upload error for ${transferId}:`, err)
-      if (win) win.webContents.send('upload-error', { id: transferId, error: err.message })
-      return res.status(500).json({ error: err.message })
-    }
-    
-    if (!req.file) {
-      console.error(`Upload failed for ${transferId}: No file found in request`)
-      if (win) win.webContents.send('upload-error', { id: transferId, error: 'No file received' })
-      return res.status(400).json({ error: 'No file received' })
-    }
-
-    console.log(`Upload complete for ${transferId}: ${req.file.originalname}`)
-    
-    if (win) {
-      win.webContents.send('upload-complete', {
-        id: transferId,
-        name: req.file.originalname,
-        size: req.file.size,
-        path: req.file.path,
-        time: new Date().toLocaleTimeString(),
-        progress: 1,
-        processedBytes: req.file.size,
-        totalBytes: req.file.size
-      })
-      // Unified event for easier state management
-      win.webContents.send('transfer-complete', { deviceId: transferId })
-    }
-    res.json({ status: 'ok', message: 'Success' })
   })
 
-  req.on('aborted', () => {
-    req.removeListener('data', onData)
-    activeRequests.delete(transferId)
-    if (win) win.webContents.send('upload-error', { id: transferId, error: 'Upload aborted' })
+  bb.on('file', (_, file, info) => {
+    const { filename, mimeType } = info
+    console.log(`[Upload] Busboy found file: ${filename} (${mimeType})`)
+    
+    const saveTo = path.join(uploadDir, `${Date.now()}-${filename}`)
+    const fstream = fs.createWriteStream(saveTo)
+    
+    file.pipe(fstream)
+
+    fstream.on('close', () => {
+      console.log(`[Upload] ✅ File SAVED to: ${saveTo}`)
+      if (win) {
+        win.webContents.send('upload-complete', {
+          id: transferId,
+          name: filename,
+          size: receivedBytes, 
+          path: saveTo,
+          time: new Date().toLocaleTimeString(),
+          progress: 1,
+          processedBytes: totalSize,
+          totalBytes: totalSize
+        })
+      }
+    })
+
+    fstream.on('open', () => {
+      console.log(`[Upload] 📂 fstream OPENED for: ${filename}`)
+    })
+
+    fstream.on('error', (err) => {
+      console.error(`[Upload] ❌ fstream ERROR for ${filename}:`, err)
+    })
   })
+
+  bb.on('finish', () => {
+    console.log(`[Upload] 🏁 Busboy finished for: ${transferId}`)
+    activeRequests.delete(transferId)
+    if (!res.headersSent) res.json({ status: 'ok' })
+  })
+
+  bb.on('error', (err: any) => {
+    console.error(`[Upload] ❌ Busboy parsing ERROR:`, err)
+    activeRequests.delete(transferId)
+    if (win) win.webContents.send('upload-error', { id: transferId, error: err.message })
+    if (!res.headersSent) res.status(500).json({ error: err.message })
+  })
+
+  req.pipe(bb)
 })
 
 serverApp.post('/request-connect', (req, res) => {
-  const { deviceId, name, platform, brand } = req.body
-  console.log(`Connection request from ${name} (${deviceId})`)
+  const { deviceId, name, platform, brand, totalFiles, totalSize } = req.body
+  console.log(`Connection request from ${name} (${deviceId}) proposing ${totalFiles} files`)
   
-  pendingConnections.set(deviceId, { res, name, deviceId, platform, brand, timestamp: Date.now() })
-  win?.webContents.send('connection-request', { deviceId, name, platform, brand })
+  pendingConnections.set(deviceId, { 
+    res, name, deviceId, platform, brand, totalFiles, totalSize, timestamp: Date.now() 
+  })
+  win?.webContents.send('connection-request', { 
+    deviceId, name, platform, brand, totalFiles, totalSize 
+  })
 })
 
 ipcMain.handle('get-upload-dir', () => uploadDir)
@@ -311,6 +321,15 @@ serverApp.get('/cancel-pairing/:deviceId', (req, res) => {
   res.json({ status: 'ok' })
 })
 
+serverApp.get('/transfer-finish/:deviceId', (req, res) => {
+  const { deviceId } = req.params
+  console.log(`[Upload] Transfer session finished for: ${deviceId}`)
+  if (win) {
+    win.webContents.send('transfer-complete', { deviceId })
+  }
+  res.json({ status: 'ok' })
+})
+
 serverApp.post('/announce', (req, res) => {
   const node = req.body
   if (node.id) {
@@ -323,7 +342,8 @@ serverApp.post('/announce', (req, res) => {
 serverApp.get('/check-pairing-requests/:deviceId', (req, res) => {
   const { deviceId } = req.params
   
-  // Check outgoing requests (initiated by this desktop to the device)
+  // ONLY check outgoing requests (initiated by this desktop to the device)
+  // This tells the mobile device: "Hey, I (the desktop) am trying to connect to you."
   const outgoing = outgoingRequests.get(deviceId)
   if (outgoing) {
     return res.json({
@@ -337,19 +357,10 @@ serverApp.get('/check-pairing-requests/:deviceId', (req, res) => {
     })
   }
 
-  // Check incoming requests (initiated by the device to this desktop)
-  const pending = pendingConnections.get(deviceId)
-  if (pending) {
-    return res.json({
-      status: 'pending',
-      request: {
-        name: serverName,
-        id: serverId,
-        os: os.platform() === 'win32' ? 'Windows' : os.platform() === 'darwin' ? 'MacOS' : 'Linux',
-        ip: getLocalIPs()[0]
-      }
-    })
-  }
+  // We do NOT return pending for incoming connections here, 
+  // because the mobile device is already waiting for the POST response 
+  // from /request-connect. Returning it here makes the mobile think 
+  // the desktop initiated a separate request.
 
   res.json({ status: 'none' })
 })

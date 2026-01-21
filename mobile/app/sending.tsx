@@ -6,7 +6,6 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import * as Device from "expo-device";
 import * as Network from "expo-network";
-import * as FileSystem from "expo-file-system";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useSelection, SelectedItem } from "@/hooks/useSelection";
 import Animated, { 
@@ -34,6 +33,7 @@ export default function SendingScreen() {
   const [transferStartTime, setTransferStartTime] = useState<number | null>(null);
   const [transferDuration, setTransferDuration] = useState(0);
   const [downloadedBytes, setDownloadedBytes] = useState(0);
+  const [currentFileIndex, setCurrentFileIndex] = useState(0);
   const [totalTransferSize, setTotalTransferSize] = useState(0);
   const [currentSpeed, setCurrentSpeed] = useState(0);
   const [showAdvanced, setShowAdvanced] = useState(false);
@@ -42,6 +42,7 @@ export default function SendingScreen() {
   const lastUploadedRef = useRef(0);
   const prevBytesRef = useRef(0);
   const speedIntervalRef = useRef<any>(null);
+  const speedsRef = useRef<number[]>([]); // For moving average
 
   const pulse = useSharedValue(1);
 
@@ -74,10 +75,19 @@ export default function SendingScreen() {
 
       // Speed calculation
       prevBytesRef.current = 0;
+      speedsRef.current = [];
       speedIntervalRef.current = setInterval(() => {
         const current = lastUploadedRef.current;
         const diff = current - prevBytesRef.current;
-        setCurrentSpeed(Math.max(0, diff));
+        const speed = Math.max(0, diff);
+        
+        // Moving average of last 3 samples
+        speedsRef.current.push(speed);
+        if (speedsRef.current.length > 3) speedsRef.current.shift();
+        
+        const avgSpeed = speedsRef.current.reduce((a, b) => a + b, 0) / speedsRef.current.length;
+        setCurrentSpeed(avgSpeed);
+        
         prevBytesRef.current = current;
       }, 1000);
 
@@ -121,15 +131,18 @@ export default function SendingScreen() {
       const storedName = await AsyncStorage.getItem("deviceName");
       const name = storedName || Device.deviceName || "Mobile Device";
       const myIp = await Network.getIpAddressAsync();
+      const pollId = (myIp && myIp.includes('.')) ? myIp.split('.').pop()! : 'mobile';
 
       const res = await fetch(`http://${targetIp}:${targetPort}/request-connect`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          deviceId: myIp,
+          deviceId: pollId,
           name,
           platform: 'mobile',
-          brand
+          brand,
+          totalFiles: selectedItems.length,
+          totalSize: selectedItems.reduce((acc, item) => acc + (item.size || 0), 0)
         }),
         signal: abortController.current.signal
       });
@@ -140,7 +153,7 @@ export default function SendingScreen() {
       if (data.status === 'accepted') {
         setStatus('sending');
         // Give UI a tiny bit of time to transition
-        setTimeout(() => uploadFiles(myIp || 'mobile'), 100);
+        setTimeout(() => uploadFiles(pollId), 100);
       } else {
         setStatus('refused');
       }
@@ -162,47 +175,75 @@ export default function SendingScreen() {
     for (let i = 0; i < selectedItems.length; i++) {
         const item = selectedItems[i];
         setCurrentFile(item.name);
+        setCurrentFileIndex(i);
         
         try {
-            const uploadTask = FileSystem.createUploadTask(
-                `http://${targetIp}:${targetPort}/upload`,
-                item.uri!,
-                {
-                    httpMethod: 'POST',
-                    headers: {
-                        'x-transfer-id': myId,
-                        // Desktop expects multipart/form-data with a file field
-                    },
-                    uploadType: FileSystem.FileSystemUploadType.MULTIPART,
-                    fieldName: 'file',
-                },
-                (uploadProgress: FileSystem.UploadProgressData) => {
-                    const currentFileUploaded = uploadProgress.totalBytesSent;
-                    const totalUploadedSoFar = uploadedOverall + currentFileUploaded;
-                    lastUploadedRef.current = totalUploadedSoFar;
-                    setDownloadedBytes(totalUploadedSoFar);
-                    setProgress(totalUploadedSoFar / totalBytes);
-                }
-            );
-
-            const result = await uploadTask.uploadAsync();
+            // React Native FormData requires {uri, type, name} object format
+            const formData = new FormData();
+            formData.append('file', {
+                uri: item.uri,
+                type: item.mimeType || 'application/octet-stream',
+                name: item.name,
+            } as any);
             
-            if (result && (result.status === 200 || result.status === 201)) {
-              uploadedOverall += item.size || 0;
-              lastUploadedRef.current = uploadedOverall;
-              setDownloadedBytes(uploadedOverall);
-              setProgress(uploadedOverall / totalBytes);
-            } else {
-              throw new Error("Upload failed");
-            }
+            // Use XMLHttpRequest for progress tracking
+            const uploadPromise = new Promise<boolean>((resolve, reject) => {
+                const xhr = new XMLHttpRequest();
+                
+                xhr.upload.onprogress = (event) => {
+                    if (event.lengthComputable) {
+                        const currentFileUploaded = event.loaded;
+                        const totalUploadedSoFar = uploadedOverall + currentFileUploaded;
+                        lastUploadedRef.current = totalUploadedSoFar;
+                        setDownloadedBytes(totalUploadedSoFar);
+                        setProgress(totalUploadedSoFar / totalBytes);
+                    }
+                };
+                
+                xhr.onload = () => {
+                    console.log('[Upload] XHR completed with status:', xhr.status);
+                    if (xhr.status >= 200 && xhr.status < 300) {
+                        resolve(true);
+                    } else {
+                        reject(new Error(`Upload failed with status ${xhr.status}`));
+                    }
+                };
+                
+                xhr.onerror = (e) => {
+                    console.log('[Upload] XHR error:', e);
+                    reject(new Error('Network error'));
+                };
+                xhr.onabort = () => reject(new Error('Upload aborted'));
+                
+                xhr.open('POST', `http://${targetIp}:${targetPort}/upload`);
+                xhr.setRequestHeader('x-transfer-id', myId);
+                xhr.send(formData);
+            });
+            
+            await uploadPromise;
+            
+            uploadedOverall += item.size || 0;
+            lastUploadedRef.current = uploadedOverall;
+            setDownloadedBytes(uploadedOverall);
+            setProgress(uploadedOverall / totalBytes);
 
         } catch (e: any) {
-             if (e.name !== 'AbortError') {
+            console.log('[Upload] Error:', e.message);
+             if (e.name !== 'AbortError' && e.message !== 'Upload aborted') {
                 setStatus('error');
                 return;
              }
         }
     }
+    setCurrentFileIndex(selectedItems.length);
+
+    // Notify desktop that we are completely finished with all files in this session
+    try {
+        const myIp = await Network.getIpAddressAsync();
+        const pollId = (myIp && myIp.includes('.')) ? myIp.split('.').pop()! : 'mobile';
+        await fetch(`http://${targetIp}:${targetPort}/transfer-finish/${pollId}`).catch(() => {});
+    } catch (e) {}
+
     setStatus('done');
     setCurrentSpeed(0);
     clearSelection();
@@ -267,9 +308,19 @@ export default function SendingScreen() {
 
       <ScrollView style={styles.itemList} contentContainerStyle={styles.itemListContent}>
         {selectedItems.map((item, idx) => {
-          const isCurrent = status === 'sending' && idx === Math.floor(progress / 100 * selectedItems.length); // Rough approximation for demo
-          const isDone = status === 'done' || (status === 'sending' && idx < Math.floor(progress / 100 * selectedItems.length));
-          const itemProgress = status === 'done' ? 100 : (isCurrent ? (progress % (100 / selectedItems.length)) * selectedItems.length : (isDone ? 100 : 0));
+          const isCurrent = status === 'sending' && idx === currentFileIndex;
+          const isDone = status === 'done' || (status === 'sending' && idx < currentFileIndex);
+          
+          // Calculate item progress: if done 100, if not current 0, if current then based on overall progress
+          let itemProgress = 0;
+          if (isDone) itemProgress = 100;
+          else if (isCurrent) {
+            // This is a rough estimate but better than before
+            const totalItems = selectedItems.length;
+            const progressPerItem = 1 / totalItems;
+            const completedItemsProgress = idx * progressPerItem;
+            itemProgress = Math.min(100, Math.max(0, ((progress - completedItemsProgress) / progressPerItem) * 100));
+          }
 
           return (
             <View key={item.id} style={[styles.fileRow, !isCurrent && !isDone && status === 'sending' && { opacity: 0.4 }]}>

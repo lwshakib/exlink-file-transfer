@@ -7,6 +7,7 @@ export interface SelectedItem {
   type: 'file' | 'media' | 'text' | 'folder' | 'app';
   uri?: string;
   content?: string;
+  mimeType?: string;
 }
 
 interface SelectionContextType {

@@ -55,7 +55,9 @@ function InnerLayout() {
         const storedName = await AsyncStorage.getItem("deviceName");
         const name = storedName || Device.deviceName || "Mobile Device";
         const storedId = await AsyncStorage.getItem("deviceId");
-        const id = storedId || "000";
+        
+        // Use IP suffix as default ID if none stored, matching desktop logic
+        const id = storedId || (myIp.includes('.') ? myIp.split('.').pop()! : "000");
 
         for (const desktopIp of ips) {
           fetch(`http://${desktopIp}:3030/announce`, {
@@ -70,7 +72,6 @@ function InnerLayout() {
               brand: brand
             })
           }).catch(() => {
-              // If failed, maybe desktop is gone
               knownDesktopIps.delete(desktopIp);
           });
         }
@@ -132,8 +133,6 @@ function InnerLayout() {
               <ThemeProvider value={paperTheme}>
                 <Stack screenOptions={{ headerShown: false }}>
                   <Stack.Screen name="(tabs)" />
-                  <Stack.Screen name="history" />
-                  <Stack.Screen name="selection-details" />
                   <Stack.Screen 
                     name="sending" 
                     options={{ 

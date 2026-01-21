@@ -13,7 +13,14 @@ import { Badge } from "@/components/ui/badge";
 
 function App() {
   const [activeTab, setActiveTab] = useState<"receive" | "send" | "settings">("send");
-  const [pendingRequest, setPendingRequest] = useState<{ deviceId: string, name: string, platform: string, brand?: string } | null>(null);
+  const [pendingRequest, setPendingRequest] = useState<{ 
+    deviceId: string, 
+    name: string, 
+    platform: string, 
+    brand?: string,
+    totalFiles?: number,
+    totalSize?: number 
+  } | null>(null);
   const [waitingFor, setWaitingFor] = useState<{ 
     deviceId: string, 
     name: string, 
@@ -53,11 +60,14 @@ function App() {
     }
   } | null>(null);
   const [currentSpeed, setCurrentSpeed] = useState(0);
+  const currentSpeedRef = useRef(0);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const lastProcessedRef = useRef(0);
   const prevBytesRef = useRef(0);
+  const completedFilesBytesRef = useRef(0); // Aggregate session bytes
+  const completedFilesCountRef = useRef(0); // Aggregate session file count
   const speedIntervalRef = useRef<any>(null);
-  const speedsRef = useRef<number[]>([]); // For moving average
+  const speedsRef = useRef<number[]>([]); 
   
   const { selectedItems, clearSelection } = useSelection();
 
@@ -95,6 +105,7 @@ function App() {
         
         const avgSpeed = speedsRef.current.reduce((a, b) => a + b, 0) / speedsRef.current.length;
         setCurrentSpeed(avgSpeed);
+        currentSpeedRef.current = avgSpeed; // Update the ref
         
         prevBytesRef.current = current;
       }, 1000);
@@ -200,56 +211,71 @@ function App() {
     });
 
     const removeProgressListener = window.ipcRenderer.on('transfer-progress', (_event: any, data: any) => {
+        console.log('[IPC] transfer-progress:', data.processedBytes);
         lastProcessedRef.current = data.processedBytes;
         setTransferData(prev => ({ 
           ...prev, 
           ...data, 
+          speed: currentSpeedRef.current, // Use ref instead of state
           type: prev?.type || 'sending',
           status: 'transferring' 
         }));
     });
 
     const removeIncomingListener = window.ipcRenderer.on('upload-progress', (_event: any, data: any) => {
-        lastProcessedRef.current = data.processedBytes;
-        setTransferData(prev => ({
-            type: 'receiving',
-            status: 'transferring',
-            progress: data.progress,
-            fileProgress: data.progress, // For single file upload, fileProgress = progress
-            speed: currentSpeed, // Using the smoothed speed calculated in the effect
-            currentFile: data.currentFile || 'Receiving file...',
-            currentIndex: data.currentIndex || 1,
-            totalFiles: data.totalFiles || 1,
-            processedBytes: data.processedBytes,
-            totalBytes: data.totalBytes,
-            remoteDevice: prev?.remoteDevice || (pendingRequest ? {
-               name: pendingRequest.name,
-               platform: pendingRequest.platform,
-               brand: pendingRequest.brand,
-               deviceId: pendingRequest.deviceId
-            } : undefined)
-        }));
-    });
+        const totalSessionProcessed = completedFilesBytesRef.current + data.processedBytes;
+        lastProcessedRef.current = totalSessionProcessed;
+        
+        setTransferData(prev => {
+            if (!prev) return null;
+            
+            const totalBytes = prev.totalBytes || data.totalBytes;
+            const overallProgress = totalBytes > 0 ? totalSessionProcessed / totalBytes : 0;
 
-    const removeCompleteListener = window.ipcRenderer.on('transfer-complete', () => {
-        setTransferData(prev => prev ? { ...prev, status: 'completed', progress: 1 } : null);
-        clearSelection();
+            return {
+                ...prev,
+                status: 'transferring',
+                progress: overallProgress,
+                fileProgress: data.progress,
+                speed: currentSpeedRef.current,
+                currentFile: data.currentFile || 'Receiving...',
+                currentIndex: completedFilesCountRef.current + 1,
+                processedBytes: totalSessionProcessed,
+                totalBytes: totalBytes
+            };
+        });
     });
 
     const removeCancelListener = window.ipcRenderer.on('pairing-cancelled', () => {
       setPendingRequest(null);
     });
     
-    const removeErrorListener = window.ipcRenderer.on('transfer-error', (_event: any, data: any) => {
+    const removeErrorListener = window.ipcRenderer.on('transfer-error', () => {
         setTransferData(prev => prev ? { ...prev, status: 'error' } : null);
     });
 
-    const removeUploadErrorListener = window.ipcRenderer.on('upload-error', (_event: any, data: any) => {
+    const removeUploadErrorListener = window.ipcRenderer.on('upload-error', () => {
         setTransferData(prev => prev ? { ...prev, status: 'error' } : null);
     });
 
-    const removeUploadCompleteListener = window.ipcRenderer.on('upload-complete', () => {
+    const removeUploadCompleteListener = window.ipcRenderer.on('upload-complete', (_event: any, data: any) => {
+        console.log('[IPC] upload-complete:', data.name);
+        completedFilesCountRef.current += 1;
+        completedFilesBytesRef.current += data.size;
+
+        setTransferData(prev => prev ? { 
+          ...prev, 
+          progress: prev.totalBytes > 0 ? completedFilesBytesRef.current / prev.totalBytes : 1, 
+          fileProgress: 1,
+          currentIndex: completedFilesCountRef.current,
+          status: 'transferring'
+        } : null);
+    });
+
+    const removeSessionCompleteListener = window.ipcRenderer.on('transfer-complete', () => {
+        console.log('[IPC] transfer-complete');
         setCurrentSpeed(0);
+        currentSpeedRef.current = 0;
         setTransferData(prev => prev ? { ...prev, status: 'completed', progress: 1 } : null);
     });
 
@@ -259,17 +285,21 @@ function App() {
       if (removeStartListener) removeStartListener();
       if (removeProgressListener) removeProgressListener();
       if (removeIncomingListener) removeIncomingListener();
-      if (removeCompleteListener) removeCompleteListener();
       if (removeCancelListener) removeCancelListener();
       if (removeErrorListener) removeErrorListener();
       if (removeUploadErrorListener) removeUploadErrorListener();
       if (removeUploadCompleteListener) removeUploadCompleteListener();
+      if (removeSessionCompleteListener) removeSessionCompleteListener();
     };
   }, [waitingFor, selectedItems, clearSelection, pendingRequest, transferStartTime]);
 
   const respondToConnection = (accepted: boolean) => {
     if (pendingRequest) {
       if (accepted) {
+        // Reset session aggregates
+        completedFilesBytesRef.current = 0;
+        completedFilesCountRef.current = 0;
+
         // Immediately switch to receiving state to avoid flickering
         setTransferData({
           type: 'receiving',
@@ -278,9 +308,9 @@ function App() {
           speed: 0,
           currentFile: 'Waiting for files...',
           currentIndex: 0,
-          totalFiles: 0,
+          totalFiles: (pendingRequest as any).totalFiles || 0,
           processedBytes: 0,
-          totalBytes: 0,
+          totalBytes: (pendingRequest as any).totalSize || 0,
           remoteDevice: {
             name: pendingRequest.name,
             platform: pendingRequest.platform,

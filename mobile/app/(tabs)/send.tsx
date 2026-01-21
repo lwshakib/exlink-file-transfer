@@ -10,6 +10,7 @@ import * as Network from "expo-network";
 import { BottomSheetModal, BottomSheetView, BottomSheetBackdrop } from "@gorhom/bottom-sheet";
 import { useRouter } from "expo-router";
 import { useSelection, SelectedItem } from "@/hooks/useSelection";
+import SelectionDetailsPortal from "@/components/SelectionDetailsPortal";
 
 import * as Device from "expo-device";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -35,6 +36,7 @@ export default function SendScreen() {
   const [isScanning, setIsScanning] = useState(false);
 
   const bottomSheetModalRef = useRef<BottomSheetModal>(null);
+  const [selectionSheetVisible, setSelectionSheetVisible] = useState(false);
   const snapPoints = useMemo(() => ['45%'], []);
 
   useEffect(() => {
@@ -101,7 +103,7 @@ export default function SendScreen() {
               const storedName = await AsyncStorage.getItem("deviceName");
               const name = storedName || Device.deviceName || "Mobile Device";
               const storedId = await AsyncStorage.getItem("deviceId");
-              const id = storedId || "000";
+              const id = storedId || (ip.includes('.') ? ip.split('.').pop()! : "000");
               
               fetch(`http://${testIp}:3030/announce`, {
                 method: 'POST',
@@ -156,6 +158,7 @@ export default function SendScreen() {
           size: asset.size || 0,
           type: 'file',
           uri: asset.uri,
+          mimeType: asset.mimeType || 'application/octet-stream',
         }));
         addItems(newItems);
         bottomSheetModalRef.current?.dismiss();
@@ -179,6 +182,7 @@ export default function SendScreen() {
           size: asset.fileSize || 0,
           type: 'media',
           uri: asset.uri,
+          mimeType: asset.mimeType || (asset.type === 'video' ? 'video/mp4' : 'image/jpeg'),
         }));
         addItems(newItems);
         bottomSheetModalRef.current?.dismiss();
@@ -328,7 +332,7 @@ export default function SendScreen() {
               <View style={styles.summaryActions}>
                 <Button 
                   mode="text" 
-                  onPress={() => router.push("/selection-details")} 
+                  onPress={() => setSelectionSheetVisible(true)} 
                   textColor={theme.colors.primary}
                   style={styles.editButton}
                 >
@@ -509,6 +513,11 @@ export default function SendScreen() {
           </View>
         </BottomSheetView>
       </BottomSheetModal>
+
+      <SelectionDetailsPortal 
+        visible={selectionSheetVisible} 
+        onDismiss={() => setSelectionSheetVisible(false)} 
+      />
     </SafeAreaView>
   );
 }
