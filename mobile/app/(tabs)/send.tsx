@@ -517,14 +517,14 @@ export default function SendScreen() {
       <SendingPortal
         visible={sendingPortalVisible}
         onDismiss={() => setSendingPortalVisible(false)}
-        targetDevice={selectedDevice ? {
+        targetDevice={useMemo(() => selectedDevice ? {
           name: selectedDevice.name,
           id: getPortLabel(selectedDevice.ip).replace('#', ''),
           os: selectedDevice.os || selectedDevice.brand || 'Computer',
           ip: selectedDevice.ip,
           port: selectedDevice.port || 3030,
           platform: selectedDevice.platform
-        } : null}
+        } : null, [selectedDevice])}
       />
     </SafeAreaView>
   );

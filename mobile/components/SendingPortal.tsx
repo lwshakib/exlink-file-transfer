@@ -51,12 +51,12 @@ const SendingPortal = ({ visible, onDismiss, targetDevice }: SendingPortalProps)
 
   const pulse = useSharedValue(1);
 
+  const hasStartedRef = useRef(false);
+
   useEffect(() => {
-    if (visible) {
-      pulse.value = withRepeat(withTiming(1.1, { duration: 1000 }), -1, true);
-      connectAndSend();
-    } else {
-      // Reset state when hidden
+    if (visible && targetDevice && !hasStartedRef.current) {
+      hasStartedRef.current = true;
+      // Reset only when starting a new session
       setStatus('waiting');
       setProgress(0);
       setCurrentFile("");
@@ -64,14 +64,24 @@ const SendingPortal = ({ visible, onDismiss, targetDevice }: SendingPortalProps)
       setCurrentFileIndex(0);
       setTotalTransferSize(0);
       setCurrentSpeed(0);
+      setTransferDuration(0);
+      setTransferStartTime(null);
+      
+      pulse.value = withRepeat(withTiming(1.1, { duration: 1000 }), -1, true);
+      connectAndSend();
+    } else if (!visible) {
+      // Reset the start flag when the portal is closed
+      hasStartedRef.current = false;
+      // Cleanup
       abortController.current.abort();
       abortController.current = new AbortController();
     }
     
     return () => {
-      abortController.current.abort();
+      // We don't abort here because it might be a parent re-render
+      // Only abort on actual unmount or visibility change (handled above)
     };
-  }, [visible, targetDevice]);
+  }, [visible]); // Only trigger on visibility change
 
   const animatedPulse = useAnimatedStyle(() => ({
     transform: [{ scale: pulse.value }],
@@ -272,6 +282,9 @@ const SendingPortal = ({ visible, onDismiss, targetDevice }: SendingPortalProps)
     } catch (e) {}
 
     setStatus('done');
+    setProgress(1); // Explicitly set to 1 to ensure full progress bar
+    setDownloadedBytes(totalBytes);
+    setCurrentFileIndex(selectedItems.length);
     setCurrentSpeed(0);
     clearSelection();
   };
@@ -417,10 +430,15 @@ const SendingPortal = ({ visible, onDismiss, targetDevice }: SendingPortalProps)
                      </Button>
 
                      <Button 
-                      mode="text" 
+                      mode={status === 'done' ? "contained" : "text"} 
                       onPress={handleCancel} 
-                      textColor={theme.colors.primary} 
-                      labelStyle={styles.actionButtonLabel}
+                      textColor={status === 'done' ? theme.colors.onPrimary : theme.colors.primary} 
+                      buttonColor={status === 'done' ? theme.colors.primary : undefined}
+                      labelStyle={[
+                        styles.actionButtonLabel,
+                        status === 'done' && { fontWeight: 'bold', paddingHorizontal: 16 }
+                      ]}
+                      style={status === 'done' && { borderRadius: 28 }}
                       icon={status === 'done' ? 'check-circle' : 'close'}
                      >
                        {status === 'done' ? 'Done' : 'Cancel'}
