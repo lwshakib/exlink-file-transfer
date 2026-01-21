@@ -62,7 +62,7 @@ const SelectableSetting = ({
                   <RadioButton.Item 
                     label={option} 
                     value={option} 
-                    style={{ paddingHorizontal: 0 }}
+                    style={{ paddingHorizontal: 0, width: '100%' }}
                     labelStyle={{ color: theme.colors.onSurface }}
                   />
                 </View>
