@@ -1,11 +1,15 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { StyleSheet, View, ScrollView, TouchableOpacity } from "react-native";
 import { Text, useTheme, Switch, IconButton, Checkbox, Menu, Divider } from "react-native-paper";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { useTheme as useAppTheme, ColorTheme } from "@/hooks/useTheme";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 export default function SettingsScreen() {
   const theme = useTheme();
+  const { colorScheme, setThemeScheme, selectedColor, setThemeColor } = useAppTheme();
+  
   const [animations, setAnimations] = useState(true);
   const [quickSave, setQuickSave] = useState(false);
   const [quickSaveFav, setQuickSaveFav] = useState(false);
@@ -14,10 +18,13 @@ export default function SettingsScreen() {
   const [autoFinish, setAutoFinish] = useState(false);
   const [saveHistory, setSaveHistory] = useState(true);
   const [advanced, setAdvanced] = useState(false);
+  const [deviceName, setDeviceName] = useState("Loading...");
 
-  const [themeValue, setThemeValue] = useState("System");
-  const [colorValue, setColorValue] = useState("System");
-  const [langValue, setLangValue] = useState("System");
+  useEffect(() => {
+    AsyncStorage.getItem("deviceName").then(name => {
+      if (name) setDeviceName(name);
+    });
+  }, []);
 
   const [themeMenuVisible, setThemeMenuVisible] = useState(false);
   const [colorMenuVisible, setColorMenuVisible] = useState(false);
@@ -91,32 +98,32 @@ export default function SettingsScreen() {
           <Text variant="titleMedium" style={styles.sectionHeader}>General</Text>
           <SettingRow label="Theme">
             <SelectableSetting 
-              value={themeValue}
+              value={colorScheme === "dark" ? "Dark" : "Light"}
               options={["System", "Light", "Dark"]}
               visible={themeMenuVisible}
               onOpen={() => setThemeMenuVisible(true)}
               onClose={() => setThemeMenuVisible(false)}
-              onSelect={setThemeValue}
+              onSelect={(val) => setThemeScheme(val.toLowerCase() as any)}
             />
           </SettingRow>
           <SettingRow label="Color">
             <SelectableSetting 
-              value={colorValue}
-              options={["System", "Vivid", "Muted"]}
+              value={selectedColor}
+              options={["LocalSend", "Emerald", "Violet", "Blue", "Amber", "Rose", "Random"]}
               visible={colorMenuVisible}
               onOpen={() => setColorMenuVisible(true)}
               onClose={() => setColorMenuVisible(false)}
-              onSelect={setColorValue}
+              onSelect={(val) => setThemeColor(val as ColorTheme)}
             />
           </SettingRow>
           <SettingRow label="Language">
             <SelectableSetting 
-              value={langValue}
+              value="System"
               options={["System", "English", "Spanish", "French", "German"]}
               visible={langMenuVisible}
               onOpen={() => setLangMenuVisible(true)}
               onClose={() => setLangMenuVisible(false)}
-              onSelect={setLangValue}
+              onSelect={() => {}}
             />
           </SettingRow>
           <SettingRow label="Animations">
@@ -174,17 +181,17 @@ export default function SettingsScreen() {
             </View>
           </SettingRow>
           <SettingRow label="Device name">
-            <TonalBox text="Adorable Pear" />
+            <TonalBox text={deviceName} />
           </SettingRow>
         </View>
 
         {/* Other Section */}
         <View style={styles.section}>
           <Text variant="titleMedium" style={styles.sectionHeader}>Other</Text>
-          <SettingRow label="About LocalSend">
+          <SettingRow label="About ExLink">
             <TonalBox text="Open" />
           </SettingRow>
-          <SettingRow label="Support LocalSend">
+          <SettingRow label="Support ExLink">
             <TonalBox text="Donate" />
           </SettingRow>
           <SettingRow label="Privacy Policy">

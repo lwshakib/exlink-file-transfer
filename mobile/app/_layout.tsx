@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useEffect, useState } from "react";
 import {
   DarkTheme as NavigationDarkTheme,
   DefaultTheme as NavigationDefaultTheme,
@@ -20,15 +20,30 @@ import { StatusBar } from "expo-status-bar";
 import { SelectionProvider } from "@/hooks/useSelection";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { BottomSheetModalProvider } from "@gorhom/bottom-sheet";
+import * as Network from "expo-network";
+import * as Device from "expo-device";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 export default function RootLayout() {
-  const { colorScheme } = useTheme();
+  const { colorScheme, selectedColor, isLoaded } = useTheme();
+  
+  // Random theme selection if "Random" is chosen
+  const [randomVariationIndex, setRandomVariationIndex] = useState(0);
 
-  // Select a random theme once on mount
+  useEffect(() => {
+    if (selectedColor === "Random") {
+      const index = Math.floor(Math.random() * ThemeVariations.length);
+      setRandomVariationIndex(index);
+    }
+  }, [selectedColor, isLoaded]);
+
   const selectedVariation = useMemo(() => {
-    const index = Math.floor(Math.random() * ThemeVariations.length);
-    return ThemeVariations[index];
-  }, []);
+    if (!isLoaded) return ThemeVariations[0];
+    if (selectedColor === "Random") {
+      return ThemeVariations[randomVariationIndex];
+    }
+    return ThemeVariations.find(v => v.name === selectedColor) || ThemeVariations[0];
+  }, [selectedColor, randomVariationIndex, isLoaded]);
 
   const paperTheme = useMemo(() => {
     const { LightTheme, DarkTheme } = adaptNavigationTheme({
@@ -44,6 +59,86 @@ export default function RootLayout() {
 
     return colorScheme === "dark" ? CombinedDarkTheme : CombinedDefaultTheme;
   }, [colorScheme, selectedVariation]);
+
+  // Global Discovery Service
+  useEffect(() => {
+    let knownDesktopIps = new Set<string>();
+    
+    const announceToIps = async (ips: Set<string>) => {
+      try {
+        const myIp = await Network.getIpAddressAsync();
+        if (!myIp || myIp.includes(':')) return;
+
+        const brand = Device.brand || Device.modelName || "Mobile";
+        const storedName = await AsyncStorage.getItem("deviceName");
+        const name = storedName || Device.deviceName || "Mobile Device";
+        const storedId = await AsyncStorage.getItem("deviceId");
+        const id = storedId || "000";
+
+        for (const desktopIp of ips) {
+          fetch(`http://${desktopIp}:3030/announce`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              id: id,
+              name: name,
+              ip: myIp,
+              port: 3030,
+              platform: 'mobile',
+              brand: brand
+            })
+          }).catch(() => {
+              // If failed, maybe desktop is gone
+              knownDesktopIps.delete(desktopIp);
+          });
+        }
+      } catch (e) {}
+    };
+
+    const scanSubnet = async () => {
+      try {
+        const myIp = await Network.getIpAddressAsync();
+        if (!myIp || myIp.includes(':')) return;
+        
+        const subnet = myIp.substring(0, myIp.lastIndexOf('.') + 1);
+        const candidates = Array.from({ length: 254 }, (_, i) => i + 1);
+        const batchSize = 40;
+
+        for (let i = 0; i < candidates.length; i += batchSize) {
+          const batch = candidates.slice(i, i + batchSize);
+          await Promise.all(batch.map(async (suffix) => {
+            const testIp = subnet + suffix;
+            if (testIp === myIp) return;
+            try {
+              const controller = new AbortController();
+              const timeout = setTimeout(() => controller.abort(), 400);
+              const res = await fetch(`http://${testIp}:3030/get-server-info`, { signal: controller.signal });
+              clearTimeout(timeout);
+              if (res.ok) {
+                knownDesktopIps.add(testIp);
+              }
+            } catch (e) {}
+          }));
+        }
+        if (knownDesktopIps.size > 0) announceToIps(knownDesktopIps);
+      } catch (e) {}
+    };
+
+    scanSubnet();
+
+    const announceInterval = setInterval(() => {
+        if (knownDesktopIps.size > 0) announceToIps(knownDesktopIps);
+    }, 10000);
+
+    const scanInterval = setInterval(scanSubnet, 45000);
+
+    return () => {
+      clearInterval(announceInterval);
+      clearInterval(scanInterval);
+    };
+  }, []);
+
+  if (!isLoaded) return null;
 
   return (
     <GestureHandlerRootView style={{ flex: 1, backgroundColor: paperTheme.colors.background }}>

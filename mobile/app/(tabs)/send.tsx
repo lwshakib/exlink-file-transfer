@@ -1,14 +1,28 @@
-import React, { useState, useCallback, useRef, useMemo } from "react";
-import { StyleSheet, View, ScrollView, Platform, Dimensions, Image as RNImage } from "react-native";
+import React, { useState, useCallback, useRef, useMemo, useEffect } from "react";
+import { StyleSheet, View, ScrollView, Platform, Dimensions, Image as RNImage, ActivityIndicator, RefreshControl } from "react-native";
 import { Text, IconButton, useTheme, Card, Button, Portal, Dialog, TextInput } from "react-native-paper";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
 import * as Clipboard from "expo-clipboard";
+import * as Network from "expo-network";
 import { BottomSheetModal, BottomSheetView, BottomSheetBackdrop } from "@gorhom/bottom-sheet";
 import { useRouter } from "expo-router";
 import { useSelection, SelectedItem } from "@/hooks/useSelection";
+
+import * as Device from "expo-device";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+
+interface NearbyDevice {
+  id: string;
+  name: string;
+  ip: string;
+  port: number;
+  platform: 'desktop' | 'mobile';
+  os?: string;
+  brand?: string;
+}
 
 export default function SendScreen() {
   const theme = useTheme();
@@ -17,9 +31,108 @@ export default function SendScreen() {
   
   const [textDialogVisible, setTextDialogVisible] = useState(false);
   const [inputText, setInputText] = useState("");
+  const [nearbyDevices, setNearbyDevices] = useState<NearbyDevice[]>([]);
+  const [isScanning, setIsScanning] = useState(false);
 
   const bottomSheetModalRef = useRef<BottomSheetModal>(null);
   const snapPoints = useMemo(() => ['45%'], []);
+
+  useEffect(() => {
+    startScanning();
+    const interval = setInterval(performSubnetScan, 15000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const startScanning = async () => {
+    setIsScanning(true);
+    await performSubnetScan();
+    setIsScanning(false);
+  };
+
+  const handleDevicePress = async (device: NearbyDevice) => {
+    if (selectedItems.length === 0) {
+      alert("Please select at least one item to share before connecting.");
+      return;
+    }
+    
+    router.push({
+      pathname: "/sending",
+      params: { 
+        deviceName: device.name, 
+        deviceId: getPortLabel(device.ip), 
+        os: device.os || device.brand || 'Computer',
+        targetIp: device.ip,
+        targetPort: device.port || 3030
+      }
+    });
+  };
+
+  const performSubnetScan = async () => {
+    try {
+      const ip = await Network.getIpAddressAsync();
+      if (!ip || ip.includes(':')) return; // IPv4 only
+      
+      const subnet = ip.substring(0, ip.lastIndexOf('.') + 1);
+      const candidates = Array.from({ length: 254 }, (_, i) => i + 1);
+      const found: NearbyDevice[] = [];
+      const batchSize = 40;
+
+      for (let i = 0; i < candidates.length; i += batchSize) {
+        const batch = candidates.slice(i, i + batchSize);
+        await Promise.all(batch.map(async (suffix) => {
+          const testIp = subnet + suffix;
+          if (testIp === ip) return;
+
+          try {
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), 600);
+            const res = await fetch(`http://${testIp}:3030/get-server-info`, { 
+              signal: controller.signal,
+              headers: { 'Accept': 'application/json' }
+            });
+            clearTimeout(timeout);
+            
+            if (res.ok) {
+              const info = await res.json();
+              found.push(info);
+
+              // Proactively announce ourselves to the desktop we just found
+              const brand = Device.brand || Device.modelName || "Mobile";
+              const storedName = await AsyncStorage.getItem("deviceName");
+              const name = storedName || Device.deviceName || "Mobile Device";
+              const storedId = await AsyncStorage.getItem("deviceId");
+              const id = storedId || "000";
+              
+              fetch(`http://${testIp}:3030/announce`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  id: id,
+                  name: name,
+                  ip: ip,
+                  port: 3030,
+                  platform: 'mobile',
+                  brand: brand
+                })
+              }).catch(() => {});
+            }
+          } catch (e) {}
+        }));
+      }
+      setNearbyDevices(found);
+    } catch (e) {
+      console.log('Scan error:', e);
+    }
+  };
+
+  const getPortLabel = (id: string) => {
+    if (!id) return "";
+    if (id.includes('.')) {
+        const parts = id.split('.');
+        return `#${parts[parts.length - 1]}`;
+    }
+    return `#${id.slice(-3)}`;
+  };
 
   const formatSize = (bytes: number) => {
     if (bytes === 0) return "0 B";
@@ -158,7 +271,17 @@ export default function SendScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+      <ScrollView 
+        contentContainerStyle={styles.scrollContent}
+        refreshControl={
+          <RefreshControl 
+            refreshing={isScanning} 
+            onRefresh={startScanning}
+            tintColor={theme.colors.primary}
+            colors={[theme.colors.primary]}
+          />
+        }
+      >
         
         {/* Selection Summary Card */}
         {selectedItems.length > 0 && (
@@ -262,7 +385,7 @@ export default function SendScreen() {
         <View style={styles.nearbyHeader}>
           <Text variant="titleMedium" style={styles.sectionTitle}>Nearby devices</Text>
           <View style={styles.nearbyActions}>
-            <IconButton icon="refresh" size={20} onPress={() => {}} />
+            <IconButton icon="refresh" size={20} onPress={startScanning} disabled={isScanning} />
             <IconButton icon="target" size={20} onPress={() => {}} />
             <IconButton icon="heart" size={20} onPress={() => {}} />
             <IconButton icon="cog" size={20} onPress={() => {}} />
@@ -270,30 +393,50 @@ export default function SendScreen() {
         </View>
 
         {/* Device List */}
-        <Card 
-          style={styles.deviceCard} 
-          mode="contained" 
-          onPress={() => router.push({
-            pathname: "/sending",
-            params: { deviceName: "Efficient Pineapple", deviceId: "#106", os: "Windows" }
-          })}
-        >
-          <View style={styles.deviceCardContent}>
-            <MaterialCommunityIcons name="laptop" size={40} color={theme.colors.onSurfaceVariant} style={styles.deviceIcon} />
-            <View style={styles.deviceInfo}>
-              <Text variant="titleMedium">Efficient Pineapple</Text>
-              <View style={styles.badgeRow}>
-                <View style={[styles.badge, { backgroundColor: theme.colors.surfaceVariant }]}>
-                  <Text variant="labelSmall">#106</Text>
-                </View>
-                <View style={[styles.badge, { backgroundColor: theme.colors.surfaceVariant }]}>
-                  <Text variant="labelSmall">Windows</Text>
+        {nearbyDevices.map((device) => (
+          <Card 
+            key={device.id}
+            style={styles.deviceCard} 
+            mode="contained" 
+            onPress={() => handleDevicePress(device)}
+          >
+            <View style={styles.deviceCardContent}>
+              <MaterialCommunityIcons 
+                name={device.platform === 'mobile' ? "cellphone" : "laptop"} 
+                size={40} 
+                color={theme.colors.onSurfaceVariant} 
+                style={styles.deviceIcon} 
+              />
+              <View style={styles.deviceInfo}>
+                <Text variant="titleMedium">{device.name}</Text>
+                <View style={styles.badgeRow}>
+                  <View style={[styles.badge, { backgroundColor: theme.colors.surfaceVariant }]}>
+                    <Text variant="labelSmall">{getPortLabel(device.ip)}</Text>
+                  </View>
+                  <View style={[styles.badge, { backgroundColor: theme.colors.surfaceVariant }]}>
+                    <Text variant="labelSmall">{device.os || device.brand || 'Station'}</Text>
+                  </View>
                 </View>
               </View>
+              <IconButton icon="heart-outline" size={24} onPress={(e) => { e.stopPropagation(); }} />
             </View>
-            <IconButton icon="heart-outline" size={24} onPress={(e) => { e.stopPropagation(); }} />
+          </Card>
+        ))}
+
+        {nearbyDevices.length === 0 && (
+          <View style={styles.emptyState}>
+            {isScanning ? (
+              <ActivityIndicator color={theme.colors.primary} size="large" />
+            ) : (
+              <>
+                <MaterialCommunityIcons name="radar" size={48} color={theme.colors.onSurfaceDisabled} />
+                <Text variant="bodyMedium" style={{ color: theme.colors.onSurfaceDisabled, marginTop: 12 }}>
+                  Scanning for nearby stations...
+                </Text>
+              </>
+            )}
           </View>
-        </Card>
+        )}
 
         {/* Troubleshoot Button */}
         <View style={styles.bottomSection}>
@@ -387,8 +530,8 @@ const styles = StyleSheet.create({
     flexDirection: "row",
   },
   selectionCard: {
-    width: 90,
-    height: 90,
+    width: 100,
+    height: 80,
     marginHorizontal: 6,
     borderRadius: 20,
   },
@@ -416,6 +559,7 @@ const styles = StyleSheet.create({
     marginHorizontal: 16,
     marginTop: 8,
     borderRadius: 16,
+    marginBottom: 12,
   },
   deviceCardContent: {
     flexDirection: "row",
@@ -437,6 +581,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 8,
+  },
+  emptyState: {
+    paddingVertical: 40,
+    alignItems: "center",
+    opacity: 0.6,
   },
   bottomSection: {
     marginTop: 40,
@@ -544,3 +693,4 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
 });
+

@@ -8,7 +8,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
+import { useTheme } from "@/components/theme-provider";
+
 export function SettingsPage() {
+  const { theme, setTheme, colorTheme, setColorTheme } = useTheme();
+
   return (
     <div className="flex-1 flex flex-col p-12 max-w-2xl mx-auto w-full space-y-8">
       <h1 className="text-3xl font-bold text-center mb-4">Settings</h1>
@@ -20,7 +24,7 @@ export function SettingsPage() {
           <div className="space-y-1">
             <div className="flex items-center justify-between p-3 rounded-xl hover:bg-muted/50 transition-colors">
               <span className="text-sm font-medium">Theme</span>
-              <Select defaultValue="system">
+              <Select value={theme} onValueChange={(v) => setTheme(v as any)}>
                 <SelectTrigger className="w-[140px] bg-muted/50 border-none rounded-lg h-9">
                   <SelectValue placeholder="Select theme" />
                 </SelectTrigger>
@@ -34,14 +38,18 @@ export function SettingsPage() {
 
             <div className="flex items-center justify-between p-3 rounded-xl hover:bg-muted/50 transition-colors">
               <span className="text-sm font-medium">Color</span>
-              <Select defaultValue="localsend">
+              <Select value={colorTheme} onValueChange={(v) => setColorTheme(v as any)}>
                 <SelectTrigger className="w-[140px] bg-muted/50 border-none rounded-lg h-9">
                   <SelectValue placeholder="Select color" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="localsend">LocalSend</SelectItem>
+                  <SelectItem value="zinc">LocalSend</SelectItem>
                   <SelectItem value="emerald">Emerald</SelectItem>
                   <SelectItem value="violet">Violet</SelectItem>
+                  <SelectItem value="blue">Blue</SelectItem>
+                  <SelectItem value="amber">Amber</SelectItem>
+                  <SelectItem value="rose">Rose</SelectItem>
+                  <SelectItem value="random">Random</SelectItem>
                 </SelectContent>
               </Select>
             </div>

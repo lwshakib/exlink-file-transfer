@@ -1,8 +1,20 @@
 import { History, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { LogoIcon } from "../common/Logo";
+import { useState, useEffect } from "react";
 
 export function ReceivePage() {
+  const [deviceName, setDeviceName] = useState("");
+  const [deviceId, setDeviceId] = useState("");
+
+  useEffect(() => {
+    // Get identity from main process (which handles persistence/generation)
+    window.ipcRenderer.invoke('get-server-info').then(info => {
+      setDeviceName(info.name);
+      setDeviceId(info.id);
+    });
+  }, []);
+
   return (
     <div className="flex-1 flex flex-col items-center justify-center relative p-8">
       {/* Top Right Actions */}
@@ -22,8 +34,8 @@ export function ReceivePage() {
 
       {/* Device Info */}
       <div className="text-center space-y-2 mb-12">
-        <h1 className="text-5xl font-medium tracking-tight">Efficient Pineapple</h1>
-        <p className="text-xl text-muted-foreground font-mono">#106 #1</p>
+        <h1 className="text-5xl font-medium tracking-tight">{deviceName || "Loading..."}</h1>
+        <p className="text-xl text-muted-foreground font-mono">#{deviceId}</p>
       </div>
 
       {/* Quick Save Toggle */}
