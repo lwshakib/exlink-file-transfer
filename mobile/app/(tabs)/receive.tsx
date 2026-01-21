@@ -79,12 +79,20 @@ export default function ReceiveScreen() {
         }
       }, 1000);
 
-      // Speed calculation
+      // Speed calculation with smoothing
       prevBytesRef.current = 0;
+      const speeds: number[] = [];
       speedIntervalRef.current = setInterval(() => {
         const current = lastDownloadedRef.current;
         const diff = current - prevBytesRef.current;
-        setCurrentSpeed(Math.max(0, diff));
+        const speed = Math.max(0, diff);
+        
+        speeds.push(speed);
+        if (speeds.length > 3) speeds.shift();
+        
+        const avgSpeed = speeds.reduce((a, b) => a + b, 0) / speeds.length;
+        setCurrentSpeed(avgSpeed);
+        
         prevBytesRef.current = current;
       }, 1000);
 

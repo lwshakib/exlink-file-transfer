@@ -36,6 +36,7 @@ function App() {
     type: 'sending' | 'receiving',
     status: 'transferring' | 'completed' | 'error',
     progress: number,
+    fileProgress?: number,
     speed: number,
     currentFile: string,
     currentIndex: number,
@@ -56,6 +57,7 @@ function App() {
   const lastProcessedRef = useRef(0);
   const prevBytesRef = useRef(0);
   const speedIntervalRef = useRef<any>(null);
+  const speedsRef = useRef<number[]>([]); // For moving average
   
   const { selectedItems, clearSelection } = useSelection();
 
@@ -79,12 +81,21 @@ function App() {
         }
       }, 1000);
 
-      // Speed calculation
-      prevBytesRef.current = lastProcessedRef.current; // Initialize prevBytesRef with current processed bytes
+      // Speed calculation with smoothing
+      prevBytesRef.current = lastProcessedRef.current;
+      speedsRef.current = [];
       speedIntervalRef.current = setInterval(() => {
         const current = lastProcessedRef.current;
         const diff = current - prevBytesRef.current;
-        setCurrentSpeed(Math.max(0, diff));
+        const speed = Math.max(0, diff);
+        
+        // Moving average of last 3 samples
+        speedsRef.current.push(speed);
+        if (speedsRef.current.length > 3) speedsRef.current.shift();
+        
+        const avgSpeed = speedsRef.current.reduce((a, b) => a + b, 0) / speedsRef.current.length;
+        setCurrentSpeed(avgSpeed);
+        
         prevBytesRef.current = current;
       }, 1000);
 
@@ -107,7 +118,14 @@ function App() {
           speedIntervalRef.current = setInterval(() => {
             const current = lastProcessedRef.current;
             const diff = current - prevBytesRef.current;
-            setCurrentSpeed(Math.max(0, diff));
+            const speed = Math.max(0, diff);
+            
+            speedsRef.current.push(speed);
+            if (speedsRef.current.length > 3) speedsRef.current.shift();
+            
+            const avgSpeed = speedsRef.current.reduce((a, b) => a + b, 0) / speedsRef.current.length;
+            setCurrentSpeed(avgSpeed);
+            
             prevBytesRef.current = current;
           }, 1000);
        }
@@ -183,28 +201,34 @@ function App() {
 
     const removeProgressListener = window.ipcRenderer.on('transfer-progress', (_event: any, data: any) => {
         lastProcessedRef.current = data.processedBytes;
-        setTransferData({ ...data, status: 'transferring' });
+        setTransferData(prev => ({ 
+          ...prev, 
+          ...data, 
+          type: prev?.type || 'sending',
+          status: 'transferring' 
+        }));
     });
 
     const removeIncomingListener = window.ipcRenderer.on('upload-progress', (_event: any, data: any) => {
         lastProcessedRef.current = data.processedBytes;
-        setTransferData({
+        setTransferData(prev => ({
             type: 'receiving',
             status: 'transferring',
             progress: data.progress,
-            speed: 0,
-            currentFile: 'Receiving file...',
-            currentIndex: 1,
-            totalFiles: 1,
+            fileProgress: data.progress, // For single file upload, fileProgress = progress
+            speed: currentSpeed, // Using the smoothed speed calculated in the effect
+            currentFile: data.currentFile || 'Receiving file...',
+            currentIndex: data.currentIndex || 1,
+            totalFiles: data.totalFiles || 1,
             processedBytes: data.processedBytes,
             totalBytes: data.totalBytes,
-            remoteDevice: pendingRequest ? {
+            remoteDevice: prev?.remoteDevice || (pendingRequest ? {
                name: pendingRequest.name,
                platform: pendingRequest.platform,
                brand: pendingRequest.brand,
                deviceId: pendingRequest.deviceId
-            } : undefined
-        });
+            } : undefined)
+        }));
     });
 
     const removeCompleteListener = window.ipcRenderer.on('transfer-complete', () => {
@@ -214,6 +238,14 @@ function App() {
 
     const removeCancelListener = window.ipcRenderer.on('pairing-cancelled', () => {
       setPendingRequest(null);
+    });
+    
+    const removeErrorListener = window.ipcRenderer.on('transfer-error', (_event: any, data: any) => {
+        setTransferData(prev => prev ? { ...prev, status: 'error' } : null);
+    });
+
+    const removeUploadErrorListener = window.ipcRenderer.on('upload-error', (_event: any, data: any) => {
+        setTransferData(prev => prev ? { ...prev, status: 'error' } : null);
     });
 
     const removeUploadCompleteListener = window.ipcRenderer.on('upload-complete', () => {
@@ -229,12 +261,34 @@ function App() {
       if (removeIncomingListener) removeIncomingListener();
       if (removeCompleteListener) removeCompleteListener();
       if (removeCancelListener) removeCancelListener();
+      if (removeErrorListener) removeErrorListener();
+      if (removeUploadErrorListener) removeUploadErrorListener();
       if (removeUploadCompleteListener) removeUploadCompleteListener();
     };
   }, [waitingFor, selectedItems, clearSelection, pendingRequest, transferStartTime]);
 
   const respondToConnection = (accepted: boolean) => {
     if (pendingRequest) {
+      if (accepted) {
+        // Immediately switch to receiving state to avoid flickering
+        setTransferData({
+          type: 'receiving',
+          status: 'transferring',
+          progress: 0,
+          speed: 0,
+          currentFile: 'Waiting for files...',
+          currentIndex: 0,
+          totalFiles: 0,
+          processedBytes: 0,
+          totalBytes: 0,
+          remoteDevice: {
+            name: pendingRequest.name,
+            platform: pendingRequest.platform,
+            brand: pendingRequest.brand,
+            deviceId: pendingRequest.deviceId
+          }
+        });
+      }
       window.ipcRenderer.invoke('respond-to-connection', { deviceId: pendingRequest.deviceId, accepted });
       setPendingRequest(null);
     }
@@ -329,7 +383,7 @@ function App() {
               <div className="flex flex-col h-full space-y-8 max-w-5xl w-full mx-auto">
                 <header className="flex flex-col gap-1 pt-4">
                    <h1 className="text-xl font-bold text-foreground tracking-tight">
-                     {transferData.type === 'sending' ? 'Sending files' : 'Receiving files'}
+                     {transferData.status === 'completed' ? 'Finished' : (transferData.type === 'sending' ? 'Sending files' : 'Receiving files')}
                    </h1>
                    {transferData.type === 'receiving' && (
                      <p className="text-sm text-[var(--accent-secondary)]">
@@ -343,8 +397,15 @@ function App() {
                      transferData.items?.map((item, idx) => {
                        const isCurrent = idx + 1 === transferData.currentIndex;
                        const isDone = (transferData.status === 'completed') || (idx + 1 < transferData.currentIndex);
-                       const progress = isCurrent ? transferData.progress * 100 : (isDone ? 100 : 0);
-                       
+
+                       // Use fileProgress if available for the current item, otherwise fallback to index comparison
+                       let progress = 0;
+                       if (isDone) {
+                         progress = 100;
+                       } else if (isCurrent) {
+                         progress = (transferData.fileProgress !== undefined ? transferData.fileProgress : transferData.progress) * 100;
+                       }
+
                        return (
                          <div key={item.id} className={cn("flex gap-4 items-start", !isCurrent && !isDone && transferData.status === 'transferring' && "opacity-40")}>
                             <div className="h-11 w-11 bg-muted/50 rounded-lg flex items-center justify-center border border-border shrink-0">
@@ -391,32 +452,43 @@ function App() {
                 </div>
 
                 <footer className="space-y-6 pb-4">
-                   <div className="space-y-3">
-                     <span className="text-lg font-bold text-foreground tracking-tight">
-                       {transferData.status === 'completed' ? 'Finished' : `Total progress (${formatDuration(transferDuration)})`}
-                     </span>
-                     <div className="h-2 w-full bg-muted rounded-full overflow-hidden">
-                        <div 
-                          className="h-full bg-[var(--accent-primary)] transition-all duration-300 shadow-[0_0_8px_var(--accent-glow)]" 
-                          style={{ width: `${transferData.progress * 100}%` }} 
-                        />
+                   <div className="flex flex-col gap-4">
+                     <div className="space-y-3">
+                       <div className="flex justify-between items-end">
+                         <span className="text-lg font-bold text-foreground tracking-tight">
+                           {transferData.status === 'completed' ? 'Finished' : `Total progress (${formatDuration(transferDuration)})`}
+                         </span>
+                       </div>
+                       <div className="h-2 w-full bg-muted rounded-full overflow-hidden">
+                          <div 
+                            className="h-full bg-[var(--accent-primary)] transition-all duration-300 shadow-[0_0_8px_var(--accent-glow)]" 
+                            style={{ width: `${transferData.progress * 100}%` }} 
+                          />
+                       </div>
+                       
+                       <AnimatePresence>
+                         {showAdvanced && (
+                           <motion.div 
+                             initial={{ opacity: 0, height: 0 }}
+                             animate={{ opacity: 1, height: 'auto' }}
+                             exit={{ opacity: 0, height: 0 }}
+                             className="overflow-hidden"
+                           >
+                             <div className="flex justify-between items-center text-[10px] font-medium text-muted-foreground/60 uppercase tracking-widest pt-2">
+                                <div className="flex flex-col gap-1">
+                                   <span>Files: {transferData.currentIndex} / {transferData.totalFiles}</span>
+                                   <span>Size: {formatFileSize(transferData.processedBytes)} / {formatFileSize(transferData.totalBytes)}</span>
+                                </div>
+                                <div className="bg-[var(--accent-primary)]/10 px-3 py-1 rounded-full border border-[var(--accent-primary)]/20">
+                                   <span className="text-[var(--accent-primary)] font-bold">Speed: {formatFileSize(currentSpeed)}/s</span>
+                                </div>
+                             </div>
+                           </motion.div>
+                         )}
+                       </AnimatePresence>
                      </div>
                    </div>
-
-                    {showAdvanced && (
-                      <div className="flex flex-col gap-2 pt-2 pb-4 border-t border-border/40">
-                         <div className="flex justify-between items-center text-[11px] font-medium text-[var(--accent-secondary)]/80">
-                            <div className="flex flex-col gap-0.5">
-                               <span className="text-[var(--accent-secondary)]">Files: {transferData.currentIndex} / {transferData.totalFiles}</span>
-                               <span className="text-[var(--accent-secondary)]">Size: {formatFileSize(transferData.processedBytes)} / {formatFileSize(transferData.totalBytes)}</span>
-                            </div>
-                            <div className="bg-[var(--accent-secondary)]/10 px-3 py-1 rounded-full border border-[var(--accent-secondary)]/20">
-                               <span className="text-[var(--accent-secondary)] font-bold uppercase tracking-wider">Speed: {formatFileSize(currentSpeed)}/s</span>
-                            </div>
-                         </div>
-                      </div>
-                    )}
-
+ 
                    <div className="flex justify-end items-center gap-4">
                       {!showAdvanced ? (
                         <Button 

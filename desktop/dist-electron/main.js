@@ -43395,8 +43395,8 @@ var expressExports = express$2.exports;
  * Copyright(c) 2014-2015 Douglas Christopher Wilson
  * MIT Licensed
  */
-var express = expressExports;
-const express$1 = /* @__PURE__ */ getDefaultExportFromCjs(express);
+var express$1 = expressExports;
+const express = /* @__PURE__ */ getDefaultExportFromCjs(express$1);
 var lib$1 = { exports: {} };
 /*
 object-assign
@@ -62381,7 +62381,7 @@ Multer.prototype.any = function() {
   }
   return makeMiddleware(setup.bind(this));
 };
-function multer(options) {
+function multer$1(options) {
   if (options === void 0) {
     return new Multer({});
   }
@@ -62390,12 +62390,12 @@ function multer(options) {
   }
   throw new TypeError("Expected object for argument options");
 }
-multer$2.exports = multer;
+multer$2.exports = multer$1;
 multer$2.exports.diskStorage = diskStorage;
 multer$2.exports.memoryStorage = memoryStorage;
 multer$2.exports.MulterError = MulterError;
 var multerExports = multer$2.exports;
-const multer$1 = /* @__PURE__ */ getDefaultExportFromCjs(multerExports);
+const multer = /* @__PURE__ */ getDefaultExportFromCjs(multerExports);
 const a = (a2) => {
   a2 = 1831565813 + (a2 |= 0) | 0;
   let e2 = Math.imul(a2 ^ a2 >>> 15, 1 | a2);
@@ -62536,14 +62536,14 @@ udpSocket.bind(DISCOVERY_PORT, () => {
     if (changed) win == null ? void 0 : win.webContents.send("nearby-nodes-updated", Array.from(nearbyNodes.values()));
   }, DISCOVERY_INTERVAL);
 });
-const serverApp = express$1();
+const serverApp = express();
 serverApp.use(cors());
-serverApp.use(express$1.json());
-const storage = multer$1.diskStorage({
+serverApp.use(express.json());
+const storage = multer.diskStorage({
   destination: (_req, _file, cb) => cb(null, uploadDir),
   filename: (_req, file, cb) => cb(null, `${Date.now()}-${file.originalname}`)
 });
-const upload = multer$1({ storage });
+const upload = multer({ storage });
 serverApp.post("/upload", (req2, res2) => {
   const transferId = Array.isArray(req2.headers["x-transfer-id"]) ? req2.headers["x-transfer-id"][0] : req2.headers["x-transfer-id"] || Math.random().toString(36).substring(7);
   activeRequests.set(transferId, req2);
@@ -62551,7 +62551,7 @@ serverApp.post("/upload", (req2, res2) => {
   let receivedSize = 0;
   let lastUpdateTime = 0;
   const THROTTLE_MS = 200;
-  req2.on("data", (chunk) => {
+  const onData = (chunk) => {
     receivedSize += chunk.length;
     const now = Date.now();
     if (totalSize > 0 && win && (receivedSize === chunk.length || now - lastUpdateTime > THROTTLE_MS)) {
@@ -62561,22 +62561,29 @@ serverApp.post("/upload", (req2, res2) => {
         progress: receivedSize / totalSize,
         processedBytes: receivedSize,
         totalBytes: totalSize,
+        // Information about the file is added by multer later, 
+        // but we can provide a generic label for now.
         currentFile: "Receiving file...",
         currentIndex: 1,
         totalFiles: 1
       });
     }
-  });
+  };
+  req2.on("data", onData);
   upload.single("file")(req2, res2, (err) => {
+    req2.removeListener("data", onData);
     activeRequests.delete(transferId);
     if (err) {
+      console.error(`Upload error for ${transferId}:`, err);
       if (win) win.webContents.send("upload-error", { id: transferId, error: err.message });
       return res2.status(500).json({ error: err.message });
     }
     if (!req2.file) {
-      if (win) win.webContents.send("upload-error", { id: transferId, error: "No file metadata received" });
+      console.error(`Upload failed for ${transferId}: No file found in request`);
+      if (win) win.webContents.send("upload-error", { id: transferId, error: "No file received" });
       return res2.status(400).json({ error: "No file received" });
     }
+    console.log(`Upload complete for ${transferId}: ${req2.file.originalname}`);
     if (win) {
       win.webContents.send("upload-complete", {
         id: transferId,
@@ -62590,11 +62597,12 @@ serverApp.post("/upload", (req2, res2) => {
       });
       win.webContents.send("transfer-complete", { deviceId: transferId });
     }
-    res2.json({ message: "Success" });
+    res2.json({ status: "ok", message: "Success" });
   });
   req2.on("aborted", () => {
+    req2.removeListener("data", onData);
     activeRequests.delete(transferId);
-    if (win) win.webContents.send("upload-error", { id: transferId, error: "Upload aborted by client" });
+    if (win) win.webContents.send("upload-error", { id: transferId, error: "Upload aborted" });
   });
 });
 serverApp.post("/request-connect", (req2, res2) => {
@@ -62724,7 +62732,6 @@ serverApp.get("/download/:deviceId/:fileIndex", (req2, res2) => {
   console.log(`Download request: device=${deviceId}, index=${fileIndex}`);
   const index = parseInt(fileIndex);
   const download2 = pendingDownloads.get(deviceId);
-  console.log(`Checking pending downloads. Found logic:`, !!download2, "Keys:", Array.from(pendingDownloads.keys()));
   if (!download2 || !download2.files[index]) {
     console.error(`Download failed: No pending download for device ${deviceId} or index ${index}`);
     return res2.status(404).send("File not found");
@@ -62736,31 +62743,55 @@ serverApp.get("/download/:deviceId/:fileIndex", (req2, res2) => {
     console.error(`Download failed: File missing on disk at ${filePath}`);
     return res2.status(404).send("File missing on server");
   }
+  const stats = fs$4.statSync(filePath);
+  const fileSize = stats.size;
+  const totalBytes = download2.files.reduce((acc, f) => acc + (f.size || 0), 0);
+  const previouslyProcessed = download2.files.slice(0, index).reduce((acc, f) => acc + (f.size || 0), 0);
   res2.setHeader("Access-Control-Allow-Origin", "*");
   res2.setHeader("Access-Control-Expose-Headers", "Content-Length, Content-Disposition");
+  res2.setHeader("Content-Type", "application/octet-stream");
+  res2.setHeader("Content-Length", fileSize);
+  res2.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);
   console.log(`Serving file: ${fileName} (${filePath})`);
-  res2.download(filePath, fileName, (err) => {
-    if (err) {
-      console.error(`Download error serving ${fileName}:`, err);
-      if (!res2.headersSent) res2.status(500).send(err.message);
-    } else {
-      console.log(`Successfully served ${fileName}`);
-      if (win) {
+  let fileProcessed = 0;
+  let lastUpdateTime = 0;
+  const THROTTLE_MS = 100;
+  const fileStream = fs$4.createReadStream(filePath);
+  const progressTracker = new Transform({
+    transform(chunk, _encoding, callback) {
+      fileProcessed += chunk.length;
+      const currentOverallProcessed = previouslyProcessed + fileProcessed;
+      const now = Date.now();
+      if (win && (now - lastUpdateTime > THROTTLE_MS || fileProcessed === fileSize)) {
+        lastUpdateTime = now;
         win.webContents.send("transfer-progress", {
           deviceId,
-          progress: 1,
+          progress: currentOverallProcessed / totalBytes,
+          // Overall progress
+          fileProgress: fileProcessed / fileSize,
+          // Per-file progress
           speed: 0,
+          // Calculated in renderer
           currentFile: fileName,
           currentIndex: index + 1,
           totalFiles: download2.files.length,
-          processedBytes: fs$4.statSync(filePath).size,
-          totalBytes: fs$4.statSync(filePath).size
+          processedBytes: currentOverallProcessed,
+          totalBytes
         });
-        if (index === download2.files.length - 1) {
-          win.webContents.send("transfer-complete", { deviceId });
-          pendingDownloads.delete(deviceId);
-        }
       }
+      callback(null, chunk);
+    }
+  });
+  fileStream.pipe(progressTracker).pipe(res2);
+  fileStream.on("error", (err) => {
+    console.error(`Stream error for ${fileName}:`, err);
+    if (!res2.headersSent) res2.status(500).send(err.message);
+  });
+  res2.on("finish", () => {
+    console.log(`Successfully finished serving ${fileName}`);
+    if (index === download2.files.length - 1) {
+      if (win) win.webContents.send("transfer-complete", { deviceId });
+      pendingDownloads.delete(deviceId);
     }
   });
 });
@@ -62876,6 +62907,7 @@ ipcMain.handle("start-transfer", async (_event, { deviceId, deviceIp, platform, 
             win.webContents.send("transfer-progress", {
               deviceId,
               progress,
+              fileProgress: fileProcessed / fileSize,
               speed,
               currentFile: fileName,
               currentIndex: i2 + 1,

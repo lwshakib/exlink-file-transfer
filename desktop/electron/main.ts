@@ -152,15 +152,18 @@ serverApp.post('/upload', (req: Request, res: Response) => {
     : (req.headers['x-transfer-id'] as string || Math.random().toString(36).substring(7))
 
   activeRequests.set(transferId, req)
+  
+  // Use a more robust way to track progress that doesn't interfere with multer
   const totalSize = parseInt(req.headers['content-length'] || '0')
   let receivedSize = 0
   let lastUpdateTime = 0
   const THROTTLE_MS = 200
 
-  req.on('data', (chunk) => {
+  // We observe the data event but don't pause/resume the stream.
+  // This is generally safe in modern Node.js even if multer is pipe()ing the stream.
+  const onData = (chunk: Buffer) => {
     receivedSize += chunk.length
     const now = Date.now()
-    // Send immediate first update, then throttle
     if (totalSize > 0 && win && (receivedSize === chunk.length || now - lastUpdateTime > THROTTLE_MS)) {
       lastUpdateTime = now
       win.webContents.send('upload-progress', { 
@@ -168,23 +171,36 @@ serverApp.post('/upload', (req: Request, res: Response) => {
         progress: receivedSize / totalSize,
         processedBytes: receivedSize,
         totalBytes: totalSize,
+        // Information about the file is added by multer later, 
+        // but we can provide a generic label for now.
         currentFile: 'Receiving file...',
         currentIndex: 1,
         totalFiles: 1
       })
     }
-  })
+  }
+
+  req.on('data', onData)
 
   upload.single('file')(req, res, (err) => {
+    // Cleanup the listener
+    req.removeListener('data', onData)
     activeRequests.delete(transferId)
+    
     if (err) {
+      console.error(`Upload error for ${transferId}:`, err)
       if (win) win.webContents.send('upload-error', { id: transferId, error: err.message })
       return res.status(500).json({ error: err.message })
     }
+    
     if (!req.file) {
-      if (win) win.webContents.send('upload-error', { id: transferId, error: 'No file metadata received' })
+      console.error(`Upload failed for ${transferId}: No file found in request`)
+      if (win) win.webContents.send('upload-error', { id: transferId, error: 'No file received' })
       return res.status(400).json({ error: 'No file received' })
     }
+
+    console.log(`Upload complete for ${transferId}: ${req.file.originalname}`)
+    
     if (win) {
       win.webContents.send('upload-complete', {
         id: transferId,
@@ -196,15 +212,16 @@ serverApp.post('/upload', (req: Request, res: Response) => {
         processedBytes: req.file.size,
         totalBytes: req.file.size
       })
-      // Also send transfer-complete for unified state update
+      // Unified event for easier state management
       win.webContents.send('transfer-complete', { deviceId: transferId })
     }
-    res.json({ message: 'Success' })
+    res.json({ status: 'ok', message: 'Success' })
   })
 
   req.on('aborted', () => {
+    req.removeListener('data', onData)
     activeRequests.delete(transferId)
-    if (win) win.webContents.send('upload-error', { id: transferId, error: 'Upload aborted by client' })
+    if (win) win.webContents.send('upload-error', { id: transferId, error: 'Upload aborted' })
   })
 })
 
@@ -361,8 +378,6 @@ serverApp.get('/download/:deviceId/:fileIndex', (req, res) => {
   const index = parseInt(fileIndex)
   const download = pendingDownloads.get(deviceId)
   
-  console.log(`Checking pending downloads. Found logic:`, !!download, "Keys:", Array.from(pendingDownloads.keys()))
-  
   if (!download || !download.files[index]) {
     console.error(`Download failed: No pending download for device ${deviceId} or index ${index}`)
     return res.status(404).send('File not found')
@@ -377,35 +392,64 @@ serverApp.get('/download/:deviceId/:fileIndex', (req, res) => {
     return res.status(404).send('File missing on server')
   }
 
-  // Set explicit headers for mobile compatibility
+  const stats = fs.statSync(filePath)
+  const fileSize = stats.size
+  const totalBytes = download.files.reduce((acc, f) => acc + (f.size || 0), 0)
+  
+  // Calculate previously processed bytes (all files before this one)
+  const previouslyProcessed = download.files.slice(0, index).reduce((acc, f) => acc + (f.size || 0), 0)
+
+  // Set explicit headers
   res.setHeader('Access-Control-Allow-Origin', '*')
   res.setHeader('Access-Control-Expose-Headers', 'Content-Length, Content-Disposition')
+  res.setHeader('Content-Type', 'application/octet-stream')
+  res.setHeader('Content-Length', fileSize)
+  res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`)
 
   console.log(`Serving file: ${fileName} (${filePath})`)
 
-  res.download(filePath, fileName, (err) => {
-    if (err) {
-      console.error(`Download error serving ${fileName}:`, err)
-      if (!res.headersSent) res.status(500).send(err.message)
-    } else {
-      console.log(`Successfully served ${fileName}`)
-      if (win) {
-         win.webContents.send('transfer-progress', {
-           deviceId,
-           progress: 1,
-           speed: 0,
-           currentFile: fileName,
-           currentIndex: index + 1,
-           totalFiles: download.files.length,
-           processedBytes: fs.statSync(filePath).size,
-           totalBytes: fs.statSync(filePath).size
-         })
-         
-         if (index === download.files.length - 1) {
-            win.webContents.send('transfer-complete', { deviceId })
-            pendingDownloads.delete(deviceId)
-         }
+  let fileProcessed = 0
+  let lastUpdateTime = 0
+  const THROTTLE_MS = 100
+
+  const fileStream = fs.createReadStream(filePath)
+  
+  const progressTracker = new Transform({
+    transform(chunk, _encoding, callback) {
+      fileProcessed += chunk.length
+      const currentOverallProcessed = previouslyProcessed + fileProcessed
+      const now = Date.now()
+      
+      if (win && (now - lastUpdateTime > THROTTLE_MS || fileProcessed === fileSize)) {
+        lastUpdateTime = now
+        win.webContents.send('transfer-progress', {
+          deviceId,
+          progress: currentOverallProcessed / totalBytes, // Overall progress
+          fileProgress: fileProcessed / fileSize,        // Per-file progress
+          speed: 0, // Calculated in renderer
+          currentFile: fileName,
+          currentIndex: index + 1,
+          totalFiles: download.files.length,
+          processedBytes: currentOverallProcessed,
+          totalBytes
+        })
       }
+      callback(null, chunk)
+    }
+  })
+
+  fileStream.pipe(progressTracker).pipe(res)
+
+  fileStream.on('error', (err) => {
+    console.error(`Stream error for ${fileName}:`, err)
+    if (!res.headersSent) res.status(500).send(err.message)
+  })
+
+  res.on('finish', () => {
+    console.log(`Successfully finished serving ${fileName}`)
+    if (index === download.files.length - 1) {
+      if (win) win.webContents.send('transfer-complete', { deviceId })
+      pendingDownloads.delete(deviceId)
     }
   })
 })
@@ -552,6 +596,7 @@ ipcMain.handle('start-transfer', async (_event, { deviceId, deviceIp, platform, 
             win.webContents.send('transfer-progress', {
               deviceId,
               progress,
+              fileProgress: fileProcessed / fileSize,
               speed,
               currentFile: fileName,
               currentIndex: i + 1,

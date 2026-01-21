@@ -6,15 +6,17 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import * as Device from "expo-device";
 import * as Network from "expo-network";
+import * as FileSystem from "expo-file-system";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useSelection } from "@/hooks/useSelection";
+import { useSelection, SelectedItem } from "@/hooks/useSelection";
 import Animated, { 
   useSharedValue, 
   useAnimatedStyle, 
   withSpring, 
   withDelay,
   Easing,
-  withTiming
+  withTiming,
+  withRepeat
 } from "react-native-reanimated";
 
 export default function SendingScreen() {
@@ -22,7 +24,7 @@ export default function SendingScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
   
-  const { deviceName, deviceId, os, targetIp, targetPort } = params;
+  const { deviceName, deviceId, os, targetIp, targetPort, platform } = params;
   const { selectedItems, clearSelection } = useSelection(); // Get items to send
   const [status, setStatus] = useState<'waiting' | 'sending' | 'refused' | 'error' | 'done'>('waiting');
   const [progress, setProgress] = useState(0);
@@ -40,6 +42,17 @@ export default function SendingScreen() {
   const lastUploadedRef = useRef(0);
   const prevBytesRef = useRef(0);
   const speedIntervalRef = useRef<any>(null);
+
+  const pulse = useSharedValue(1);
+
+  useEffect(() => {
+    pulse.value = withRepeat(withTiming(1.1, { duration: 1000 }), -1, true);
+  }, []);
+
+  const animatedPulse = useAnimatedStyle(() => ({
+    transform: [{ scale: pulse.value }],
+    opacity: 1.2 - pulse.value
+  }));
 
   const formatFileSize = (bytes: number) => {
     if (!bytes || bytes === 0) return '0 B';
@@ -126,10 +139,10 @@ export default function SendingScreen() {
       const data = await res.json();
       if (data.status === 'accepted') {
         setStatus('sending');
-        await uploadFiles(myIp || 'mobile');
+        // Give UI a tiny bit of time to transition
+        setTimeout(() => uploadFiles(myIp || 'mobile'), 100);
       } else {
         setStatus('refused');
-        // Removed auto-dismiss to allow user to see the status and click Close
       }
 
     } catch (e: any) {
@@ -143,7 +156,7 @@ export default function SendingScreen() {
   const uploadFiles = async (myId: string) => {
     let totalBytes = selectedItems.reduce((acc, item) => acc + (item.size || 0), 0);
     setTotalTransferSize(totalBytes);
-    let uploaded = 0;
+    let uploadedOverall = 0;
     lastUploadedRef.current = 0;
 
     for (let i = 0; i < selectedItems.length; i++) {
@@ -151,28 +164,37 @@ export default function SendingScreen() {
         setCurrentFile(item.name);
         
         try {
-            const formData = new FormData();
-            formData.append('file', {
-                uri: item.uri,
-                name: item.name,
-                type: item.type === 'media' ? 'image/jpeg' : 'application/octet-stream' // generic type
-            } as any);
-
-            const res = await fetch(`http://${targetIp}:${targetPort}/upload`, {
-                method: 'POST',
-                headers: {
-                    'x-transfer-id': myId,
-                    'Content-Type': 'multipart/form-data',
+            const uploadTask = FileSystem.createUploadTask(
+                `http://${targetIp}:${targetPort}/upload`,
+                item.uri!,
+                {
+                    httpMethod: 'POST',
+                    headers: {
+                        'x-transfer-id': myId,
+                        // Desktop expects multipart/form-data with a file field
+                    },
+                    uploadType: FileSystem.FileSystemUploadType.MULTIPART,
+                    fieldName: 'file',
                 },
-                body: formData,
-                signal: abortController.current.signal
-            });
+                (uploadProgress: FileSystem.UploadProgressData) => {
+                    const currentFileUploaded = uploadProgress.totalBytesSent;
+                    const totalUploadedSoFar = uploadedOverall + currentFileUploaded;
+                    lastUploadedRef.current = totalUploadedSoFar;
+                    setDownloadedBytes(totalUploadedSoFar);
+                    setProgress(totalUploadedSoFar / totalBytes);
+                }
+            );
+
+            const result = await uploadTask.uploadAsync();
             
-            if (!res.ok) throw new Error("Upload failed");
-            uploaded += item.size;
-            lastUploadedRef.current = uploaded;
-            setDownloadedBytes(uploaded);
-            setProgress(uploaded / totalBytes);
+            if (result && (result.status === 200 || result.status === 201)) {
+              uploadedOverall += item.size || 0;
+              lastUploadedRef.current = uploadedOverall;
+              setDownloadedBytes(uploadedOverall);
+              setProgress(uploadedOverall / totalBytes);
+            } else {
+              throw new Error("Upload failed");
+            }
 
         } catch (e: any) {
              if (e.name !== 'AbortError') {
@@ -197,13 +219,49 @@ export default function SendingScreen() {
     router.back();
   };
 
-
+  if (status === 'waiting' || status === 'refused') {
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor: '#0b0e0e' }]}>
+        <View style={styles.waitingContainer}>
+           <View style={styles.pairingCircleContainer}>
+              <Animated.View style={[styles.pulseCircle, animatedPulse]} />
+              <View style={styles.pairingCircle}>
+                 <MaterialCommunityIcons 
+                   name={platform === 'desktop' ? "laptop" : "cellphone"} 
+                   size={60} 
+                   color="#5eb1b1" 
+                 />
+              </View>
+           </View>
+           
+           <Text style={styles.waitingTitle}>{deviceName || 'Desktop'}</Text>
+           <View style={styles.idBadgeSmall}>
+              <Text style={styles.idBadgeTextSmall}>#{deviceId || '000'}</Text>
+           </View>
+           
+           <Text style={styles.waitingStatus}>
+             {status === 'waiting' ? 'Waiting for response...' : 'Connection refused'}
+           </Text>
+           
+           <Button 
+             mode="contained" 
+             onPress={handleCancel} 
+             style={styles.cancelRequestButton}
+             buttonColor="rgba(255,255,255,0.05)"
+             textColor="white"
+           >
+             Cancel Request
+           </Button>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: '#0b0e0e' }]}>
       <View style={styles.header}>
         <Text style={styles.headerTitle}>
-          {status === 'done' ? 'Finished' : (status === 'waiting' ? 'Waiting...' : 'Sending files')}
+          {status === 'done' ? 'Finished' : 'Sending files'}
         </Text>
       </View>
 
@@ -420,5 +478,69 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
+  },
+  // Waiting State Styles
+  waitingContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 40,
+  },
+  pairingCircleContainer: {
+    width: 180,
+    height: 180,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 40,
+  },
+  pulseCircle: {
+    position: 'absolute',
+    width: 140,
+    height: 140,
+    borderRadius: 70,
+    backgroundColor: 'rgba(94, 177, 177, 0.2)',
+  },
+  pairingCircle: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: '#151a1a',
+    borderWidth: 1,
+    borderColor: '#232a2a',
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 4,
+  },
+  waitingTitle: {
+    color: 'white',
+    fontSize: 24,
+    fontWeight: 'normal',
+    marginBottom: 8,
+  },
+  idBadgeSmall: {
+    backgroundColor: '#151a1a',
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#232a2a',
+    marginBottom: 40,
+  },
+  idBadgeTextSmall: {
+    color: 'rgba(255,255,255,0.7)',
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  waitingStatus: {
+    color: 'rgba(255,255,255,0.5)',
+    fontSize: 16,
+    marginBottom: 60,
+    textAlign: 'center',
+  },
+  cancelRequestButton: {
+    width: '100%',
+    height: 56,
+    borderRadius: 16,
+    justifyContent: 'center',
   },
 });
