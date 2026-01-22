@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { StyleSheet, View, Platform, ScrollView, Image } from "react-native";
-import { IconButton, Text, SegmentedButtons, useTheme, Modal, Portal, Button, Card, ActivityIndicator } from "react-native-paper";
+import { IconButton, Text, useTheme, Modal, Portal, Button, Card, ActivityIndicator } from "react-native-paper";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import Svg, { G, Path } from "react-native-svg";
@@ -14,7 +14,6 @@ import HistoryPortal from "@/components/HistoryPortal";
 export default function ReceiveScreen() {
   const theme = useTheme();
   const router = useRouter();
-  const [quickSave, setQuickSave] = useState("favorites");
   const [deviceName, setDeviceName] = useState("");
   const [deviceId, setDeviceId] = useState("");
   const [pendingRequest, setPendingRequest] = useState<any>(null);
@@ -401,31 +400,24 @@ export default function ReceiveScreen() {
           </Text>
         </View>
 
-        {/* Quick Save Section */}
-        <View style={styles.bottomSection}>
-          <Text variant="labelLarge" style={[styles.quickSaveLabel, { color: theme.colors.onSurfaceVariant }]}>
-            Quick Save
-          </Text>
-          <SegmentedButtons
-            value={quickSave}
-            onValueChange={setQuickSave}
-            buttons={[
-              {
-                value: "off",
-                label: "Off",
-              },
-              {
-                value: "favorites",
-                label: "Favorites",
-              },
-              {
-                value: "on",
-                label: "On",
-              },
-            ]}
-            style={styles.segmentedButtons}
-          />
-        </View>
+        {/*
+          Quick Save Section (disabled for now)
+          <View style={styles.bottomSection}>
+            <Text variant="labelLarge" style={[styles.quickSaveLabel, { color: theme.colors.onSurfaceVariant }]}>
+              Quick Save
+            </Text>
+            <SegmentedButtons
+              value={quickSave}
+              onValueChange={setQuickSave}
+              buttons={[
+                { value: "off", label: "Off" },
+                { value: "favorites", label: "Favorites" },
+                { value: "on", label: "On" },
+              ]}
+              style={styles.segmentedButtons}
+            />
+          </View>
+        */}
 
         {isMinimized && pendingRequest && (
           <Card style={[styles.minimizedBanner, { backgroundColor: theme.colors.elevation.level2 }]} onPress={() => setIsMinimized(false)}>

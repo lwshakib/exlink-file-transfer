@@ -12,7 +12,7 @@ import { motion, AnimatePresence } from "motion/react";
 import { Badge } from "@/components/ui/badge";
 
 function App() {
-  const [activeTab, setActiveTab] = useState<"receive" | "send" | "settings">("send");
+  const [activeTab, setActiveTab] = useState<"receive" | "send" | "settings">("receive");
   const [pendingRequest, setPendingRequest] = useState<{ 
     deviceId: string, 
     name: string, 

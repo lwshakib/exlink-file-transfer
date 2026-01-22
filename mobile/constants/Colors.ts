@@ -28,8 +28,8 @@ const baseDark = {
   shadow: "rgb(0, 0, 0)",
 };
 
-const LocalSend = {
-  name: "LocalSend",
+const ExLink = {
+  name: "ExLink",
   light: {
     ...baseLight,
     primary: "rgb(0, 106, 106)",
@@ -364,6 +364,6 @@ const Rose = {
   }
 };
 
-export const ThemeVariations = [LocalSend, Emerald, Violet, Blue, Amber, Rose];
+export const ThemeVariations = [ExLink, Emerald, Violet, Blue, Amber, Rose];
 
-export const Colors = LocalSend;
+export const Colors = ExLink;

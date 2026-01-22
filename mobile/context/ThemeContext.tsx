@@ -3,7 +3,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useColorScheme } from "react-native";
 import { ThemeVariations } from "../constants/Colors";
 
-export type ColorTheme = "LocalSend" | "Emerald" | "Violet" | "Blue" | "Amber" | "Rose" | "Random";
+export type ColorTheme = "ExLink" | "Emerald" | "Violet" | "Blue" | "Amber" | "Rose" | "Random";
 
 interface ThemeContextType {
   colorScheme: "light" | "dark";
@@ -20,7 +20,7 @@ const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const systemColorScheme = useColorScheme();
   const [colorScheme, setColorScheme] = useState<"light" | "dark">("dark");
-  const [selectedColor, setSelectedColor] = useState<ColorTheme>("LocalSend");
+  const [selectedColor, setSelectedColor] = useState<ColorTheme>("ExLink");
   const [isLoaded, setIsLoaded] = useState(false);
   const [randomVariationIndex, setRandomVariationIndex] = useState(0);
 

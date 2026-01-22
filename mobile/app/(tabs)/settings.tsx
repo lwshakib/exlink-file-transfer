@@ -125,7 +125,7 @@ export default function SettingsScreen() {
             <SelectableSetting 
               label="Select Color"
               value={selectedColor}
-              options={["LocalSend", "Emerald", "Violet", "Blue", "Amber", "Rose", "Random"]}
+              options={["ExLink", "Emerald", "Violet", "Blue", "Amber", "Rose", "Random"]}
               visible={colorMenuVisible}
               onOpen={() => setColorMenuVisible(true)}
               onClose={() => setColorMenuVisible(false)}

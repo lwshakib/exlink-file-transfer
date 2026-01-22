@@ -39,23 +39,26 @@ export function ReceivePage() {
       </div>
 
       {/* Quick Save Toggle */}
-      <div className="space-y-4 w-full max-w-xs">
-        <p className="text-sm font-medium text-muted-foreground text-center">Quick Save</p>
-        <div className="flex items-center justify-center bg-muted/50 p-1 rounded-full border">
-          {["Off", "Favorites", "On"].map((option) => (
-            <button
-              key={option}
-              className={`px-6 py-2 text-sm font-medium rounded-full transition-all duration-200 ${
-                option === "Favorites" 
-                  ? "bg-background text-foreground shadow-sm px-8" 
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              {option}
-            </button>
-          ))}
+      {/*
+        Quick Save Toggle (disabled for now)
+        <div className="space-y-4 w-full max-w-xs">
+          <p className="text-sm font-medium text-muted-foreground text-center">Quick Save</p>
+          <div className="flex items-center justify-center bg-muted/50 p-1 rounded-full border">
+            {["Off", "Favorites", "On"].map((option) => (
+              <button
+                key={option}
+                className={`px-6 py-2 text-sm font-medium rounded-full transition-all duration-200 ${
+                  option === "Favorites" 
+                    ? "bg-background text-foreground shadow-sm px-8" 
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {option}
+              </button>
+            ))}
+          </div>
         </div>
-      </div>
+      */}
     </div>
   );
 }

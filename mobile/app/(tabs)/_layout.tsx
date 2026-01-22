@@ -1,9 +1,10 @@
 import { Tabs } from "expo-router";
 import { CommonActions } from '@react-navigation/native';
-import { BottomNavigation } from 'react-native-paper';
+import { BottomNavigation, useTheme } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 export default function TabLayout() {
+  const theme = useTheme();
   return (
     <Tabs
       screenOptions={{
@@ -13,6 +14,12 @@ export default function TabLayout() {
         <BottomNavigation.Bar
           navigationState={state}
           safeAreaInsets={insets}
+          style={{
+            backgroundColor: theme.colors.background,
+            borderTopWidth: 0,
+            elevation: 0,
+            shadowOpacity: 0,
+          }}
           onTabPress={({ route, preventDefault }) => {
             const event = navigation.emit({
               type: 'tabPress',
