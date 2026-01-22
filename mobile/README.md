@@ -1,50 +1,41 @@
-# Welcome to your Expo app 👋
+# ExLink Mobile (Expo)
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+Expo/React Native mobile app for ExLink file transfer.
 
-## Get started
+## Tech stack
 
-1. Install dependencies
+- Expo Router (tabs: Receive / Send / Settings)
+- React Native Paper (UI)
+- TypeScript
 
-   ```bash
-   npm install
-   ```
-
-2. Start the app
-
-   ```bash
-   npx expo start
-   ```
-
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
+## Run (dev)
 
 ```bash
-npm run reset-project
+npm install
+npx expo start
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+## How the mobile app finds desktops
 
-## Learn more
+The mobile app scans the local subnet for a desktop server at:
 
-To learn more about developing your project with Expo, look at the following resources:
+- `http://{ip}:3030/get-server-info`
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+When it finds a desktop, it announces itself to the desktop:
 
-## Join the community
+- `POST http://{desktopIp}:3030/announce`
 
-Join our community of developers creating universal apps.
+## How transfers work (mobile perspective)
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+- **Send → Desktop**: requests pairing (`POST /request-connect`), then uploads via `POST /upload`
+- **Receive from Desktop**: polls for pairing (`GET /check-pairing-requests/:id`), then downloads queued files via `GET /download/:id/:index`
+
+See root `HOW_IT_WORKS.md` for the full flow and endpoint list.
+
+## Device name (editable + persisted)
+
+The device name:
+
+- is editable in **Settings**
+- is stored in AsyncStorage under key `deviceName`
+- is shown on the **Receive** screen and used during pairing/announce

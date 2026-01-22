@@ -1,5 +1,4 @@
 import { Card } from "@/components/ui/card";
-import { Switch } from "@/components/ui/switch";
 import {
   Select,
   SelectContent,
@@ -9,9 +8,38 @@ import {
 } from "@/components/ui/select";
 
 import { useTheme } from "@/components/theme-provider";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { useEffect, useState } from "react";
+import { toast } from "sonner";
 
 export function SettingsPage() {
   const { theme, setTheme, colorTheme, setColorTheme } = useTheme();
+  const [deviceName, setDeviceName] = useState("");
+  const [isSavingName, setIsSavingName] = useState(false);
+
+  useEffect(() => {
+    window.ipcRenderer.invoke("get-server-info").then((info: any) => {
+      setDeviceName(info?.name || "");
+    });
+  }, []);
+
+  const saveDeviceName = async () => {
+    const next = deviceName.trim();
+    if (!next) {
+      toast.error("Device name can't be empty");
+      return;
+    }
+
+    try {
+      setIsSavingName(true);
+      window.ipcRenderer.send("set-server-name", { name: next });
+      toast.success("Device name saved");
+    } finally {
+      setIsSavingName(false);
+    }
+  };
 
   return (
     <div className="flex-1 flex flex-col p-12 max-w-2xl mx-auto w-full space-y-8">
@@ -22,6 +50,23 @@ export function SettingsPage() {
           <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground px-1">General</h3>
           
           <div className="space-y-1">
+            <div className="flex items-center justify-between p-3 rounded-xl hover:bg-muted/50 transition-colors gap-4">
+              <div className="flex flex-col gap-1">
+                <Label className="text-sm font-medium">Device name</Label>
+                <span className="text-xs text-muted-foreground">Shown on the Receive screen and to nearby devices.</span>
+              </div>
+              <div className="flex items-center gap-2 w-[360px] max-w-full">
+                <Input
+                  value={deviceName}
+                  onChange={(e) => setDeviceName(e.target.value)}
+                  placeholder="ExLink device name"
+                />
+                <Button onClick={saveDeviceName} disabled={isSavingName || !deviceName.trim()}>
+                  Save
+                </Button>
+              </div>
+            </div>
+
             <div className="flex items-center justify-between p-3 rounded-xl hover:bg-muted/50 transition-colors">
               <span className="text-sm font-medium">Theme</span>
               <Select value={theme} onValueChange={(v) => setTheme(v as any)}>
@@ -43,7 +88,7 @@ export function SettingsPage() {
                   <SelectValue placeholder="Select color" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="zinc">LocalSend</SelectItem>
+                  <SelectItem value="zinc">ExLink</SelectItem>
                   <SelectItem value="emerald">Emerald</SelectItem>
                   <SelectItem value="violet">Violet</SelectItem>
                   <SelectItem value="blue">Blue</SelectItem>
@@ -52,35 +97,6 @@ export function SettingsPage() {
                   <SelectItem value="random">Random</SelectItem>
                 </SelectContent>
               </Select>
-            </div>
-
-            <div className="flex items-center justify-between p-3 rounded-xl hover:bg-muted/50 transition-colors">
-              <span className="text-sm font-medium">Language</span>
-              <Select defaultValue="system">
-                <SelectTrigger className="w-[140px] bg-muted/50 border-none rounded-lg h-9">
-                  <SelectValue placeholder="Select language" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="system">System</SelectItem>
-                  <SelectItem value="en">English</SelectItem>
-                  <SelectItem value="es">Spanish</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="flex items-center justify-between p-3 rounded-xl hover:bg-muted/50 transition-colors">
-              <span className="text-sm font-medium pr-8">Minimize to the System Tray/Menu Bar when closing</span>
-              <Switch />
-            </div>
-
-            <div className="flex items-center justify-between p-3 rounded-xl hover:bg-muted/50 transition-colors">
-              <span className="text-sm font-medium">Autostart after login</span>
-              <Switch />
-            </div>
-
-            <div className="flex items-center justify-between p-3 rounded-xl hover:bg-muted/50 transition-colors">
-              <span className="text-sm font-medium">Animations</span>
-              <Switch defaultValue="on" />
             </div>
           </div>
         </div>

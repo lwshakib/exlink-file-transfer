@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { StyleSheet, View, ScrollView, TouchableOpacity } from "react-native";
-import { Text, useTheme, Switch, IconButton, Checkbox, Portal, Dialog, RadioButton, Button, Divider } from "react-native-paper";
+import { Text, useTheme, Portal, Dialog, RadioButton, Button, TextInput } from "react-native-paper";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useTheme as useAppTheme, ColorTheme } from "@/hooks/useTheme";
@@ -82,15 +82,9 @@ export default function SettingsScreen() {
   const theme = useTheme();
   const { colorScheme, setThemeScheme, selectedColor, setThemeColor } = useAppTheme();
   
-  const [animations, setAnimations] = useState(true);
-  const [quickSave, setQuickSave] = useState(false);
-  const [quickSaveFav, setQuickSaveFav] = useState(false);
-  const [requirePin, setRequirePin] = useState(false);
-  const [saveMedia, setSaveMedia] = useState(true);
-  const [autoFinish, setAutoFinish] = useState(false);
-  const [saveHistory, setSaveHistory] = useState(true);
-  const [advanced, setAdvanced] = useState(false);
   const [deviceName, setDeviceName] = useState("Loading...");
+  const [deviceNameDialogVisible, setDeviceNameDialogVisible] = useState(false);
+  const [deviceNameDraft, setDeviceNameDraft] = useState("");
 
   useEffect(() => {
     AsyncStorage.getItem("deviceName").then(name => {
@@ -100,7 +94,19 @@ export default function SettingsScreen() {
 
   const [themeMenuVisible, setThemeMenuVisible] = useState(false);
   const [colorMenuVisible, setColorMenuVisible] = useState(false);
-  const [langMenuVisible, setLangMenuVisible] = useState(false);
+
+  const openDeviceNameDialog = () => {
+    setDeviceNameDraft(deviceName === "Loading..." ? "" : deviceName);
+    setDeviceNameDialogVisible(true);
+  };
+
+  const saveDeviceName = async () => {
+    const next = deviceNameDraft.trim();
+    if (!next) return;
+    await AsyncStorage.setItem("deviceName", next);
+    setDeviceName(next);
+    setDeviceNameDialogVisible(false);
+  };
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
@@ -132,73 +138,13 @@ export default function SettingsScreen() {
               onSelect={(val) => setThemeColor(val as ColorTheme)}
             />
           </SettingRow>
-          <SettingRow label="Language">
-            <SelectableSetting 
-              label="Select Language"
-              value="System"
-              options={["System", "English", "Spanish", "French", "German"]}
-              visible={langMenuVisible}
-              onOpen={() => setLangMenuVisible(true)}
-              onClose={() => setLangMenuVisible(false)}
-              onSelect={() => {}}
-            />
-          </SettingRow>
-          <SettingRow label="Animations">
-            <View style={[styles.switchBox, { backgroundColor: theme.colors.surfaceVariant }]}>
-              <Switch value={animations} onValueChange={setAnimations} color={theme.colors.primary} />
-            </View>
-          </SettingRow>
-        </View>
-
-        {/* Receive Section */}
-        <View style={styles.section}>
-          <Text variant="titleMedium" style={styles.sectionHeader}>Receive</Text>
-          <SettingRow label="Quick Save">
-            <View style={[styles.switchBox, { backgroundColor: theme.colors.surfaceVariant }]}>
-              <Switch value={quickSave} onValueChange={setQuickSave} />
-            </View>
-          </SettingRow>
-          <SettingRow label='Quick Save for "Favorites"'>
-            <View style={[styles.switchBox, { backgroundColor: theme.colors.surfaceVariant }]}>
-              <Switch value={quickSaveFav} onValueChange={setQuickSaveFav} />
-            </View>
-          </SettingRow>
-          <SettingRow label="Require PIN">
-            <View style={[styles.switchBox, { backgroundColor: theme.colors.surfaceVariant }]}>
-              <Switch value={requirePin} onValueChange={setRequirePin} />
-            </View>
-          </SettingRow>
-          <SettingRow label="Save to folder">
-            <TonalBox text="(Downloads)" />
-          </SettingRow>
-          <SettingRow label="Save media to gallery">
-            <View style={[styles.switchBox, { backgroundColor: theme.colors.surfaceVariant }]}>
-              <Switch value={saveMedia} onValueChange={setSaveMedia} />
-            </View>
-          </SettingRow>
-          <SettingRow label="Auto Finish">
-            <View style={[styles.switchBox, { backgroundColor: theme.colors.surfaceVariant }]}>
-              <Switch value={autoFinish} onValueChange={setAutoFinish} />
-            </View>
-          </SettingRow>
-          <SettingRow label="Save to history">
-            <View style={[styles.switchBox, { backgroundColor: theme.colors.surfaceVariant }]}>
-              <Switch value={saveHistory} onValueChange={setSaveHistory} />
-            </View>
-          </SettingRow>
         </View>
 
         {/* Network Section */}
         <View style={styles.section}>
           <Text variant="titleMedium" style={styles.sectionHeader}>Network</Text>
-          <SettingRow label="Server">
-            <View style={[styles.multiIconBox, { backgroundColor: theme.colors.surfaceVariant }]}>
-              <IconButton icon="refresh" size={20} style={styles.miniIcon} onPress={() => {}} />
-              <IconButton icon="stop" size={20} style={styles.miniIcon} onPress={() => {}} />
-            </View>
-          </SettingRow>
           <SettingRow label="Device name">
-            <TonalBox text={deviceName} />
+            <TonalBox text={deviceName} icon="pencil" onPress={openDeviceNameDialog} />
           </SettingRow>
         </View>
 
@@ -216,17 +162,25 @@ export default function SettingsScreen() {
           </SettingRow>
         </View>
 
-        {/* Advanced Footer */}
-        <View style={styles.footer}>
-          <TouchableOpacity 
-            style={styles.advancedRow} 
-            onPress={() => setAdvanced(!advanced)}
-            activeOpacity={1}
-          >
-            <Text variant="bodyMedium">Advanced settings</Text>
-            <Checkbox status={advanced ? "checked" : "unchecked"} />
-          </TouchableOpacity>
-        </View>
+        <Portal>
+          <Dialog visible={deviceNameDialogVisible} onDismiss={() => setDeviceNameDialogVisible(false)} style={{ backgroundColor: theme.colors.elevation.level3 }}>
+            <Dialog.Title>Device name</Dialog.Title>
+            <Dialog.Content>
+              <TextInput
+                label="Name"
+                value={deviceNameDraft}
+                onChangeText={setDeviceNameDraft}
+                mode="outlined"
+                autoCapitalize="words"
+                style={{ backgroundColor: "transparent" }}
+              />
+            </Dialog.Content>
+            <Dialog.Actions>
+              <Button onPress={() => setDeviceNameDialogVisible(false)}>Cancel</Button>
+              <Button onPress={saveDeviceName} disabled={!deviceNameDraft.trim()}>Save</Button>
+            </Dialog.Actions>
+          </Dialog>
+        </Portal>
       </ScrollView>
     </SafeAreaView>
   );
@@ -284,36 +238,8 @@ const styles = StyleSheet.create({
   tonalBoxText: {
     textAlign: "center",
   },
-  switchBox: {
-    width: 140,
-    height: 48,
-    borderRadius: 8,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  multiIconBox: {
-    width: 140,
-    height: 48,
-    borderRadius: 8,
-    flexDirection: "row",
-    justifyContent: "space-around",
-    alignItems: "center",
-  },
-  miniIcon: {
-    margin: 0,
-  },
   radioRow: {
     flexDirection: "row",
     alignItems: "center",
-  },
-  footer: {
-    marginTop: 16,
-    marginBottom: 40,
-    alignItems: "flex-end",
-  },
-  advancedRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
   },
 });

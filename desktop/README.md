@@ -1,30 +1,53 @@
-# React + TypeScript + Vite
+# ExLink Desktop (Electron)
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Electron desktop app for ExLink file transfer.
 
-Currently, two official plugins are available:
+## Tech stack
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react/README.md) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- Electron (main process: networking + filesystem)
+- React + TypeScript (renderer UI)
+- Vite + Tailwind (build + styling)
 
-## Expanding the ESLint configuration
+## Run (dev)
 
-If you are developing a production application, we recommend updating the configuration to enable type aware lint rules:
-
-- Configure the top-level `parserOptions` property like this:
-
-```js
-export default {
-  // other rules...
-  parserOptions: {
-    ecmaVersion: 'latest',
-    sourceType: 'module',
-    project: ['./tsconfig.json', './tsconfig.node.json'],
-    tsconfigRootDir: __dirname,
-  },
-}
+```bash
+npm install
+npm run dev
 ```
 
-- Replace `plugin:@typescript-eslint/recommended` to `plugin:@typescript-eslint/recommended-type-checked` or `plugin:@typescript-eslint/strict-type-checked`
-- Optionally add `plugin:@typescript-eslint/stylistic-type-checked`
-- Install [eslint-plugin-react](https://github.com/jsx-eslint/eslint-plugin-react) and add `plugin:react/recommended` & `plugin:react/jsx-runtime` to the `extends` list
+## Build (installers)
+
+```bash
+npm run build
+```
+
+Outputs are produced by `electron-builder` (see `electron-builder.json5`).
+
+## Networking
+
+The desktop app starts:
+
+- **UDP discovery** on `41234`
+- **HTTP server** on `3030` (Express)
+
+If discovery or transfers fail, check OS firewall rules for UDP broadcast and TCP `3030`.
+
+## Where things live
+
+- **Electron main process**: `electron/main.ts`
+  - UDP broadcast/listen
+  - Express endpoints (`/upload`, `/get-server-info`, pairing, download queue)
+  - IPC handlers for the renderer
+- **Renderer UI**: `src/App.tsx`
+  - Tabs: Receive / Send / Settings
+  - Pairing and transfer overlays driven by IPC events
+
+## Device name (editable + persisted)
+
+The device name:
+
+- is editable in **Settings**
+- is persisted by the main process to the app config
+- is displayed on the **Receive** screen and shared during discovery/pairing
+
+See root `HOW_IT_WORKS.md` for the end-to-end workflow and API.

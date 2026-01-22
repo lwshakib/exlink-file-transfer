@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { StyleSheet, View, Platform, ScrollView, Image } from "react-native";
 import { IconButton, Text, useTheme, Modal, Portal, Button, Card, ActivityIndicator } from "react-native-paper";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -10,6 +10,7 @@ import * as FileSystem from "expo-file-system/legacy";
 import { uniqueNamesGenerator, adjectives, animals } from "unique-names-generator";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import HistoryPortal from "@/components/HistoryPortal";
+import { useFocusEffect } from "@react-navigation/native";
 
 export default function ReceiveScreen() {
   const theme = useTheme();
@@ -120,39 +121,47 @@ export default function ReceiveScreen() {
     return `${min}:${sec.toString().padStart(2, '0')}`;
   };
 
-  useEffect(() => {
-    const loadName = async () => {
-      let name = await AsyncStorage.getItem("deviceName");
-      let id = await AsyncStorage.getItem("deviceId");
+  const loadIdentity = useCallback(async () => {
+    let name = await AsyncStorage.getItem("deviceName");
+    let id = await AsyncStorage.getItem("deviceId");
 
-      if (!name) {
-        name = uniqueNamesGenerator({
-          dictionaries: [adjectives, animals],
-          length: 2,
-          separator: ' ',
-          style: 'capital'
-        });
-        await AsyncStorage.setItem("deviceName", name);
-      }
+    if (!name) {
+      name = uniqueNamesGenerator({
+        dictionaries: [adjectives, animals],
+        length: 2,
+        separator: ' ',
+        style: 'capital'
+      });
+      await AsyncStorage.setItem("deviceName", name);
+    }
 
-      setDeviceName(name || "");
+    setDeviceName(name || "");
 
-      // Use last octet of IP as the "Port" (ID)
-      const ip = await Network.getIpAddressAsync();
-      if (ip && !ip.includes(':')) {
-        const parts = ip.split('.');
-        const lastOctet = parts[parts.length - 1];
-        setDeviceId(lastOctet);
-        await AsyncStorage.setItem("deviceId", lastOctet);
-      } else if (id) {
-        setDeviceId(id);
-      } else {
-        setDeviceId("000");
-      }
-    };
-
-    loadName();
+    // Use last octet of IP as the "Port" (ID)
+    const ip = await Network.getIpAddressAsync();
+    if (ip && !ip.includes(':')) {
+      const parts = ip.split('.');
+      const lastOctet = parts[parts.length - 1];
+      setDeviceId(lastOctet);
+      await AsyncStorage.setItem("deviceId", lastOctet);
+    } else if (id) {
+      setDeviceId(id);
+    } else {
+      setDeviceId("000");
+    }
   }, []);
+
+  useEffect(() => {
+    loadIdentity();
+  }, []);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      // Refresh name/id when returning from Settings
+      loadIdentity();
+      return () => {};
+    }, [loadIdentity])
+  );
 
   useEffect(() => {
     const pollForRequests = async () => {
