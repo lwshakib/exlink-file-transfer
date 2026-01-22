@@ -1,4 +1,4 @@
-import { Minus, Square, X, Download, Send, Settings, Smartphone, Laptop, UserCheck, ArrowDown, Paperclip } from "lucide-react";
+import { Minus, Square, X, Download, Send, Settings, Smartphone, Laptop, UserCheck, ArrowDown, Paperclip, File } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Logo } from "@/components/common/Logo";
 import { useState, useEffect, useRef } from "react";
@@ -8,7 +8,8 @@ import { SendPage } from "./components/pages/SendPage";
 import { SettingsPage } from "./components/pages/SettingsPage";
 import { useSelection, SelectedItem } from "./hooks/useSelection";
 import { motion, AnimatePresence } from "motion/react";
-
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 
 function App() {
@@ -19,8 +20,10 @@ function App() {
     platform: string, 
     brand?: string,
     totalFiles?: number,
-    totalSize?: number 
+    totalSize?: number,
+    files?: Array<{ name: string; size: number; type?: string }>
   } | null>(null);
+  const [isOptionsOpen, setIsOptionsOpen] = useState(false);
   const [waitingFor, setWaitingFor] = useState<{ 
     deviceId: string, 
     name: string, 
@@ -721,7 +724,20 @@ function App() {
                   Wants to share files with you
                 </p>
 
+                {pendingRequest.totalFiles !== undefined && (
+                  <p className="text-sm text-muted-foreground">
+                    {pendingRequest.totalFiles} file{pendingRequest.totalFiles !== 1 ? 's' : ''} • {formatFileSize(pendingRequest.totalSize || 0)}
+                  </p>
+                )}
+
                 <div className="flex gap-6 w-full max-sm pt-8">
+                  <Button 
+                    variant="ghost"
+                    onClick={() => setIsOptionsOpen(true)}
+                    className="flex-1 h-14 rounded-2xl hover:bg-muted/50 text-foreground font-bold text-lg border border-border transition-all flex gap-2"
+                  >
+                    <Paperclip size={20} /> Options
+                  </Button>
                   <Button 
                     variant="ghost"
                     onClick={() => respondToConnection(false)}
@@ -740,6 +756,34 @@ function App() {
             </motion.div>
           )}
         </AnimatePresence>
+
+        {/* Options Dialog */}
+        <Dialog open={isOptionsOpen} onOpenChange={setIsOptionsOpen}>
+          <DialogContent className="max-w-2xl max-h-[80vh]">
+            <DialogHeader>
+              <DialogTitle>Files to receive</DialogTitle>
+            </DialogHeader>
+            <ScrollArea className="max-h-[60vh] pr-4">
+              <div className="space-y-3">
+                {pendingRequest?.files && pendingRequest.files.length > 0 ? (
+                  pendingRequest.files.map((file, idx) => (
+                    <div key={idx} className="flex items-center gap-3 p-3 rounded-lg border bg-muted/20">
+                      <File className="h-5 w-5 text-muted-foreground flex-shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">{file.name}</p>
+                        <p className="text-xs text-muted-foreground">{formatFileSize(file.size)}</p>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-sm text-muted-foreground text-center py-8">
+                    {pendingRequest?.totalFiles || 0} file{pendingRequest?.totalFiles !== 1 ? 's' : ''} • {formatFileSize(pendingRequest?.totalSize || 0)}
+                  </p>
+                )}
+              </div>
+            </ScrollArea>
+          </DialogContent>
+        </Dialog>
       </main>
     </div>
   );

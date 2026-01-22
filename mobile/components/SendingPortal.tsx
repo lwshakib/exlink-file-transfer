@@ -181,7 +181,8 @@ const SendingPortal = ({ visible, onDismiss, targetDevice }: SendingPortalProps)
           platform: 'mobile',
           brand,
           totalFiles: itemsToSend.length,
-          totalSize: itemsToSend.reduce((acc, item) => acc + (item.size || 0), 0)
+          totalSize: itemsToSend.reduce((acc, item) => acc + (item.size || 0), 0),
+          files: itemsToSend.map(item => ({ name: item.name, size: item.size, type: item.type }))
         }),
         signal: signal
       });

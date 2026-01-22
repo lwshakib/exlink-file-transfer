@@ -256,14 +256,14 @@ serverApp.post('/upload', (req: Request, res: Response) => {
 })
 
 serverApp.post('/request-connect', (req, res) => {
-  const { deviceId, name, platform, brand, totalFiles, totalSize } = req.body
+  const { deviceId, name, platform, brand, totalFiles, totalSize, files } = req.body
   console.log(`Connection request from ${name} (${deviceId}) proposing ${totalFiles} files`)
   
   pendingConnections.set(deviceId, { 
-    res, name, deviceId, platform, brand, totalFiles, totalSize, timestamp: Date.now() 
+    res, name, deviceId, platform, brand, totalFiles, totalSize, files: files || [], timestamp: Date.now() 
   })
   win?.webContents.send('connection-request', { 
-    deviceId, name, platform, brand, totalFiles, totalSize 
+    deviceId, name, platform, brand, totalFiles, totalSize, files: files || []
   })
 })
 
@@ -404,6 +404,20 @@ serverApp.post('/announce', (req, res) => {
   }
   res.json({ status: 'ok' })
 })
+
+// Cleanup stale nodes periodically (remove devices that haven't announced in 15 seconds)
+setInterval(() => {
+  const now = Date.now()
+  let changed = false
+  for (const [id, node] of nearbyNodes.entries()) {
+    // Remove nodes that haven't been seen in 15 seconds (mobile announces every 10s)
+    if (now - node.lastSeen > 15000) {
+      nearbyNodes.delete(id)
+      changed = true
+    }
+  }
+  if (changed) win?.webContents.send('nearby-nodes-updated', Array.from(nearbyNodes.values()))
+}, 5000)
 
 serverApp.get('/check-pairing-requests/:deviceId', (req, res) => {
   const { deviceId } = req.params

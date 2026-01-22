@@ -47599,7 +47599,7 @@ serverApp.post("/upload", (req2, res2) => {
   req2.pipe(bb);
 });
 serverApp.post("/request-connect", (req2, res2) => {
-  const { deviceId, name, platform, brand, totalFiles, totalSize } = req2.body;
+  const { deviceId, name, platform, brand, totalFiles, totalSize, files } = req2.body;
   console.log(`Connection request from ${name} (${deviceId}) proposing ${totalFiles} files`);
   pendingConnections.set(deviceId, {
     res: res2,
@@ -47609,6 +47609,7 @@ serverApp.post("/request-connect", (req2, res2) => {
     brand,
     totalFiles,
     totalSize,
+    files: files || [],
     timestamp: Date.now()
   });
   win == null ? void 0 : win.webContents.send("connection-request", {
@@ -47617,7 +47618,8 @@ serverApp.post("/request-connect", (req2, res2) => {
     platform,
     brand,
     totalFiles,
-    totalSize
+    totalSize,
+    files: files || []
   });
 });
 ipcMain.handle("get-upload-dir", () => uploadDir);
@@ -47734,6 +47736,17 @@ serverApp.post("/announce", (req2, res2) => {
   }
   res2.json({ status: "ok" });
 });
+setInterval(() => {
+  const now = Date.now();
+  let changed = false;
+  for (const [id, node2] of nearbyNodes.entries()) {
+    if (now - node2.lastSeen > 15e3) {
+      nearbyNodes.delete(id);
+      changed = true;
+    }
+  }
+  if (changed) win == null ? void 0 : win.webContents.send("nearby-nodes-updated", Array.from(nearbyNodes.values()));
+}, 5e3);
 serverApp.get("/check-pairing-requests/:deviceId", (req2, res2) => {
   const { deviceId } = req2.params;
   const outgoing = outgoingRequests.get(deviceId);

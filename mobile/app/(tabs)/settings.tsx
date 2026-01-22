@@ -102,7 +102,8 @@ export default function SettingsScreen() {
       if (name) setDeviceName(name);
       
       const mediaSetting = await AsyncStorage.getItem("saveMediaToGallery");
-      if (mediaSetting !== null) setSaveMediaToGallery(mediaSetting === "true");
+      // Default to true if not set
+      setSaveMediaToGallery(mediaSetting === null ? true : mediaSetting === "true");
       
       const folderPath = await AsyncStorage.getItem("saveToFolderPath");
       if (folderPath) {

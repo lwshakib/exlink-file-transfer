@@ -118,8 +118,9 @@ function InnerLayout() {
 
     scanSubnet();
 
-    const announceInterval = setInterval(() => {
-        if (knownDesktopIps.size > 0) announceToIps(knownDesktopIps);
+    const announceInterval = setInterval(async () => {
+        await checkServerStatus();
+        if (serverRunning && knownDesktopIps.size > 0) announceToIps(knownDesktopIps);
     }, 10000);
 
     const scanInterval = setInterval(scanSubnet, 45000);
