@@ -36153,7 +36153,7 @@ var objectInspect = function inspect_(obj, options, depth, seen) {
     var ys = arrObjKeys(obj, inspect2);
     var isPlainObject = gPO ? gPO(obj) === Object.prototype : obj instanceof Object || obj.constructor === Object;
     var protoTag = obj instanceof Object ? "" : "null prototype";
-    var stringTag = !isPlainObject && toStringTag && Object(obj) === obj && toStringTag in obj ? $slice.call(toStr(obj), 8, -1) : protoTag ? "Object" : "";
+    var stringTag = !isPlainObject && toStringTag && Object(obj) === obj && toStringTag in obj ? $slice.call(toStr$1(obj), 8, -1) : protoTag ? "Object" : "";
     var constructorTag = isPlainObject || typeof obj.constructor !== "function" ? "" : obj.constructor.name ? obj.constructor.name + " " : "";
     var tag = constructorTag + (stringTag || protoTag ? "[" + $join.call($concat$1.call([], stringTag || [], protoTag || []), ": ") + "] " : "");
     if (ys.length === 0) {
@@ -36178,25 +36178,25 @@ function canTrustToString(obj) {
   return !toStringTag || !(typeof obj === "object" && (toStringTag in obj || typeof obj[toStringTag] !== "undefined"));
 }
 function isArray$3(obj) {
-  return toStr(obj) === "[object Array]" && canTrustToString(obj);
+  return toStr$1(obj) === "[object Array]" && canTrustToString(obj);
 }
 function isDate$1(obj) {
-  return toStr(obj) === "[object Date]" && canTrustToString(obj);
+  return toStr$1(obj) === "[object Date]" && canTrustToString(obj);
 }
 function isRegExp$1(obj) {
-  return toStr(obj) === "[object RegExp]" && canTrustToString(obj);
+  return toStr$1(obj) === "[object RegExp]" && canTrustToString(obj);
 }
 function isError(obj) {
-  return toStr(obj) === "[object Error]" && canTrustToString(obj);
+  return toStr$1(obj) === "[object Error]" && canTrustToString(obj);
 }
 function isString(obj) {
-  return toStr(obj) === "[object String]" && canTrustToString(obj);
+  return toStr$1(obj) === "[object String]" && canTrustToString(obj);
 }
 function isNumber(obj) {
-  return toStr(obj) === "[object Number]" && canTrustToString(obj);
+  return toStr$1(obj) === "[object Number]" && canTrustToString(obj);
 }
 function isBoolean(obj) {
-  return toStr(obj) === "[object Boolean]" && canTrustToString(obj);
+  return toStr$1(obj) === "[object Boolean]" && canTrustToString(obj);
 }
 function isSymbol(obj) {
   if (hasShammedSymbols) {
@@ -36232,7 +36232,7 @@ var hasOwn$1 = Object.prototype.hasOwnProperty || function(key) {
 function has$3(obj, key) {
   return hasOwn$1.call(obj, key);
 }
-function toStr(obj) {
+function toStr$1(obj) {
   return objectToString.call(obj);
 }
 function nameOf(f) {
@@ -36541,7 +36541,7 @@ var syntax = SyntaxError;
 var uri = URIError;
 var abs$1 = Math.abs;
 var floor$1 = Math.floor;
-var max$1 = Math.max;
+var max$2 = Math.max;
 var min$1 = Math.min;
 var pow$1 = Math.pow;
 var round$1 = Math.round;
@@ -36670,99 +36670,78 @@ function requireObject_getPrototypeOf() {
   Object_getPrototypeOf = $Object2.getPrototypeOf || null;
   return Object_getPrototypeOf;
 }
-var implementation;
-var hasRequiredImplementation;
-function requireImplementation() {
-  if (hasRequiredImplementation) return implementation;
-  hasRequiredImplementation = 1;
-  var ERROR_MESSAGE = "Function.prototype.bind called on incompatible ";
-  var toStr2 = Object.prototype.toString;
-  var max2 = Math.max;
-  var funcType = "[object Function]";
-  var concatty = function concatty2(a2, b) {
-    var arr = [];
-    for (var i2 = 0; i2 < a2.length; i2 += 1) {
-      arr[i2] = a2[i2];
+var ERROR_MESSAGE = "Function.prototype.bind called on incompatible ";
+var toStr = Object.prototype.toString;
+var max$1 = Math.max;
+var funcType = "[object Function]";
+var concatty = function concatty2(a2, b) {
+  var arr = [];
+  for (var i2 = 0; i2 < a2.length; i2 += 1) {
+    arr[i2] = a2[i2];
+  }
+  for (var j = 0; j < b.length; j += 1) {
+    arr[j + a2.length] = b[j];
+  }
+  return arr;
+};
+var slicy = function slicy2(arrLike, offset) {
+  var arr = [];
+  for (var i2 = offset, j = 0; i2 < arrLike.length; i2 += 1, j += 1) {
+    arr[j] = arrLike[i2];
+  }
+  return arr;
+};
+var joiny = function(arr, joiner) {
+  var str = "";
+  for (var i2 = 0; i2 < arr.length; i2 += 1) {
+    str += arr[i2];
+    if (i2 + 1 < arr.length) {
+      str += joiner;
     }
-    for (var j = 0; j < b.length; j += 1) {
-      arr[j + a2.length] = b[j];
-    }
-    return arr;
-  };
-  var slicy = function slicy2(arrLike, offset) {
-    var arr = [];
-    for (var i2 = offset, j = 0; i2 < arrLike.length; i2 += 1, j += 1) {
-      arr[j] = arrLike[i2];
-    }
-    return arr;
-  };
-  var joiny = function(arr, joiner) {
-    var str = "";
-    for (var i2 = 0; i2 < arr.length; i2 += 1) {
-      str += arr[i2];
-      if (i2 + 1 < arr.length) {
-        str += joiner;
-      }
-    }
-    return str;
-  };
-  implementation = function bind2(that) {
-    var target = this;
-    if (typeof target !== "function" || toStr2.apply(target) !== funcType) {
-      throw new TypeError(ERROR_MESSAGE + target);
-    }
-    var args = slicy(arguments, 1);
-    var bound;
-    var binder = function() {
-      if (this instanceof bound) {
-        var result = target.apply(
-          this,
-          concatty(args, arguments)
-        );
-        if (Object(result) === result) {
-          return result;
-        }
-        return this;
-      }
-      return target.apply(
-        that,
+  }
+  return str;
+};
+var implementation$1 = function bind(that) {
+  var target = this;
+  if (typeof target !== "function" || toStr.apply(target) !== funcType) {
+    throw new TypeError(ERROR_MESSAGE + target);
+  }
+  var args = slicy(arguments, 1);
+  var bound;
+  var binder = function() {
+    if (this instanceof bound) {
+      var result = target.apply(
+        this,
         concatty(args, arguments)
       );
-    };
-    var boundLength = max2(0, target.length - args.length);
-    var boundArgs = [];
-    for (var i2 = 0; i2 < boundLength; i2++) {
-      boundArgs[i2] = "$" + i2;
+      if (Object(result) === result) {
+        return result;
+      }
+      return this;
     }
-    bound = Function("binder", "return function (" + joiny(boundArgs, ",") + "){ return binder.apply(this,arguments); }")(binder);
-    if (target.prototype) {
-      var Empty = function Empty2() {
-      };
-      Empty.prototype = target.prototype;
-      bound.prototype = new Empty();
-      Empty.prototype = null;
-    }
-    return bound;
+    return target.apply(
+      that,
+      concatty(args, arguments)
+    );
   };
-  return implementation;
-}
-var functionBind;
-var hasRequiredFunctionBind;
-function requireFunctionBind() {
-  if (hasRequiredFunctionBind) return functionBind;
-  hasRequiredFunctionBind = 1;
-  var implementation2 = requireImplementation();
-  functionBind = Function.prototype.bind || implementation2;
-  return functionBind;
-}
-var functionCall;
-var hasRequiredFunctionCall;
-function requireFunctionCall() {
-  if (hasRequiredFunctionCall) return functionCall;
-  hasRequiredFunctionCall = 1;
-  functionCall = Function.prototype.call;
-  return functionCall;
-}
+  var boundLength = max$1(0, target.length - args.length);
+  var boundArgs = [];
+  for (var i2 = 0; i2 < boundLength; i2++) {
+    boundArgs[i2] = "$" + i2;
+  }
+  bound = Function("binder", "return function (" + joiny(boundArgs, ",") + "){ return binder.apply(this,arguments); }")(binder);
+  if (target.prototype) {
+    var Empty = function Empty2() {
+    };
+    Empty.prototype = target.prototype;
+    bound.prototype = new Empty();
+    Empty.prototype = null;
+  }
+  return bound;
+};
+var implementation = implementation$1;
+var functionBind = Function.prototype.bind || implementation;
+var functionCall = Function.prototype.call;
 var functionApply;
 var hasRequiredFunctionApply;
 function requireFunctionApply() {
@@ -36772,14 +36751,14 @@ function requireFunctionApply() {
   return functionApply;
 }
 var reflectApply = typeof Reflect !== "undefined" && Reflect && Reflect.apply;
-var bind$2 = requireFunctionBind();
+var bind$2 = functionBind;
 var $apply$1 = requireFunctionApply();
-var $call$2 = requireFunctionCall();
+var $call$2 = functionCall;
 var $reflectApply = reflectApply;
 var actualApply = $reflectApply || bind$2.call($call$2, $apply$1);
-var bind$1 = requireFunctionBind();
+var bind$1 = functionBind;
 var $TypeError$4 = type;
-var $call$1 = requireFunctionCall();
+var $call$1 = functionCall;
 var $actualApply = actualApply;
 var callBindApplyHelpers = function callBindBasic(args) {
   if (args.length < 1 || typeof args[0] !== "function") {
@@ -36845,8 +36824,8 @@ function requireHasown() {
   hasRequiredHasown = 1;
   var call = Function.prototype.call;
   var $hasOwn = Object.prototype.hasOwnProperty;
-  var bind2 = requireFunctionBind();
-  hasown = bind2.call(call, $hasOwn);
+  var bind3 = functionBind;
+  hasown = bind3.call(call, $hasOwn);
   return hasown;
 }
 var undefined$1;
@@ -36860,7 +36839,7 @@ var $TypeError$3 = type;
 var $URIError = uri;
 var abs = abs$1;
 var floor = floor$1;
-var max = max$1;
+var max = max$2;
 var min = min$1;
 var pow = pow$1;
 var round = round$1;
@@ -36894,7 +36873,7 @@ var getProto = requireGetProto();
 var $ObjectGPO = requireObject_getPrototypeOf();
 var $ReflectGPO = requireReflect_getPrototypeOf();
 var $apply = requireFunctionApply();
-var $call = requireFunctionCall();
+var $call = functionCall;
 var needsEval = {};
 var TypedArray = typeof Uint8Array === "undefined" || !getProto ? undefined$1 : getProto(Uint8Array);
 var INTRINSICS = {
@@ -37065,13 +37044,13 @@ var LEGACY_ALIASES = {
   "%WeakMapPrototype%": ["WeakMap", "prototype"],
   "%WeakSetPrototype%": ["WeakSet", "prototype"]
 };
-var bind = requireFunctionBind();
+var bind2 = functionBind;
 var hasOwn = requireHasown();
-var $concat = bind.call($call, Array.prototype.concat);
-var $spliceApply = bind.call($apply, Array.prototype.splice);
-var $replace = bind.call($call, String.prototype.replace);
-var $strSlice = bind.call($call, String.prototype.slice);
-var $exec = bind.call($call, RegExp.prototype.exec);
+var $concat = bind2.call($call, Array.prototype.concat);
+var $spliceApply = bind2.call($apply, Array.prototype.splice);
+var $replace = bind2.call($call, String.prototype.replace);
+var $strSlice = bind2.call($call, String.prototype.slice);
+var $exec = bind2.call($call, RegExp.prototype.exec);
 var rePropName = /[^%.[\]]+|\[(?:(-?\d+(?:\.\d+)?)|(["'])((?:(?!\2)[^\\]|\\.)*?)\2)\]|(?=(?:\.|\[\])(?:\.|\[\]|%$))/g;
 var reEscapeChar = /\\(\\)?/g;
 var stringToPath = function stringToPath2(string) {
@@ -43394,8 +43373,8 @@ var expressExports = express$2.exports;
  * Copyright(c) 2014-2015 Douglas Christopher Wilson
  * MIT Licensed
  */
-var express$1 = expressExports;
-const express = /* @__PURE__ */ getDefaultExportFromCjs(express$1);
+var express = expressExports;
+const express$1 = /* @__PURE__ */ getDefaultExportFromCjs(express);
 var lib$1 = { exports: {} };
 /*
 object-assign
@@ -47523,9 +47502,9 @@ udpSocket.bind(DISCOVERY_PORT, () => {
   };
   startBroadcast();
 });
-const serverApp = express();
+const serverApp = express$1();
 serverApp.use(cors());
-serverApp.use(express.json());
+serverApp.use(express$1.json());
 serverApp.post("/upload", (req2, res2) => {
   const transferId = Array.isArray(req2.headers["x-transfer-id"]) ? req2.headers["x-transfer-id"][0] : req2.headers["x-transfer-id"] || Math.random().toString(36).substring(7);
   console.log(`[Upload] New request starting: ${transferId}, content-length: ${req2.headers["content-length"]}`);
@@ -48098,9 +48077,24 @@ function getLocalIPs() {
   });
   return ips2.length > 0 ? [ips2[0]] : ["127.0.0.1"];
 }
+const getIconPath = () => {
+  const platform = process.platform;
+  const basePath2 = process.env.APP_ROOT;
+  switch (platform) {
+    case "win32":
+      return path$3.join(basePath2, "public", "icons", "win", "icon.ico");
+    case "darwin":
+      return path$3.join(basePath2, "public", "icons", "mac", "icon.icns");
+    case "linux":
+    default:
+      return path$3.join(basePath2, "public", "icons", "png", "256x256.png");
+  }
+};
+const iconPath = getIconPath();
+process.env.VITE_PUBLIC = VITE_DEV_SERVER_URL ? path$3.join(process.env.APP_ROOT, "public") : RENDERER_DIST;
 function createWindow() {
   win = new BrowserWindow({
-    icon: path$3.join(process.env.VITE_PUBLIC, "electron-vite.svg"),
+    icon: iconPath,
     frame: false,
     width: 1e3,
     height: 700,

@@ -841,9 +841,32 @@ function getLocalIPs() {
   return ips.length > 0 ? [ips[0]] : ['127.0.0.1']
 }
 
+
+// Platform-specific icon paths
+const getIconPath = (): string => {
+  const platform = process.platform;
+  const basePath = process.env.APP_ROOT;
+
+  switch (platform) {
+    case "win32":
+      return path.join(basePath, "public", "icons", "win", "icon.ico");
+    case "darwin":
+      return path.join(basePath, "public", "icons", "mac", "icon.icns");
+    case "linux":
+    default:
+      return path.join(basePath, "public", "icons", "png", "256x256.png");
+  }
+};
+
+const iconPath = getIconPath();
+
+process.env.VITE_PUBLIC = VITE_DEV_SERVER_URL
+  ? path.join(process.env.APP_ROOT, "public")
+  : RENDERER_DIST;
+
 function createWindow() {
   win = new BrowserWindow({
-    icon: path.join(process.env.VITE_PUBLIC, 'electron-vite.svg'),
+    icon: iconPath,
     frame: false,
     width: 1000,
     height: 700,

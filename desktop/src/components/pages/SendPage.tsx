@@ -32,6 +32,7 @@ export function SendPage() {
   const [isAddMenuOpen, setIsAddMenuOpen] = useState(false);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
   const [textInput, setTextInput] = useState("");
+  const [favoriteIds, setFavoriteIds] = useState<string[]>([]);
 
   const totalSize = selectedItems.reduce((acc, item) => acc + (item.size || 0), 0);
   const formatSize = (bytes: number) => {
@@ -55,6 +56,33 @@ export function SendPage() {
       if (removeListener) removeListener();
     };
   }, [devices]);
+
+  useEffect(() => {
+    const stored = localStorage.getItem("favoriteDeviceIds");
+    if (stored) {
+      try {
+        setFavoriteIds(JSON.parse(stored));
+      } catch (e) { console.error(e); }
+    }
+  }, []);
+
+  const toggleFavorite = (e: React.MouseEvent, deviceId: string) => {
+    e.stopPropagation();
+    const nextFavorites = favoriteIds.includes(deviceId)
+      ? favoriteIds.filter(id => id !== deviceId)
+      : [...favoriteIds, deviceId];
+    
+    setFavoriteIds(nextFavorites);
+    localStorage.setItem("favoriteDeviceIds", JSON.stringify(nextFavorites));
+  };
+
+  const sortedDevices = [...devices].sort((a, b) => {
+    const aFav = favoriteIds.includes(a.id);
+    const bFav = favoriteIds.includes(b.id);
+    if (aFav && !bFav) return -1;
+    if (!aFav && bFav) return 1;
+    return a.name.localeCompare(b.name);
+  });
 
   const handleFilePick = async () => {
     try {
@@ -326,8 +354,9 @@ export function SendPage() {
 
         <div className="space-y-1.5">
           <AnimatePresence mode="popLayout">
-            {devices.map((device, index) => {
+            {sortedDevices.map((device, index) => {
               const DeviceIcon = getDeviceIcon(device);
+              const isFavorite = favoriteIds.includes(device.id);
               return (
                 <motion.div
                   key={device.id}
@@ -353,8 +382,13 @@ export function SendPage() {
                     </div>
                     
                     <div className="flex items-center">
-                      <Button variant="ghost" size="icon" className="rounded-full text-muted-foreground/30 hover:text-foreground/60 transition-all h-7 w-7">
-                        <Heart className="h-3 w-3" strokeWidth={1.5} />
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        onClick={(e) => toggleFavorite(e, device.id)}
+                        className={`rounded-full transition-all h-7 w-7 ${isFavorite ? 'text-primary' : 'text-muted-foreground/30 hover:text-foreground/60'}`}
+                      >
+                        <Heart className={`h-3 w-3 ${isFavorite ? 'fill-current' : ''}`} strokeWidth={1.5} />
                       </Button>
                     </div>
                   </div>

@@ -34,6 +34,7 @@ export default function SendScreen() {
   const [textDialogVisible, setTextDialogVisible] = useState(false);
   const [inputText, setInputText] = useState("");
   const [nearbyDevices, setNearbyDevices] = useState<NearbyDevice[]>([]);
+  const [favoriteIds, setFavoriteIds] = useState<string[]>([]);
   const [isScanning, setIsScanning] = useState(false);
 
   const bottomSheetModalRef = useRef<BottomSheetModal>(null);
@@ -43,10 +44,41 @@ export default function SendScreen() {
   const snapPoints = useMemo(() => ['45%'], []);
 
   useEffect(() => {
+    loadFavorites();
     startScanning();
     const interval = setInterval(performSubnetScan, 15000);
     return () => clearInterval(interval);
   }, []);
+
+  const loadFavorites = async () => {
+    try {
+      const stored = await AsyncStorage.getItem("favoriteDeviceIds");
+      if (stored) {
+        setFavoriteIds(JSON.parse(stored));
+      }
+    } catch (e) {}
+  };
+
+  const toggleFavorite = async (deviceId: string) => {
+    try {
+      const nextFavorites = favoriteIds.includes(deviceId)
+        ? favoriteIds.filter(id => id !== deviceId)
+        : [...favoriteIds, deviceId];
+      
+      setFavoriteIds(nextFavorites);
+      await AsyncStorage.setItem("favoriteDeviceIds", JSON.stringify(nextFavorites));
+    } catch (e) {}
+  };
+
+  const sortedDevices = useMemo(() => {
+    return [...nearbyDevices].sort((a, b) => {
+      const aFav = favoriteIds.includes(a.id);
+      const bFav = favoriteIds.includes(b.id);
+      if (aFav && !bFav) return -1;
+      if (!aFav && bFav) return 1;
+      return a.name.localeCompare(b.name);
+    });
+  }, [nearbyDevices, favoriteIds]);
 
   const startScanning = async () => {
     setIsScanning(true);
@@ -381,35 +413,46 @@ export default function SendScreen() {
         </View>
 
         {/* Device List */}
-        {nearbyDevices.map((device) => (
-          <Card 
-            key={device.id}
-            style={styles.deviceCard} 
-            mode="contained" 
-            onPress={() => handleDevicePress(device)}
-          >
-            <View style={styles.deviceCardContent}>
-              <MaterialCommunityIcons 
-                name={device.platform === 'mobile' ? "cellphone" : "laptop"} 
-                size={40} 
-                color={theme.colors.onSurfaceVariant} 
-                style={styles.deviceIcon} 
-              />
-              <View style={styles.deviceInfo}>
-                <Text variant="titleMedium">{device.name}</Text>
-                <View style={styles.badgeRow}>
-                  <View style={[styles.badge, { backgroundColor: theme.colors.surfaceVariant }]}>
-                    <Text variant="labelSmall">{getPortLabel(device.ip)}</Text>
-                  </View>
-                  <View style={[styles.badge, { backgroundColor: theme.colors.surfaceVariant }]}>
-                    <Text variant="labelSmall">{device.os || device.brand || 'Station'}</Text>
+        {sortedDevices.map((device) => {
+          const isFavorite = favoriteIds.includes(device.id);
+          return (
+            <Card 
+              key={device.id}
+              style={styles.deviceCard} 
+              mode="contained" 
+              onPress={() => handleDevicePress(device)}
+            >
+              <View style={styles.deviceCardContent}>
+                <MaterialCommunityIcons 
+                  name={device.platform === 'mobile' ? "cellphone" : "laptop"} 
+                  size={40} 
+                  color={theme.colors.onSurfaceVariant} 
+                  style={styles.deviceIcon} 
+                />
+                <View style={styles.deviceInfo}>
+                  <Text variant="titleMedium">{device.name}</Text>
+                  <View style={styles.badgeRow}>
+                    <View style={[styles.badge, { backgroundColor: theme.colors.surfaceVariant }]}>
+                      <Text variant="labelSmall">{getPortLabel(device.ip)}</Text>
+                    </View>
+                    <View style={[styles.badge, { backgroundColor: theme.colors.surfaceVariant }]}>
+                      <Text variant="labelSmall">{device.os || device.brand || 'Station'}</Text>
+                    </View>
                   </View>
                 </View>
+                <IconButton 
+                  icon={isFavorite ? "heart" : "heart-outline"} 
+                  size={24} 
+                  iconColor={isFavorite ? theme.colors.primary : theme.colors.onSurfaceVariant}
+                  onPress={(e) => { 
+                    e.stopPropagation(); 
+                    toggleFavorite(device.id);
+                  }} 
+                />
               </View>
-              <IconButton icon="heart-outline" size={24} onPress={(e) => { e.stopPropagation(); }} />
-            </View>
-          </Card>
-        ))}
+            </Card>
+          );
+        })}
 
         {nearbyDevices.length === 0 && (
           <View style={styles.emptyState}>
