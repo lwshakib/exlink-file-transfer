@@ -35,6 +35,7 @@ export default function ReceiveScreen() {
   const [isMinimized, setIsMinimized] = useState(false);
   const [historyVisible, setHistoryVisible] = useState(false);
   const [saveToFolderPath, setSaveToFolderPath] = useState<string>("Downloads");
+  const [serverRunning, setServerRunning] = useState(true);
   
   const lastDownloadedRef = useRef(0);
   const prevBytesRef = useRef(0);
@@ -160,6 +161,9 @@ export default function ReceiveScreen() {
     } else {
       setSaveToFolderPath("Downloads");
     }
+
+    const serverState = await AsyncStorage.getItem("serverRunning");
+    setServerRunning(serverState !== "false");
   }, []);
 
   useEffect(() => {
@@ -176,6 +180,7 @@ export default function ReceiveScreen() {
 
   useEffect(() => {
     const pollForRequests = async () => {
+      if (!serverRunning) return;
       try {
         const myIp = await Network.getIpAddressAsync();
         if (!myIp || myIp.includes(':')) return;
@@ -256,13 +261,13 @@ export default function ReceiveScreen() {
 
     const interval = setInterval(pollForRequests, 2000);
     return () => clearInterval(interval);
-  }, [discoveredDesktops, transferStatus]); // Don't poll while transferring if possible, or filter logic
+  }, [discoveredDesktops, transferStatus, serverRunning]); // Don't poll while transferring if possible, or filter logic
 
   // Poll for Transfer Manifest (Receiver Flow)
   useEffect(() => {
     let polling = true;
     const checkTransferStatus = async () => {
-      if (transferStatus !== 'waiting-transfer' || !pendingRequest) return;
+      if (!serverRunning || transferStatus !== 'waiting-transfer' || !pendingRequest) return;
       
       try {
         const ip = await Network.getIpAddressAsync();
@@ -285,7 +290,7 @@ export default function ReceiveScreen() {
       checkTransferStatus();
     }
     return () => { polling = false; };
-  }, [transferStatus, pendingRequest]);
+  }, [transferStatus, pendingRequest, serverRunning]);
 
   const downloadFiles = async (files: any[], desktopIp: string, myId: string | null) => {
     let downloaded = 0;

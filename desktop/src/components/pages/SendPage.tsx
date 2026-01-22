@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { File, Folder, Clipboard, RotateCcw, Target, Heart, Settings2, Smartphone, AlignLeft, Laptop, Monitor, X, Plus, ChevronLeft, Trash2, FileText, Paperclip } from "lucide-react";
+import { File, Folder, Clipboard, RotateCcw, Target, Heart, Smartphone, AlignLeft, Laptop, Monitor, X, Plus, ChevronLeft, Trash2, FileText, Paperclip } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -321,11 +321,6 @@ export function SendPage() {
             >
                 <RotateCcw className="h-3 w-3" strokeWidth={1.5} />
             </Button>
-            {[Target, Heart, Settings2].map((Icon, i) => (
-              <Button key={i} variant="ghost" size="icon" className="h-6 w-6 rounded-full text-muted-foreground/60 hover:text-foreground hover:bg-muted transition-all">
-                <Icon className="h-3 w-3" strokeWidth={1.5} />
-              </Button>
-            ))}
           </div>
         </motion.div>
 

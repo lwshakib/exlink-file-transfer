@@ -47,6 +47,9 @@ function InnerLayout() {
     let knownDesktopIps = new Set<string>();
     let serverRunning = true;
     
+    // Auto-start server on app launch as requested
+    AsyncStorage.setItem("serverRunning", "true");
+
     const checkServerStatus = async () => {
       const status = await AsyncStorage.getItem("serverRunning");
       serverRunning = status !== "false";

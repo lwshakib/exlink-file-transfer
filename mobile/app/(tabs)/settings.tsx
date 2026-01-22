@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from "react";
-import { StyleSheet, View, ScrollView, TouchableOpacity } from "react-native";
+import { StyleSheet, View, ScrollView, TouchableOpacity, Platform } from "react-native";
 import { Text, useTheme, Portal, Dialog, RadioButton, Button, TextInput, Switch, IconButton } from "react-native-paper";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useTheme as useAppTheme, ColorTheme } from "@/hooks/useTheme";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { uniqueNamesGenerator, adjectives, animals } from "unique-names-generator";
-import * as FileSystem from "expo-file-system";
+import * as FileSystem from "expo-file-system/legacy";
 import * as DocumentPicker from "expo-document-picker";
 import Svg, { G, Path } from "react-native-svg";
 
@@ -90,7 +90,6 @@ export default function SettingsScreen() {
   const [deviceNameDialogVisible, setDeviceNameDialogVisible] = useState(false);
   const [deviceNameDraft, setDeviceNameDraft] = useState("");
   const [serverRunning, setServerRunning] = useState(true);
-  const [nameChanged, setNameChanged] = useState(false);
   const [saveMediaToGallery, setSaveMediaToGallery] = useState(false);
   const [saveToFolder, setSaveToFolder] = useState("Downloads");
   const [saveToFolderPath, setSaveToFolderPath] = useState<string | null>(null);
@@ -134,37 +133,23 @@ export default function SettingsScreen() {
   const openDeviceNameDialog = () => {
     setDeviceNameDraft(deviceName === "Loading..." ? "" : deviceName);
     setDeviceNameDialogVisible(true);
-    setNameChanged(false);
   };
 
   const saveDeviceName = async () => {
     const next = deviceNameDraft.trim();
     if (!next) return;
     
-    const changed = next !== deviceName;
     await AsyncStorage.setItem("deviceName", next);
     setDeviceName(next);
     setDeviceNameDialogVisible(false);
-    setNameChanged(changed);
   };
 
-  const handleServerStop = async () => {
-    setServerRunning(false);
-    await AsyncStorage.setItem("serverRunning", "false");
-    // Server stop logic will be handled by discovery service
+  const handleServerToggle = async (value: boolean) => {
+    setServerRunning(value);
+    await AsyncStorage.setItem("serverRunning", value ? "true" : "false");
   };
 
-  const handleServerRestart = async () => {
-    setServerRunning(true);
-    await AsyncStorage.setItem("serverRunning", "true");
-    setNameChanged(false);
-    // Server restart logic will be handled by discovery service
-  };
 
-  const handleServerRefresh = () => {
-    // Trigger a refresh of the discovery service
-    // This will be handled by the discovery service listening to AsyncStorage changes
-  };
 
   const handleSaveMediaToggle = async (value: boolean) => {
     setSaveMediaToGallery(value);
@@ -173,8 +158,23 @@ export default function SettingsScreen() {
 
   const handleSelectFolder = async () => {
     try {
-      // On mobile, we can't directly pick folders, but we can use documentDirectory
-      // For now, we'll use a workaround with FileSystem
+      if (Platform.OS === 'android') {
+        const permissions = await FileSystem.StorageAccessFramework.requestDirectoryPermissionsAsync();
+        if (permissions.granted) {
+          const uri = permissions.directoryUri;
+          setSaveToFolderPath(uri);
+          
+          // Decode URL to get a readable folder name
+          const decodedUri = decodeURIComponent(uri);
+          const folderName = decodedUri.split('%3A').pop()?.split('/').pop() || "Custom";
+          setSaveToFolder(folderName);
+          
+          await AsyncStorage.setItem("saveToFolderPath", uri);
+          return;
+        }
+      }
+
+      // Fallback for iOS or if permissions denied/canceled
       const result = await DocumentPicker.getDocumentAsync({
         type: "*/*",
         copyToCacheDirectory: false,
@@ -229,29 +229,14 @@ export default function SettingsScreen() {
         <View style={styles.section}>
           <Text variant="titleMedium" style={styles.sectionHeader}>Network</Text>
           
-          {nameChanged && (
-            <View style={[styles.warningBanner, { backgroundColor: theme.colors.errorContainer }]}>
-              <Text style={[styles.warningText, { color: theme.colors.onErrorContainer }]}>
-                Restart the server to apply this setting
-              </Text>
-            </View>
-          )}
+
           
           <SettingRow label="Server">
-            <View style={[styles.multiIconBox, { backgroundColor: theme.colors.surfaceVariant }]}>
-              <IconButton 
-                icon="refresh" 
-                size={20} 
-                style={styles.miniIcon} 
-                onPress={handleServerRefresh}
-                iconColor={theme.colors.onSurfaceVariant}
-              />
-              <IconButton 
-                icon={serverRunning ? "stop" : "play"} 
-                size={20} 
-                style={styles.miniIcon} 
-                onPress={serverRunning ? handleServerStop : handleServerRestart}
-                iconColor={serverRunning ? theme.colors.error : theme.colors.primary}
+            <View style={[styles.switchBox, { backgroundColor: theme.colors.surfaceVariant }]}>
+              <Switch 
+                value={serverRunning} 
+                onValueChange={handleServerToggle} 
+                color={theme.colors.primary} 
               />
             </View>
           </SettingRow>
@@ -265,7 +250,7 @@ export default function SettingsScreen() {
         <View style={styles.section}>
           <Text variant="titleMedium" style={styles.sectionHeader}>Receive</Text>
           <SettingRow label="Save to folder">
-            <TonalBox text={saveToFolder} icon="folder-outline" onPress={handleSelectFolder} />
+            <TonalBox text={saveToFolder} icon="chevron-right" onPress={handleSelectFolder} />
           </SettingRow>
           <SettingRow label="Save media to gallery">
             <View style={[styles.switchBox, { backgroundColor: theme.colors.surfaceVariant }]}>

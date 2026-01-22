@@ -43394,8 +43394,8 @@ var expressExports = express$2.exports;
  * Copyright(c) 2014-2015 Douglas Christopher Wilson
  * MIT Licensed
  */
-var express = expressExports;
-const express$1 = /* @__PURE__ */ getDefaultExportFromCjs(express);
+var express$1 = expressExports;
+const express = /* @__PURE__ */ getDefaultExportFromCjs(express$1);
 var lib$1 = { exports: {} };
 /*
 object-assign
@@ -47523,9 +47523,9 @@ udpSocket.bind(DISCOVERY_PORT, () => {
   };
   startBroadcast();
 });
-const serverApp = express$1();
+const serverApp = express();
 serverApp.use(cors());
-serverApp.use(express$1.json());
+serverApp.use(express.json());
 serverApp.post("/upload", (req2, res2) => {
   const transferId = Array.isArray(req2.headers["x-transfer-id"]) ? req2.headers["x-transfer-id"][0] : req2.headers["x-transfer-id"] || Math.random().toString(36).substring(7);
   console.log(`[Upload] New request starting: ${transferId}, content-length: ${req2.headers["content-length"]}`);

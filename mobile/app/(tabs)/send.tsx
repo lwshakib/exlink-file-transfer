@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useRef, useMemo, useEffect } from "react";
-import { StyleSheet, View, ScrollView, Platform, Dimensions, Image as RNImage, ActivityIndicator, RefreshControl } from "react-native";
+import { StyleSheet, View, ScrollView, Platform, Dimensions, Image as RNImage } from "react-native";
 import { Text, IconButton, useTheme, Card, Button, Portal, Dialog, TextInput } from "react-native-paper";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
@@ -272,14 +272,6 @@ export default function SendScreen() {
     <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <ScrollView 
         contentContainerStyle={styles.scrollContent}
-        refreshControl={
-          <RefreshControl 
-            refreshing={isScanning} 
-            onRefresh={startScanning}
-            tintColor={theme.colors.primary}
-            colors={[theme.colors.primary]}
-          />
-        }
       >
         
         {/* Selection Summary Card */}
@@ -385,9 +377,6 @@ export default function SendScreen() {
           <Text variant="titleMedium" style={styles.sectionTitle}>Nearby devices</Text>
           <View style={styles.nearbyActions}>
             <IconButton icon="refresh" size={20} onPress={startScanning} disabled={isScanning} />
-            <IconButton icon="target" size={20} onPress={() => {}} />
-            <IconButton icon="heart" size={20} onPress={() => {}} />
-            <IconButton icon="cog" size={20} onPress={() => {}} />
           </View>
         </View>
 
@@ -424,9 +413,7 @@ export default function SendScreen() {
 
         {nearbyDevices.length === 0 && (
           <View style={styles.emptyState}>
-            {isScanning ? (
-              <ActivityIndicator color={theme.colors.primary} size="large" />
-            ) : (
+            {!isScanning && (
               <>
                 <MaterialCommunityIcons name="radar" size={48} color={theme.colors.onSurfaceDisabled} />
                 <Text variant="bodyMedium" style={{ color: theme.colors.onSurfaceDisabled, marginTop: 12 }}>
