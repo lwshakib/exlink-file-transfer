@@ -47428,6 +47428,7 @@ function loadConfig() {
     if (fs$2.existsSync(configPath)) {
       const data = JSON.parse(fs$2.readFileSync(configPath, "utf-8"));
       if (data.name) serverName = data.name;
+      if (data.uploadDir) uploadDir = data.uploadDir;
     } else {
       serverName = n({
         dictionaries: [l, r],
@@ -47438,6 +47439,7 @@ function loadConfig() {
       saveConfig();
     }
     serverId = getServerIdFromIp();
+    loadUploadDir();
   } catch (e2) {
     console.error("Failed to load config:", e2);
   }
@@ -47452,16 +47454,32 @@ function saveConfig() {
 app.whenReady().then(() => {
   loadConfig();
 });
-const uploadDir = path$3.join(os.homedir(), "Downloads", "ExLink");
-if (!fs$2.existsSync(uploadDir)) {
-  fs$2.mkdirSync(uploadDir, { recursive: true });
+let uploadDir = path$3.join(os.homedir(), "Downloads", "ExLink");
+function loadUploadDir() {
+  try {
+    if (fs$2.existsSync(configPath)) {
+      const data = JSON.parse(fs$2.readFileSync(configPath, "utf-8"));
+      if (data.uploadDir) {
+        uploadDir = data.uploadDir;
+      }
+    }
+  } catch (e2) {
+    console.error("Failed to load upload dir:", e2);
+  }
+  if (!fs$2.existsSync(uploadDir)) {
+    fs$2.mkdirSync(uploadDir, { recursive: true });
+  }
 }
+loadUploadDir();
 const activeRequests = /* @__PURE__ */ new Map();
 const nearbyNodes = /* @__PURE__ */ new Map();
 const pendingConnections = /* @__PURE__ */ new Map();
 const outgoingRequests = /* @__PURE__ */ new Map();
 const activeTransfers = /* @__PURE__ */ new Map();
 const pendingDownloads = /* @__PURE__ */ new Map();
+let serverRunning = true;
+let httpServer = null;
+let udpBroadcastInterval = null;
 const udpSocket = dgram.createSocket("udp4");
 udpSocket.on("error", (err) => console.log(`UDP error:
 ${err.stack}`));
@@ -47477,28 +47495,33 @@ udpSocket.on("message", (msg, _rinfo) => {
 });
 udpSocket.bind(DISCOVERY_PORT, () => {
   udpSocket.setBroadcast(true);
-  setInterval(() => {
-    const localIp = getLocalIPs()[0];
-    const message = JSON.stringify({
-      type: "discovery",
-      id: serverId,
-      name: serverName,
-      ip: localIp,
-      port: HTTP_PORT,
-      platform: "desktop",
-      os: os.platform() === "win32" ? "Windows" : os.platform() === "darwin" ? "MacOS" : "Linux"
-    });
-    udpSocket.send(message, 0, message.length, DISCOVERY_PORT, "255.255.255.255");
-    const now = Date.now();
-    let changed = false;
-    for (const [id, node2] of nearbyNodes.entries()) {
-      if (now - node2.lastSeen > DISCOVERY_INTERVAL * 6.6) {
-        nearbyNodes.delete(id);
-        changed = true;
+  const startBroadcast = () => {
+    if (udpBroadcastInterval) clearInterval(udpBroadcastInterval);
+    udpBroadcastInterval = setInterval(() => {
+      if (!serverRunning) return;
+      const localIp = getLocalIPs()[0];
+      const message = JSON.stringify({
+        type: "discovery",
+        id: serverId,
+        name: serverName,
+        ip: localIp,
+        port: HTTP_PORT,
+        platform: "desktop",
+        os: os.platform() === "win32" ? "Windows" : os.platform() === "darwin" ? "MacOS" : "Linux"
+      });
+      udpSocket.send(message, 0, message.length, DISCOVERY_PORT, "255.255.255.255");
+      const now = Date.now();
+      let changed = false;
+      for (const [id, node2] of nearbyNodes.entries()) {
+        if (now - node2.lastSeen > DISCOVERY_INTERVAL * 6.6) {
+          nearbyNodes.delete(id);
+          changed = true;
+        }
       }
-    }
-    if (changed) win == null ? void 0 : win.webContents.send("nearby-nodes-updated", Array.from(nearbyNodes.values()));
-  }, DISCOVERY_INTERVAL);
+      if (changed) win == null ? void 0 : win.webContents.send("nearby-nodes-updated", Array.from(nearbyNodes.values()));
+    }, DISCOVERY_INTERVAL);
+  };
+  startBroadcast();
 });
 const serverApp = express$1();
 serverApp.use(cors());
@@ -47598,6 +47621,38 @@ serverApp.post("/request-connect", (req2, res2) => {
   });
 });
 ipcMain.handle("get-upload-dir", () => uploadDir);
+ipcMain.handle("get-server-status", () => {
+  return { running: serverRunning && httpServer !== null };
+});
+ipcMain.handle("stop-server", () => {
+  serverRunning = false;
+  stopServer();
+  return true;
+});
+ipcMain.handle("restart-server", () => {
+  serverRunning = true;
+  restartServer();
+  return true;
+});
+ipcMain.handle("select-save-folder", async () => {
+  if (!win) return null;
+  const { canceled, filePaths } = await dialog.showOpenDialog(win, {
+    properties: ["openDirectory"]
+  });
+  if (canceled || !filePaths[0]) return null;
+  const selectedPath = filePaths[0];
+  if (!fs$2.existsSync(selectedPath)) {
+    fs$2.mkdirSync(selectedPath, { recursive: true });
+  }
+  try {
+    const configData = fs$2.existsSync(configPath) ? JSON.parse(fs$2.readFileSync(configPath, "utf-8")) : {};
+    configData.uploadDir = selectedPath;
+    fs$2.writeFileSync(configPath, JSON.stringify(configData));
+  } catch (e2) {
+    console.error("Failed to save upload dir:", e2);
+  }
+  return { path: selectedPath };
+});
 ipcMain.on("set-server-id", (_event, { id }) => {
   serverId = id;
   saveConfig();
@@ -47777,9 +47832,30 @@ serverApp.get("/download/:deviceId/:fileIndex", (req2, res2) => {
     }
   });
 });
-serverApp.listen(HTTP_PORT, "0.0.0.0", () => {
-  console.log(`ExLink Server running at http://0.0.0.0:${HTTP_PORT}`);
-});
+const startServer = () => {
+  if (httpServer) {
+    console.log("Server already running");
+    return;
+  }
+  httpServer = serverApp.listen(HTTP_PORT, "0.0.0.0", () => {
+    console.log(`ExLink Server running at http://0.0.0.0:${HTTP_PORT}`);
+  });
+};
+const stopServer = () => {
+  if (httpServer) {
+    httpServer.close(() => {
+      console.log("ExLink Server stopped");
+      httpServer = null;
+    });
+  }
+};
+const restartServer = () => {
+  stopServer();
+  setTimeout(() => {
+    startServer();
+  }, 500);
+};
+startServer();
 ipcMain.handle("get-server-info", () => {
   serverId = getServerIdFromIp();
   return {

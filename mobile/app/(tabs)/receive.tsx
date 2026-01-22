@@ -7,6 +7,7 @@ import Svg, { G, Path } from "react-native-svg";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Network from "expo-network";
 import * as FileSystem from "expo-file-system/legacy";
+import * as MediaLibrary from "expo-media-library";
 import { uniqueNamesGenerator, adjectives, animals } from "unique-names-generator";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import HistoryPortal from "@/components/HistoryPortal";
@@ -33,6 +34,7 @@ export default function ReceiveScreen() {
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
   const [historyVisible, setHistoryVisible] = useState(false);
+  const [saveToFolderPath, setSaveToFolderPath] = useState<string>("Downloads");
   
   const lastDownloadedRef = useRef(0);
   const prevBytesRef = useRef(0);
@@ -148,6 +150,15 @@ export default function ReceiveScreen() {
       setDeviceId(id);
     } else {
       setDeviceId("000");
+    }
+
+    // Load save folder path
+    const folderPath = await AsyncStorage.getItem("saveToFolderPath");
+    if (folderPath) {
+      const folderName = folderPath.split('/').pop() || folderPath.split('\\').pop() || "Custom";
+      setSaveToFolderPath(folderName);
+    } else {
+      setSaveToFolderPath("Downloads");
     }
   }, []);
 
@@ -285,6 +296,18 @@ export default function ReceiveScreen() {
     
     setTransferFiles(files.map(f => ({ ...f, progress: 0, status: 'waiting' })));
 
+    // Load settings
+    const saveToFolderPath = await AsyncStorage.getItem("saveToFolderPath");
+    const saveMediaToGallery = await AsyncStorage.getItem("saveMediaToGallery");
+    const shouldSaveToGallery = saveMediaToGallery === "true";
+    
+    // Determine base directory
+    const baseDir = saveToFolderPath || FileSystem.documentDirectory || "";
+    const isMediaFile = (name: string) => {
+      const ext = name.toLowerCase().split('.').pop();
+      return ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'mp4', 'mov', 'avi', 'mkv', 'mp3', 'wav', 'm4a'].includes(ext || '');
+    };
+
     for (const file of files) {
       setCurrentFilename(file.name);
       setTransferFiles(prev => prev.map(f => f.index === file.index ? { ...f, status: 'downloading' } : f));
@@ -292,7 +315,7 @@ export default function ReceiveScreen() {
       try {
         const uri = `http://${desktopIp}:3030/download/${myId}/${file.index}`;
         // @ts-ignore
-        const fileUri = FileSystem.documentDirectory + file.name;
+        const fileUri = baseDir + (baseDir.endsWith('/') ? '' : '/') + file.name;
 
         const resumable = FileSystem.createDownloadResumable(
           uri,
@@ -311,11 +334,23 @@ export default function ReceiveScreen() {
         const downloadRes = await resumable.downloadAsync();
         
         if (downloadRes && (downloadRes.status === 200 || downloadRes.status === 201)) {
-           downloaded += file.size;
-           lastDownloadedRef.current = downloaded; 
-           setDownloadedBytes(downloaded); 
-           setDownloadProgress(downloaded / total); 
-           setTransferFiles(prev => prev.map(f => f.index === file.index ? { ...f, status: 'done', progress: 1, localUri: fileUri } : f));
+          // If it's a media file and save to gallery is enabled, save to gallery
+          if (shouldSaveToGallery && isMediaFile(file.name) && downloadRes.uri) {
+            try {
+              const { status } = await MediaLibrary.requestPermissionsAsync();
+              if (status === 'granted') {
+                await MediaLibrary.createAssetAsync(downloadRes.uri);
+              }
+            } catch (e) {
+              console.error('Failed to save to gallery:', e);
+            }
+          }
+          
+          downloaded += file.size;
+          lastDownloadedRef.current = downloaded; 
+          setDownloadedBytes(downloaded); 
+          setDownloadProgress(downloaded / total); 
+          setTransferFiles(prev => prev.map(f => f.index === file.index ? { ...f, status: 'done', progress: 1, localUri: fileUri } : f));
         } else {
            throw new Error(`Download failed`);
         }
@@ -547,7 +582,7 @@ export default function ReceiveScreen() {
                           {transferStatus === 'done' ? 'Finished' : 'Receiving files'}
                        </Text>
                        <Text style={[styles.saveToText, { color: theme.colors.secondary }]}>
-                          Save to folder: <Text style={[styles.saveToLink, { color: theme.colors.primary }]}>/storage/emulated/0/Download</Text>
+                          Save to folder: <Text style={[styles.saveToLink, { color: theme.colors.primary }]}>{saveToFolderPath}</Text>
                        </Text>
                     </View>
 

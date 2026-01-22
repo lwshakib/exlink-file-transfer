@@ -45,8 +45,17 @@ function InnerLayout() {
   // Global Discovery Service
   useEffect(() => {
     let knownDesktopIps = new Set<string>();
+    let serverRunning = true;
+    
+    const checkServerStatus = async () => {
+      const status = await AsyncStorage.getItem("serverRunning");
+      serverRunning = status !== "false";
+    };
     
     const announceToIps = async (ips: Set<string>) => {
+      await checkServerStatus();
+      if (!serverRunning) return;
+      
       try {
         const myIp = await Network.getIpAddressAsync();
         if (!myIp || myIp.includes(':')) return;

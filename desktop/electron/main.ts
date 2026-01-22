@@ -6,6 +6,7 @@ import cors from 'cors'
 import fs from 'node:fs'
 import os from 'node:os'
 import dgram from 'node:dgram'
+import http from 'node:http'
 import { uniqueNamesGenerator, adjectives, animals } from 'unique-names-generator'
 import { Transform, PassThrough } from 'node:stream'
 
@@ -45,6 +46,7 @@ function loadConfig() {
     if (fs.existsSync(configPath)) {
       const data = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
       if (data.name) serverName = data.name
+      if (data.uploadDir) uploadDir = data.uploadDir
       // We don't persist serverId anymore as it depends on the current IP
     } else {
       // First run: generate friendly name
@@ -58,6 +60,7 @@ function loadConfig() {
     }
     // Always calculate current ID from IP
     serverId = getServerIdFromIp()
+    loadUploadDir()
   } catch (e) {
     console.error('Failed to load config:', e)
   }
@@ -77,10 +80,23 @@ app.whenReady().then(() => {
 })
 
 // File Storage Setup
-const uploadDir = path.join(os.homedir(), 'Downloads', 'ExLink')
-if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir, { recursive: true })
+let uploadDir = path.join(os.homedir(), 'Downloads', 'ExLink')
+function loadUploadDir() {
+  try {
+    if (fs.existsSync(configPath)) {
+      const data = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+      if (data.uploadDir) {
+        uploadDir = data.uploadDir
+      }
+    }
+  } catch (e) {
+    console.error('Failed to load upload dir:', e)
+  }
+  if (!fs.existsSync(uploadDir)) {
+    fs.mkdirSync(uploadDir, { recursive: true })
+  }
 }
+loadUploadDir()
 
 // State Management
 const activeRequests = new Map<string, Request>()
@@ -89,6 +105,9 @@ const pendingConnections = new Map<string, any>()
 const outgoingRequests = new Map<string, any>()
 const activeTransfers = new Map<string, { controller: AbortController, files: any[] }>()
 const pendingDownloads = new Map<string, { files: any[], timestamp: number }>()
+let serverRunning = true
+let httpServer: http.Server | null = null
+let udpBroadcastInterval: NodeJS.Timeout | null = null
 
 // --- Discovery Protocol (UDP) ---
 const udpSocket = dgram.createSocket('udp4')
@@ -106,31 +125,36 @@ udpSocket.on('message', (msg, _rinfo) => {
 
 udpSocket.bind(DISCOVERY_PORT, () => {
   udpSocket.setBroadcast(true)
-  setInterval(() => {
-    const localIp = getLocalIPs()[0]
-    const message = JSON.stringify({
-      type: 'discovery',
-      id: serverId,
-      name: serverName,
-      ip: localIp,
-      port: HTTP_PORT,
-      platform: 'desktop',
-      os: os.platform() === 'win32' ? 'Windows' : os.platform() === 'darwin' ? 'MacOS' : 'Linux'
-    })
-    udpSocket.send(message, 0, message.length, DISCOVERY_PORT, '255.255.255.255')
-    
-    // Cleanup stale nodes
-    const now = Date.now()
-    let changed = false
-    for (const [id, node] of nearbyNodes.entries()) {
-      // Be more forgiving: 20s timeout (DISCOVERY_INTERVAL * 6.6)
-      if (now - node.lastSeen > DISCOVERY_INTERVAL * 6.6) {
-        nearbyNodes.delete(id)
-        changed = true
+  const startBroadcast = () => {
+    if (udpBroadcastInterval) clearInterval(udpBroadcastInterval)
+    udpBroadcastInterval = setInterval(() => {
+      if (!serverRunning) return
+      const localIp = getLocalIPs()[0]
+      const message = JSON.stringify({
+        type: 'discovery',
+        id: serverId,
+        name: serverName,
+        ip: localIp,
+        port: HTTP_PORT,
+        platform: 'desktop',
+        os: os.platform() === 'win32' ? 'Windows' : os.platform() === 'darwin' ? 'MacOS' : 'Linux'
+      })
+      udpSocket.send(message, 0, message.length, DISCOVERY_PORT, '255.255.255.255')
+      
+      // Cleanup stale nodes
+      const now = Date.now()
+      let changed = false
+      for (const [id, node] of nearbyNodes.entries()) {
+        // Be more forgiving: 20s timeout (DISCOVERY_INTERVAL * 6.6)
+        if (now - node.lastSeen > DISCOVERY_INTERVAL * 6.6) {
+          nearbyNodes.delete(id)
+          changed = true
+        }
       }
-    }
-    if (changed) win?.webContents.send('nearby-nodes-updated', Array.from(nearbyNodes.values()))
-  }, DISCOVERY_INTERVAL)
+      if (changed) win?.webContents.send('nearby-nodes-updated', Array.from(nearbyNodes.values()))
+    }, DISCOVERY_INTERVAL)
+  }
+  startBroadcast()
 })
 
 // --- HTTP Server (Express) ---
@@ -244,6 +268,48 @@ serverApp.post('/request-connect', (req, res) => {
 })
 
 ipcMain.handle('get-upload-dir', () => uploadDir)
+
+ipcMain.handle('get-server-status', () => {
+  return { running: serverRunning && httpServer !== null }
+})
+
+ipcMain.handle('stop-server', () => {
+  serverRunning = false
+  stopServer()
+  return true
+})
+
+ipcMain.handle('restart-server', () => {
+  serverRunning = true
+  restartServer()
+  return true
+})
+
+ipcMain.handle('select-save-folder', async () => {
+  if (!win) return null
+  const { canceled, filePaths } = await dialog.showOpenDialog(win, { 
+    properties: ['openDirectory'] 
+  })
+  if (canceled || !filePaths[0]) return null
+  
+  const selectedPath = filePaths[0]
+  // Update uploadDir
+  if (!fs.existsSync(selectedPath)) {
+    fs.mkdirSync(selectedPath, { recursive: true })
+  }
+  // Save to config
+  try {
+    const configData = fs.existsSync(configPath) 
+      ? JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+      : {}
+    configData.uploadDir = selectedPath
+    fs.writeFileSync(configPath, JSON.stringify(configData))
+  } catch (e) {
+    console.error('Failed to save upload dir:', e)
+  }
+  
+  return { path: selectedPath }
+})
 
 ipcMain.on('set-server-id', (_event, { id }) => {
   serverId = id
@@ -465,9 +531,34 @@ serverApp.get('/download/:deviceId/:fileIndex', (req, res) => {
   })
 })
 
-serverApp.listen(HTTP_PORT, '0.0.0.0', () => {
-  console.log(`ExLink Server running at http://0.0.0.0:${HTTP_PORT}`)
-})
+const startServer = () => {
+  if (httpServer) {
+    console.log('Server already running')
+    return
+  }
+  httpServer = serverApp.listen(HTTP_PORT, '0.0.0.0', () => {
+    console.log(`ExLink Server running at http://0.0.0.0:${HTTP_PORT}`)
+  })
+}
+
+const stopServer = () => {
+  if (httpServer) {
+    httpServer.close(() => {
+      console.log('ExLink Server stopped')
+      httpServer = null
+    })
+  }
+}
+
+const restartServer = () => {
+  stopServer()
+  setTimeout(() => {
+    startServer()
+  }, 500)
+}
+
+// Start server on init
+startServer()
 
 // --- IPC Handlers ---
 ipcMain.handle('get-server-info', () => {
