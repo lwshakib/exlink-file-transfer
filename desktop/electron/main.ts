@@ -195,6 +195,7 @@ serverApp.post('/upload', (req: Request, res: Response) => {
       lastUpdateTime = now
       win.webContents.send('upload-progress', {
         id: transferId,
+        remoteIp: req.socket.remoteAddress?.replace('::ffff:', ''),
         progress: totalSize > 0 ? receivedBytes / totalSize : 0,
         processedBytes: receivedBytes,
         totalBytes: totalSize,
@@ -219,6 +220,7 @@ serverApp.post('/upload', (req: Request, res: Response) => {
       if (win) {
         win.webContents.send('upload-complete', {
           id: transferId,
+          remoteIp: req.socket.remoteAddress?.replace('::ffff:', ''),
           name: filename,
           size: receivedBytes, 
           path: saveTo,
@@ -387,6 +389,29 @@ serverApp.get('/cancel-pairing/:deviceId', (req, res) => {
   res.json({ status: 'ok' })
 })
 
+serverApp.get('/cancel-transfer/:deviceId', (req, res) => {
+  const { deviceId } = req.params
+  console.log(`Transfer cancelled by remote device: ${deviceId}`)
+  
+  // Check active uploads (Desktop as receiver)
+  const activeReq = activeRequests.get(deviceId)
+  if (activeReq) {
+    activeReq.destroy()
+    activeRequests.delete(deviceId)
+    win?.webContents.send('transfer-error', { deviceId, error: 'Cancelled by remote device' })
+  }
+  
+  // Check active downloads (Desktop as sender)
+  const transfer = activeTransfers.get(deviceId)
+  if (transfer) {
+    transfer.controller.abort()
+    activeTransfers.delete(deviceId)
+    win?.webContents.send('transfer-error', { deviceId, error: 'Cancelled by remote device' })
+  }
+  
+  res.json({ status: 'ok' })
+})
+
 serverApp.get('/transfer-finish/:deviceId', (req, res) => {
   const { deviceId } = req.params
   console.log(`[Upload] Transfer session finished for: ${deviceId}`)
@@ -432,7 +457,8 @@ serverApp.get('/check-pairing-requests/:deviceId', (req, res) => {
         name: serverName,
         id: serverId,
         os: os.platform() === 'win32' ? 'Windows' : os.platform() === 'darwin' ? 'MacOS' : 'Linux',
-        ip: getLocalIPs()[0]
+        ip: getLocalIPs()[0],
+        files: outgoing.files || []
       }
     })
   }
@@ -592,7 +618,7 @@ ipcMain.on('set-server-name', (_event, { name }) => {
   saveConfig()
 })
 
-ipcMain.handle('initiate-pairing', async (_event, { deviceId, deviceIp }) => {
+ipcMain.handle('initiate-pairing', async (_event, { deviceId, deviceIp, items }) => {
   const node = nearbyNodes.get(deviceId)
   const isMobile = node?.platform === 'mobile' || !node // Default to polling if unknown/mobile-like
   
@@ -610,7 +636,12 @@ ipcMain.handle('initiate-pairing', async (_event, { deviceId, deviceIp }) => {
 
   if (isMobile) {
     // Mobile devices poll us
-    outgoingRequests.set(deviceId, { deviceId, deviceIp, timestamp: Date.now() })
+    outgoingRequests.set(deviceId, { 
+      deviceId, 
+      deviceIp, 
+      timestamp: Date.now(),
+      files: items || [] 
+    })
     return { status: 'waiting' }
   } else {
     // Desktop devices have servers, we can POST directly
@@ -769,14 +800,29 @@ ipcMain.handle('start-transfer', async (_event, { deviceId, deviceIp, platform, 
   }
 })
 
-ipcMain.handle('cancel-transfer', (_event, { deviceId }) => {
+ipcMain.handle('cancel-transfer', (_event, { deviceId, targetIp }) => {
+  // 1. Check active transfers (Desktop as sender)
   const transfer = activeTransfers.get(deviceId)
   if (transfer) {
     transfer.controller.abort()
     activeTransfers.delete(deviceId)
-    return true
   }
-  return false
+
+  // 2. Check active requests (Desktop as receiver)
+  const activeReq = activeRequests.get(deviceId)
+  if (activeReq) {
+    activeReq.destroy()
+    activeRequests.delete(deviceId)
+  }
+
+  // 3. Notify remote device if possible
+  if (targetIp) {
+    const notifyUrl = `http://${targetIp}:3030/cancel-transfer/${serverId}`
+    console.log(`Notifying remote device of cancellation: ${notifyUrl}`)
+    fetch(notifyUrl).catch(() => {})
+  }
+
+  return true
 })
 
 ipcMain.handle('open-folder', () => shell.openPath(uploadDir))

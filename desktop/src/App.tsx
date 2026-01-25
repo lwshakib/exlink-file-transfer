@@ -1,4 +1,4 @@
-import { Minus, Square, X, Download, Send, Settings, Smartphone, Laptop, UserCheck, ArrowDown, Paperclip, File } from "lucide-react";
+import { Minus, Square, X, Download, Send, Settings, Smartphone, Laptop, UserCheck, ArrowDown, Paperclip, File, AlignLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Logo } from "@/components/common/Logo";
 import { useState, useEffect, useRef } from "react";
@@ -45,6 +45,7 @@ function App() {
   const [transferData, setTransferData] = useState<{
     type: 'sending' | 'receiving',
     status: 'transferring' | 'completed' | 'error',
+    errorMsg?: string,
     progress: number,
     fileProgress?: number,
     speed: number,
@@ -53,13 +54,16 @@ function App() {
     totalFiles: number,
     processedBytes: number,
     totalBytes: number,
+    targetId?: string,
+    targetIp?: string,
     items?: SelectedItem[],
     remoteDevice?: {
       name: string,
       platform: string,
       os?: string,
       brand?: string,
-      deviceId: string
+      deviceId: string,
+      ip?: string
     }
   } | null>(null);
   const [currentSpeed, setCurrentSpeed] = useState(0);
@@ -195,12 +199,15 @@ function App() {
             processedBytes: 0,
             totalBytes: selectedItems.reduce((acc, i) => acc + (i.size || 0), 0),
             items: selectedItems,
+            targetId: waitingFor.deviceId,
+            targetIp: waitingFor.ip,
             remoteDevice: {
               name: waitingFor.name,
               platform: waitingFor.platform,
               os: waitingFor.os,
               brand: waitingFor.brand,
-              deviceId: waitingFor.deviceId
+              deviceId: waitingFor.deviceId,
+              ip: waitingFor.ip
             }
         });
         setWaitingFor(null);
@@ -244,7 +251,9 @@ function App() {
                 currentFile: data.currentFile || 'Receiving...',
                 currentIndex: completedFilesCountRef.current + 1,
                 processedBytes: totalSessionProcessed,
-                totalBytes: totalBytes
+                totalBytes: totalBytes,
+                targetId: data.id,
+                targetIp: data.remoteIp
             };
         });
     });
@@ -253,8 +262,12 @@ function App() {
       setPendingRequest(null);
     });
     
-    const removeErrorListener = window.ipcRenderer.on('transfer-error', () => {
-        setTransferData(prev => prev ? { ...prev, status: 'error' } : null);
+    const removeErrorListener = window.ipcRenderer.on('transfer-error', (_event: any, data: any) => {
+        setTransferData(prev => prev ? { 
+          ...prev, 
+          status: 'error', 
+          errorMsg: data.error || 'Transfer failed' 
+        } : null);
     });
 
     const removeUploadErrorListener = window.ipcRenderer.on('upload-error', () => {
@@ -265,6 +278,27 @@ function App() {
         console.log('[IPC] upload-complete:', data.name);
         completedFilesCountRef.current += 1;
         completedFilesBytesRef.current += data.size;
+
+        // Save to history
+        try {
+          const historyJson = localStorage.getItem("transfer-history");
+          const history = historyJson ? JSON.parse(historyJson) : [];
+          const newItem = {
+            id: `${Date.now()}-${data.name}`,
+            name: data.name,
+            size: data.size,
+            timestamp: Date.now(),
+            from: transferData?.remoteDevice?.name || 'Unknown Device',
+            path: data.path
+          };
+          history.push(newItem);
+          localStorage.setItem("transfer-history", JSON.stringify(history));
+          
+          // Trigger a local event or allow history page to poll
+          window.dispatchEvent(new Event('history-updated'));
+        } catch (e) {
+          console.error("Failed to save history:", e);
+        }
 
         setTransferData(prev => prev ? { 
           ...prev, 
@@ -411,21 +445,27 @@ function App() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="absolute inset-0 bg-background flex flex-col p-8 z-[120]"
+              className="absolute inset-0 bg-background flex flex-col p-8 z-[45]"
             >
               <div className="flex flex-col h-full space-y-8 max-w-5xl w-full mx-auto">
                 <header className="flex flex-col gap-1 pt-4">
                    <h1 className="text-xl font-bold text-foreground tracking-tight">
-                     {transferData.status === 'completed' ? 'Finished' : (transferData.type === 'sending' ? 'Sending files' : 'Receiving files')}
+                     {transferData.status === 'completed' ? 'Finished' : 
+                      transferData.status === 'error' ? 'Transfer Failed' :
+                      (transferData.type === 'sending' ? 'Sending files' : 'Receiving files')}
                    </h1>
-                   {transferData.type === 'receiving' && (
+                   {transferData.status === 'error' ? (
+                     <p className="text-sm text-destructive font-semibold">
+                        {transferData.errorMsg || 'Canceled or interrupted'}
+                     </p>
+                   ) : transferData.type === 'receiving' && (
                      <p className="text-sm text-[var(--accent-secondary)]">
                        Save to folder: <span onClick={() => window.ipcRenderer.invoke('open-folder')} className="text-[var(--accent-primary)] hover:underline cursor-pointer">{savePath}</span>
                      </p>
                    )}
                 </header>
 
-                <div className="flex-1 overflow-y-auto space-y-6 pr-4 [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-thumb]:bg-border [&::-webkit-scrollbar-track]:bg-transparent">
+                <div className="flex-1 overflow-y-auto space-y-6 pr-4">
                    {transferData.type === 'sending' ? (
                      transferData.items?.map((item, idx) => {
                        const isCurrent = idx + 1 === transferData.currentIndex;
@@ -494,7 +534,10 @@ function App() {
                        </div>
                        <div className="h-2 w-full bg-muted rounded-full overflow-hidden">
                           <div 
-                            className="h-full bg-[var(--accent-primary)] transition-all duration-300 shadow-[0_0_8px_var(--accent-glow)]" 
+                            className={cn(
+                              "h-full transition-all duration-300 shadow-[0_0_8px_var(--accent-glow)]",
+                              transferData.status === 'error' ? "bg-destructive shadow-destructive/20" : "bg-[var(--accent-primary)]"
+                            )} 
                             style={{ width: `${transferData.progress * 100}%` }} 
                           />
                        </div>
@@ -589,9 +632,14 @@ function App() {
                     <div className="flex flex-col w-full gap-3 pt-2">
                        <Button 
                         onClick={() => {
-                          window.ipcRenderer.invoke('cancel-transfer', { deviceId: 'any' });
+                          if (transferData) {
+                            const deviceId = transferData.targetId || transferData.remoteDevice?.deviceId || 'any';
+                            const targetIp = transferData.targetIp || transferData.remoteDevice?.ip;
+                            window.ipcRenderer.invoke('cancel-transfer', { deviceId, targetIp });
+                          }
                           setTransferData(null);
                           setIsCancelConfirmOpen(false);
+                          setShowAdvanced(false);
                         }}
                         variant="destructive"
                         className="font-bold h-11 rounded-xl shadow-lg shadow-destructive/20"
@@ -619,7 +667,7 @@ function App() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="absolute inset-0 bg-background flex flex-col items-center justify-center p-0 z-[110]"
+              className="absolute inset-0 bg-background flex flex-col items-center justify-center p-0 z-[40]"
             >
               <div className="flex flex-col items-center max-w-sm w-full px-8 space-y-8">
                 <div className="w-full p-5 bg-card border border-border rounded-2xl flex items-center gap-4">
@@ -691,16 +739,18 @@ function App() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="absolute inset-0 bg-background flex flex-col items-center justify-center p-0 z-[120]"
+              className="absolute inset-0 bg-background flex flex-col items-center justify-center p-0 z-[45]"
             >
               <div className="flex flex-col items-center max-w-2xl w-full px-8 text-center space-y-12">
                 <div className="relative">
                    <div className="absolute inset-0 bg-primary/20 blur-3xl rounded-full" />
-                   {pendingRequest.platform === 'mobile' ? (
-                     <Smartphone size={100} strokeWidth={1.5} className="text-foreground relative z-10" />
-                   ) : (
-                     <Laptop size={100} strokeWidth={1.5} className="text-foreground relative z-10" />
-                   )}
+                   <div className="h-40 w-40 rounded-full bg-muted flex items-center justify-center border border-border relative z-10 shadow-2xl">
+                     {pendingRequest.platform === 'mobile' ? (
+                       <Smartphone size={80} strokeWidth={1.2} className="text-primary" />
+                     ) : (
+                       <Laptop size={80} strokeWidth={1.2} className="text-primary" />
+                     )}
+                   </div>
                 </div>
 
                 <div className="space-y-4">
@@ -709,11 +759,11 @@ function App() {
                   </h2>
                   
                   <div className="flex gap-2 justify-center">
-                    <Badge variant="secondary" className="px-4 py-1 bg-muted text-muted-foreground font-mono uppercase text-[10px] tracking-widest rounded-lg border border-border">
+                    <Badge variant="secondary" className="px-4 py-1.5 bg-muted/50 text-muted-foreground font-mono uppercase text-[9px] tracking-widest rounded-full border border-border">
                       #{pendingRequest.deviceId?.slice(-3)}
                     </Badge>
                     {pendingRequest.brand && (
-                      <Badge variant="secondary" className="px-4 py-1 bg-muted text-muted-foreground font-mono uppercase text-[10px] tracking-widest rounded-lg border border-border">
+                      <Badge variant="secondary" className="px-4 py-1.5 bg-muted/50 text-muted-foreground font-mono uppercase text-[9px] tracking-widest rounded-full border border-border">
                         {pendingRequest.brand}
                       </Badge>
                     )}
@@ -730,27 +780,30 @@ function App() {
                   </p>
                 )}
 
-                <div className="flex gap-6 w-full max-sm pt-8">
+                <div className="flex flex-col gap-6 w-full max-w-sm pt-8">
                   <Button 
-                    variant="ghost"
+                    variant="secondary"
                     onClick={() => setIsOptionsOpen(true)}
-                    className="flex-1 h-14 rounded-2xl hover:bg-muted/50 text-foreground font-bold text-lg border border-border transition-all flex gap-2"
+                    className="w-auto self-center rounded-full px-6 h-10 font-bold text-xs uppercase tracking-widest flex gap-2 border shadow-sm hover:bg-muted"
                   >
-                    <Paperclip size={20} /> Options
+                    <AlignLeft size={16} /> View Files
                   </Button>
-                  <Button 
-                    variant="ghost"
-                    onClick={() => respondToConnection(false)}
-                    className="flex-1 h-14 rounded-2xl hover:bg-destructive/10 text-destructive font-bold text-lg border border-border transition-all flex gap-2"
-                  >
-                    <X size={20} /> Decline
-                  </Button>
-                  <Button 
-                    onClick={() => respondToConnection(true)}
-                    className="flex-1 h-14 rounded-2xl bg-primary hover:bg-primary/90 text-primary-foreground font-bold text-lg shadow-xl shadow-primary/30 flex gap-2 transition-all active:scale-95"
-                  >
-                    <UserCheck size={20} /> Accept
-                  </Button>
+                  
+                  <div className="flex gap-4 w-full">
+                    <Button 
+                      variant="destructive"
+                      onClick={() => respondToConnection(false)}
+                      className="flex-1 h-12 rounded-full font-bold text-sm shadow-lg shadow-destructive/10"
+                    >
+                      Decline
+                    </Button>
+                    <Button 
+                      onClick={() => respondToConnection(true)}
+                      className="flex-1 h-12 rounded-full bg-primary hover:bg-primary/90 text-primary-foreground font-bold text-sm shadow-xl shadow-primary/20"
+                    >
+                      Accept
+                    </Button>
+                  </div>
                 </div>
               </div>
             </motion.div>
@@ -759,29 +812,45 @@ function App() {
 
         {/* Options Dialog */}
         <Dialog open={isOptionsOpen} onOpenChange={setIsOptionsOpen}>
-          <DialogContent className="max-w-2xl max-h-[80vh]">
-            <DialogHeader>
-              <DialogTitle>Files to receive</DialogTitle>
+          <DialogContent className="max-w-xl p-0 overflow-hidden border-none shadow-2xl rounded-3xl bg-card">
+            <DialogHeader className="p-6 pb-2">
+              <DialogTitle className="text-2xl font-bold tracking-tight">Incoming Files</DialogTitle>
+              <p className="text-xs text-muted-foreground font-medium">
+                {pendingRequest?.totalFiles || 0} items • {formatFileSize(pendingRequest?.totalSize || 0)}
+              </p>
             </DialogHeader>
-            <ScrollArea className="max-h-[60vh] pr-4">
-              <div className="space-y-3">
-                {pendingRequest?.files && pendingRequest.files.length > 0 ? (
-                  pendingRequest.files.map((file, idx) => (
-                    <div key={idx} className="flex items-center gap-3 p-3 rounded-lg border bg-muted/20">
-                      <File className="h-5 w-5 text-muted-foreground flex-shrink-0" />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium truncate">{file.name}</p>
-                        <p className="text-xs text-muted-foreground">{formatFileSize(file.size)}</p>
+            <div className="px-6 pb-6">
+              <ScrollArea className="h-[400px] pr-4">
+                <div className="space-y-2">
+                  {pendingRequest?.files && pendingRequest.files.length > 0 ? (
+                    pendingRequest.files.map((file, idx) => (
+                      <div key={idx} className="flex items-center gap-4 p-4 rounded-2xl bg-muted/40 border border-border/50 group hover:bg-muted/60 transition-colors">
+                        <div className="h-10 w-10 bg-background rounded-xl flex items-center justify-center border border-border shadow-sm shrink-0">
+                          <File size={18} className="text-primary/70" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-semibold truncate text-foreground/90">{file.name}</p>
+                          <p className="text-[10px] text-muted-foreground font-mono uppercase font-bold tracking-tighter">{formatFileSize(file.size)}</p>
+                        </div>
                       </div>
+                    ))
+                  ) : (
+                    <div className="flex flex-col items-center justify-center py-20 text-muted-foreground/30">
+                       <File size={48} strokeWidth={1} className="mb-4" />
+                       <p className="text-sm font-medium">No file details available</p>
                     </div>
-                  ))
-                ) : (
-                  <p className="text-sm text-muted-foreground text-center py-8">
-                    {pendingRequest?.totalFiles || 0} file{pendingRequest?.totalFiles !== 1 ? 's' : ''} • {formatFileSize(pendingRequest?.totalSize || 0)}
-                  </p>
-                )}
+                  )}
+                </div>
+              </ScrollArea>
+              <div className="mt-6 flex justify-end">
+                <Button 
+                  onClick={() => setIsOptionsOpen(false)}
+                  className="rounded-full px-8 font-bold h-10 shadow-lg shadow-primary/10"
+                >
+                  Got it
+                </Button>
               </div>
-            </ScrollArea>
+            </div>
           </DialogContent>
         </Dialog>
       </main>

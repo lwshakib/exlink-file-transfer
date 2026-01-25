@@ -12,30 +12,29 @@ import { useRouter } from "expo-router";
 import { useSelection, SelectedItem } from "@/hooks/useSelection";
 import SelectionDetailsPortal from "@/components/SelectionDetailsPortal";
 import SendingPortal from "@/components/SendingPortal";
+import * as FileSystem from "expo-file-system/legacy";
 
-import * as Device from "expo-device";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-
-interface NearbyDevice {
-  id: string;
-  name: string;
-  ip: string;
-  port: number;
-  platform: 'desktop' | 'mobile';
-  os?: string;
-  brand?: string;
-}
+import { useDiscoveryStore, NearbyDevice } from "@/store/useDiscoveryStore";
+import { useSettingsStore } from "@/store/useSettingsStore";
 
 export default function SendScreen() {
   const theme = useTheme();
   const router = useRouter();
   const { selectedItems, addItems, clearSelection, totalSize } = useSelection();
   
+  // Settings Store
+  const deviceName = useSettingsStore(state => state.deviceName);
+  const deviceId = useSettingsStore(state => state.deviceId);
+
+  // Discovery Store
+  const nearbyDevices = useDiscoveryStore(state => state.nearbyDevices);
+  const isScanning = useDiscoveryStore(state => state.isScanning);
+  const triggerScan = useDiscoveryStore(state => state.triggerScan);
+
   const [textDialogVisible, setTextDialogVisible] = useState(false);
   const [inputText, setInputText] = useState("");
-  const [nearbyDevices, setNearbyDevices] = useState<NearbyDevice[]>([]);
   const [favoriteIds, setFavoriteIds] = useState<string[]>([]);
-  const [isScanning, setIsScanning] = useState(false);
 
   const bottomSheetModalRef = useRef<BottomSheetModal>(null);
   const [selectionSheetVisible, setSelectionSheetVisible] = useState(false);
@@ -45,9 +44,6 @@ export default function SendScreen() {
 
   useEffect(() => {
     loadFavorites();
-    startScanning();
-    const interval = setInterval(performSubnetScan, 15000);
-    return () => clearInterval(interval);
   }, []);
 
   const loadFavorites = async () => {
@@ -81,9 +77,7 @@ export default function SendScreen() {
   }, [nearbyDevices, favoriteIds]);
 
   const startScanning = async () => {
-    setIsScanning(true);
-    await performSubnetScan();
-    setIsScanning(false);
+    triggerScan();
   };
 
   const handleDevicePress = async (device: NearbyDevice) => {
@@ -94,64 +88,6 @@ export default function SendScreen() {
     
     setSelectedDevice(device);
     setSendingPortalVisible(true);
-  };
-
-  const performSubnetScan = async () => {
-    try {
-      const ip = await Network.getIpAddressAsync();
-      if (!ip || ip.includes(':')) return; // IPv4 only
-      
-      const subnet = ip.substring(0, ip.lastIndexOf('.') + 1);
-      const candidates = Array.from({ length: 254 }, (_, i) => i + 1);
-      const found: NearbyDevice[] = [];
-      const batchSize = 40;
-
-      for (let i = 0; i < candidates.length; i += batchSize) {
-        const batch = candidates.slice(i, i + batchSize);
-        await Promise.all(batch.map(async (suffix) => {
-          const testIp = subnet + suffix;
-          if (testIp === ip) return;
-
-          try {
-            const controller = new AbortController();
-            const timeout = setTimeout(() => controller.abort(), 600);
-            const res = await fetch(`http://${testIp}:3030/get-server-info`, { 
-              signal: controller.signal,
-              headers: { 'Accept': 'application/json' }
-            });
-            clearTimeout(timeout);
-            
-            if (res.ok) {
-              const info = await res.json();
-              found.push(info);
-
-              // Proactively announce ourselves to the desktop we just found
-              const brand = Device.brand || Device.modelName || "Mobile";
-              const storedName = await AsyncStorage.getItem("deviceName");
-              const name = storedName || Device.deviceName || "Mobile Device";
-              const storedId = await AsyncStorage.getItem("deviceId");
-              const id = storedId || (ip.includes('.') ? ip.split('.').pop()! : "000");
-              
-              fetch(`http://${testIp}:3030/announce`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  id: id,
-                  name: name,
-                  ip: ip,
-                  port: 3030,
-                  platform: 'mobile',
-                  brand: brand
-                })
-              }).catch(() => {});
-            }
-          } catch (e) {}
-        }));
-      }
-      setNearbyDevices(found);
-    } catch (e) {
-      console.log('Scan error:', e);
-    }
   };
 
   const getPortLabel = (id: string) => {
@@ -251,14 +187,32 @@ export default function SendScreen() {
   };
 
   const handleFolderPick = async () => {
-    handleFilePick();
+    if (Platform.OS === 'android') {
+      try {
+        const permissions = await FileSystem.StorageAccessFramework.requestDirectoryPermissionsAsync();
+        if (permissions.granted) {
+          // In a real implementation, we might want to iterate or zip the folder.
+          // For now, we'll inform the user how to send multiple files if they prefer.
+          alert("Folder selection granted. Please select files within the folder for now, or use a Zip app to share an entire directory.");
+          handleFilePick();
+        }
+      } catch (e) {
+        console.error("Folder picker error:", e);
+        handleFilePick();
+      }
+    } else {
+      handleFilePick();
+    }
   };
 
   const handleAppPick = async () => {
     if (Platform.OS === 'android') {
+      // Show info dialog first
+      alert("To share an INSTALLED app, find it on your home screen or app drawer, long-press it, and use the 'Share' option. To pick an .APK file from storage, click OK.");
+      
       try {
         const result = await DocumentPicker.getDocumentAsync({
-          type: "application/vnd.android.package-archive",
+          type: ["application/vnd.android.package-archive"],
           multiple: true,
         });
         if (!result.canceled) {
@@ -276,7 +230,7 @@ export default function SendScreen() {
         console.error("Error picking app:", err);
       }
     } else {
-      alert("App sharing is only supported on Android");
+      alert("App sharing insight: On iOS, you can share apps by finding them in the App Store or using the Share sheet from the home screen icon (if supported). EXLink directly supports .apk sharing on Android.");
     }
   };
 

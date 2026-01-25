@@ -1,28 +1,37 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { StyleSheet, View, Platform, ScrollView, Image } from "react-native";
-import { IconButton, Text, useTheme, Modal, Portal, Button, Card, ActivityIndicator } from "react-native-paper";
+import { IconButton, Text, useTheme, Modal, Portal, Button, Card, ActivityIndicator, Divider } from "react-native-paper";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import Svg, { G, Path } from "react-native-svg";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Network from "expo-network";
-import * as FileSystem from "expo-file-system/legacy";
+import { File, Directory, Paths } from "expo-file-system";
+import * as FileSystemLegacy from "expo-file-system/legacy";
 import * as MediaLibrary from "expo-media-library";
 import { uniqueNamesGenerator, adjectives, animals } from "unique-names-generator";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import HistoryPortal from "@/components/HistoryPortal";
 import { useFocusEffect } from "@react-navigation/native";
+import { BottomSheetModal, BottomSheetView, BottomSheetScrollView, BottomSheetBackdrop } from "@gorhom/bottom-sheet";
+import { useSettingsStore } from "@/store/useSettingsStore";
 
 export default function ReceiveScreen() {
   const theme = useTheme();
   const router = useRouter();
-  const [deviceName, setDeviceName] = useState("");
-  const [deviceId, setDeviceId] = useState("");
+  
+  // Zustand Store
+  const deviceName = useSettingsStore((state) => state.deviceName);
+  const deviceId = useSettingsStore((state) => state.deviceId);
+  const serverRunning = useSettingsStore((state) => state.serverRunning);
+  const setDeviceName = useSettingsStore((state) => state.setDeviceName);
+  const setDeviceId = useSettingsStore((state) => state.setDeviceId);
+  const setServerRunning = useSettingsStore((state) => state.setServerRunning);
+  
   const [pendingRequest, setPendingRequest] = useState<any>(null);
   const [discoveredDesktops, setDiscoveredDesktops] = useState<string[]>([]);
   
   // Transfer State
-  const [transferStatus, setTransferStatus] = useState<'idle' | 'waiting-transfer' | 'downloading' | 'done' | 'error'>('idle');
+  const [transferStatus, setTransferStatus] = useState<'idle' | 'waiting-transfer' | 'downloading' | 'saving' | 'done' | 'error'>('idle');
   const [downloadProgress, setDownloadProgress] = useState(0);
   const [currentFilename, setCurrentFilename] = useState("");
   const [transferStartTime, setTransferStartTime] = useState<number | null>(null);
@@ -34,12 +43,15 @@ export default function ReceiveScreen() {
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
   const [historyVisible, setHistoryVisible] = useState(false);
-  const [saveToFolderPath, setSaveToFolderPath] = useState<string>("Downloads");
-  const [serverRunning, setServerRunning] = useState(true);
   
+  // Bottom Sheet Ref
+  const optionsSheetRef = useRef<BottomSheetModal>(null);
+  const snapPoints = useMemo(() => ["50%", "85%"], []);
+
   const lastDownloadedRef = useRef(0);
   const prevBytesRef = useRef(0);
   const speedIntervalRef = useRef<any>(null);
+  const currentDownloadRef = useRef<any | null>(null);
 
   const truncateFileName = (name: string, maxLength: number = 24) => {
     if (!name || name.length <= maxLength) return name;
@@ -125,46 +137,27 @@ export default function ReceiveScreen() {
   };
 
   const loadIdentity = useCallback(async () => {
-    let name = await AsyncStorage.getItem("deviceName");
-    let id = await AsyncStorage.getItem("deviceId");
-
-    if (!name) {
-      name = uniqueNamesGenerator({
+    // Generate name if missing
+    if (!deviceName) {
+      const name = uniqueNamesGenerator({
         dictionaries: [adjectives, animals],
         length: 2,
         separator: ' ',
         style: 'capital'
       });
-      await AsyncStorage.setItem("deviceName", name);
+      setDeviceName(name);
     }
 
-    setDeviceName(name || "");
-
-    // Use last octet of IP as the "Port" (ID)
+    // Generate/Sync device ID
     const ip = await Network.getIpAddressAsync();
     if (ip && !ip.includes(':')) {
       const parts = ip.split('.');
       const lastOctet = parts[parts.length - 1];
       setDeviceId(lastOctet);
-      await AsyncStorage.setItem("deviceId", lastOctet);
-    } else if (id) {
-      setDeviceId(id);
-    } else {
+    } else if (!deviceId) {
       setDeviceId("000");
     }
-
-    // Load save folder path
-    const folderPath = await AsyncStorage.getItem("saveToFolderPath");
-    if (folderPath) {
-      const folderName = folderPath.split('/').pop() || folderPath.split('\\').pop() || "Custom";
-      setSaveToFolderPath(folderName);
-    } else {
-      setSaveToFolderPath("Downloads");
-    }
-
-    const serverState = await AsyncStorage.getItem("serverRunning");
-    setServerRunning(serverState !== "false");
-  }, []);
+  }, [deviceName, deviceId, setDeviceName, setDeviceId]);
 
   useEffect(() => {
     loadIdentity();
@@ -190,9 +183,7 @@ export default function ReceiveScreen() {
 
         // If we have a pending request, check specifically if it still exists
         // But DON'T clear it if we are already transferring or finished
-        if (pendingRequest) {
-          if (transferStatus !== 'idle') return;
-
+        if (pendingRequest && transferStatus === 'idle') {
           try {
             const res = await fetch(`http://${pendingRequest.desktopIp}:3030/check-pairing-requests/${pollId}`);
             if (res.ok) {
@@ -201,7 +192,7 @@ export default function ReceiveScreen() {
                 setPendingRequest(null);
                 setTransferStatus('idle');
               }
-            } else {
+            } else if (res.status === 404) {
               setPendingRequest(null);
               setTransferStatus('idle');
             }
@@ -240,28 +231,34 @@ export default function ReceiveScreen() {
           setDiscoveredDesktops(currentDesktops);
         }
 
-        // Search for new requests from known desktops
-        for (const desktopIp of currentDesktops) {
+        // Search for new requests from known desktops in parallel
+        await Promise.all(currentDesktops.map(async (desktopIp) => {
+          if (pendingRequest) return;
           try {
-            const res = await fetch(`http://${desktopIp}:3030/check-pairing-requests/${pollId}`);
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), 1000);
+            const res = await fetch(`http://${desktopIp}:3030/check-pairing-requests/${pollId}`, { 
+              signal: controller.signal 
+            });
+            clearTimeout(timeout);
+            
             if (res.ok) {
               const data = await res.json();
-              if (data.status === 'pending') {
+              if (data.status === 'pending' && !pendingRequest) {
                 setPendingRequest({ ...data.request, desktopIp });
-                break; // Only show one at a time
               }
             }
           } catch (e) {
-            // Remove desktop if unreachable
-            setDiscoveredDesktops(prev => prev.filter(ip => ip !== desktopIp));
+            // Only remove if it's a hard failure and not just a timeout during busy network
+            // (Optional: Implement a failure count if we want to be more robust)
           }
-        }
+        }));
       } catch (e) {}
     };
 
-    const interval = setInterval(pollForRequests, 2000);
+    const interval = setInterval(pollForRequests, 1000);
     return () => clearInterval(interval);
-  }, [discoveredDesktops, transferStatus, serverRunning]); // Don't poll while transferring if possible, or filter logic
+  }, [discoveredDesktops, transferStatus, serverRunning, pendingRequest, deviceId]); 
 
   // Poll for Transfer Manifest (Receiver Flow)
   useEffect(() => {
@@ -279,6 +276,10 @@ export default function ReceiveScreen() {
              polling = false;
              setTransferStatus('downloading');
              downloadFiles(data.files, pendingRequest.desktopIp, pollId);
+           } else if (data.status === 'none') {
+             setPendingRequest(null);
+             setTransferStatus('idle');
+             polling = false;
            }
         }
       } catch (e) {}
@@ -293,42 +294,66 @@ export default function ReceiveScreen() {
   }, [transferStatus, pendingRequest, serverRunning]);
 
   const downloadFiles = async (files: any[], desktopIp: string, myId: string | null) => {
-    let downloaded = 0;
     const total = files.reduce((acc, f) => acc + f.size, 0);
     setTotalTransferSize(total);
     setDownloadedBytes(0);
     lastDownloadedRef.current = 0;
-    
     setTransferFiles(files.map(f => ({ ...f, progress: 0, status: 'waiting' })));
 
-    // Load settings
-    const saveToFolderPath = await AsyncStorage.getItem("saveToFolderPath");
-    const saveMediaToGallery = await AsyncStorage.getItem("saveMediaToGallery");
-    const shouldSaveToGallery = saveMediaToGallery === "true";
+    // Load settings from Zustand store
+    const { saveToFolderPath, saveMediaToGallery } = useSettingsStore.getState();
+    const shouldSaveToGallery = saveMediaToGallery;
+    const isSAF = saveToFolderPath && saveToFolderPath.startsWith('content://');
     
-    // Determine base directory
-    const baseDir = saveToFolderPath || FileSystem.documentDirectory || "";
     const isMediaFile = (name: string) => {
       const ext = name.toLowerCase().split('.').pop();
       return ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'mp4', 'mov', 'avi', 'mkv', 'mp3', 'wav', 'm4a'].includes(ext || '');
     };
 
+    let aggregateDownloaded = 0;
+    const destDir = saveToFolderPath || Paths.document.uri;
+
+    // Ensure destination directory exists if it's a local path (non-SAF)
+    if (!isSAF) {
+      try {
+        const dir = new Directory(destDir);
+        if (!dir.exists) {
+          await dir.create();
+          console.log("[Receive] Created destination folder:", destDir);
+        }
+      } catch (e) {
+        console.warn("[Receive] Failed to ensure destDir exists, might fail download:", e);
+      }
+    }
+
+    // Download files directly to destination (or cache for SAF)
     for (const file of files) {
+      if (transferStatus === 'error' || !pendingRequest) break;
       setCurrentFilename(file.name);
       setTransferFiles(prev => prev.map(f => f.index === file.index ? { ...f, status: 'downloading' } : f));
       
       try {
-        const uri = `http://${desktopIp}:3030/download/${myId}/${file.index}`;
-        // @ts-ignore
-        const fileUri = baseDir + (baseDir.endsWith('/') ? '' : '/') + file.name;
+        const url = `http://${desktopIp}:3030/download/${myId}/${file.index}`;
+        
+        // Determine download destination
+        // For SAF, we must download to cache first then copy (Android limitation)
+        // For internal storage, download directly to final destination
+        let downloadUri: string;
+        if (isSAF) {
+          downloadUri = (FileSystemLegacy.cacheDirectory || '') + file.name;
+        } else {
+          // Download directly to destination
+          const destDir = saveToFolderPath || Paths.document.uri;
+          downloadUri = destDir + (destDir.endsWith('/') ? '' : '/') + file.name;
+        }
 
-        const resumable = FileSystem.createDownloadResumable(
-          uri,
-          fileUri,
+        const resumable = FileSystemLegacy.createDownloadResumable(
+          url,
+          downloadUri,
           {},
-          (downloadProgress: FileSystem.DownloadProgressData) => {
+          (downloadProgress) => {
             const currentFileDownloaded = downloadProgress.totalBytesWritten;
-            const totalDownloadedSoFar = downloaded + currentFileDownloaded;
+            const totalDownloadedSoFar = aggregateDownloaded + currentFileDownloaded;
             lastDownloadedRef.current = totalDownloadedSoFar;
             setDownloadedBytes(totalDownloadedSoFar);
             setDownloadProgress(totalDownloadedSoFar / total);
@@ -336,53 +361,178 @@ export default function ReceiveScreen() {
           }
         );
 
+        currentDownloadRef.current = resumable;
         const downloadRes = await resumable.downloadAsync();
+        currentDownloadRef.current = null;
         
         if (downloadRes && (downloadRes.status === 200 || downloadRes.status === 201)) {
-          // If it's a media file and save to gallery is enabled, save to gallery
-          if (shouldSaveToGallery && isMediaFile(file.name) && downloadRes.uri) {
+          let finalUri = downloadRes.uri;
+          
+          // For SAF destinations, copy from cache to SAF
+          if (isSAF && file.size < 20 * 1024 * 1024) {
             try {
-              const { status } = await MediaLibrary.requestPermissionsAsync();
-              if (status === 'granted') {
-                await MediaLibrary.createAssetAsync(downloadRes.uri);
+              const mimeType = getMimeType(file.name);
+              const safFileUri = await FileSystemLegacy.StorageAccessFramework.createFileAsync(
+                saveToFolderPath!,
+                file.name,
+                mimeType
+              );
+              const base64Content = await FileSystemLegacy.readAsStringAsync(downloadRes.uri, {
+                encoding: FileSystemLegacy.EncodingType.Base64,
+              });
+              await FileSystemLegacy.StorageAccessFramework.writeAsStringAsync(
+                safFileUri,
+                base64Content,
+                { encoding: FileSystemLegacy.EncodingType.Base64 }
+              );
+              await FileSystemLegacy.deleteAsync(downloadRes.uri, { idempotent: true });
+              finalUri = safFileUri;
+            } catch (safErr) {
+              console.warn('SAF save failed, keeping in cache:', safErr);
+            }
+          } else if (isSAF) {
+            // Large file with SAF - move to internal storage instead of cache (cache is temporary)
+            try {
+              const destPath = Paths.document.uri + '/' + file.name;
+              const destFile = new File(destPath);
+              
+              // Check if file already exists and delete it
+              try {
+                const exists = await FileSystemLegacy.getInfoAsync(destPath);
+                if (exists.exists) {
+                  await FileSystemLegacy.deleteAsync(destPath, { idempotent: true });
+                }
+              } catch (checkErr) {
+                // File doesn't exist, continue
               }
-            } catch (e) {
-              console.error('Failed to save to gallery:', e);
+              
+              const tempFile = new File(downloadRes.uri);
+              tempFile.move(Paths.document);
+              finalUri = tempFile.uri;
+              console.log(`Large file ${file.name} moved to internal storage (SAF doesn't support streaming for large files)`);
+            } catch (moveErr) {
+              console.warn('Fallback move failed, file kept in cache:', moveErr);
+              // Keep file in cache as fallback
+              finalUri = downloadRes.uri;
             }
           }
           
-          downloaded += file.size;
-          lastDownloadedRef.current = downloaded; 
-          setDownloadedBytes(downloaded); 
-          setDownloadProgress(downloaded / total); 
-          setTransferFiles(prev => prev.map(f => f.index === file.index ? { ...f, status: 'done', progress: 1, localUri: fileUri } : f));
+          // Gallery saving for media files
+          if (shouldSaveToGallery && isMediaFile(file.name) && file.size < 50 * 1024 * 1024) {
+            try {
+              const { status } = await MediaLibrary.requestPermissionsAsync();
+              if (status === 'granted') {
+                await MediaLibrary.createAssetAsync(finalUri.startsWith('content://') ? downloadRes.uri : finalUri);
+              }
+            } catch (e) {}
+          }
+
+          // Force a system-wide media scan for Android public folders
+          if (Platform.OS === 'android' && finalUri && !finalUri.startsWith('content://')) {
+            try { await MediaLibrary.saveToLibraryAsync(finalUri); } catch (scanErr) {}
+          }
+
+          // History Persistence
+          const { addHistoryItem } = useSettingsStore.getState();
+          addHistoryItem({
+            id: `${Date.now()}-${file.name}`,
+            name: file.name,
+            size: file.size,
+            timestamp: Date.now(),
+            from: pendingRequest?.name || 'Unknown Device'
+          });
+
+          aggregateDownloaded += file.size;
+          lastDownloadedRef.current = aggregateDownloaded; 
+          setDownloadedBytes(aggregateDownloaded); 
+          setDownloadProgress(aggregateDownloaded / total); 
+          setTransferFiles(prev => prev.map(f => f.index === file.index ? { ...f, status: 'done', progress: 1, localUri: finalUri } : f));
         } else {
-           throw new Error(`Download failed`);
+           throw new Error(`Download failed with status ${downloadRes?.status}`);
         }
-      } catch (e) {
-        setTransferStatus('error');
-        return;
+      } catch (e: any) {
+        currentDownloadRef.current = null;
+        if (e.message?.includes('cancel') || e.message?.includes('abort')) {
+            console.log('Download cancelled');
+            return;
+        } else {
+            console.error('Download error:', e);
+            setTransferFiles(prev => prev.map(f => f.index === file.index ? { ...f, status: 'error' } : f));
+        }
       }
     }
-    setTransferStatus('done');
+    // Set final status based on the processed files
+    setTransferFiles(currentFiles => {
+      const allDone = currentFiles.every(f => f.status === 'done');
+      const hasErrors = currentFiles.some(f => f.status === 'error');
+      
+      if (hasErrors) {
+        setTransferStatus('error');
+      } else if (allDone) {
+        setTransferStatus('done');
+      } else {
+        // Fallback case
+        setTransferStatus('done');
+      }
+      return currentFiles;
+    });
     setCurrentSpeed(0);
+  };
+
+  const getMimeType = (filename: string) => {
+    const ext = filename.split('.').pop()?.toLowerCase();
+    const mimeMap: { [key: string]: string } = {
+      'jpg': 'image/jpeg',
+      'jpeg': 'image/jpeg',
+      'png': 'image/png',
+      'gif': 'image/gif',
+      'webp': 'image/webp',
+      'mp4': 'video/mp4',
+      'mov': 'video/quicktime',
+      'pdf': 'application/pdf',
+      'txt': 'text/plain',
+      'zip': 'application/zip',
+      'apk': 'application/vnd.android.package-archive',
+    };
+    return mimeMap[ext || ''] || 'application/octet-stream';
   };
 
   const respondToRequest = async (accepted: boolean) => {
     if (!pendingRequest) return;
     
     if (!accepted) {
-      // Decline logic
+      // If we are currently downloading, cancel it
+      if (transferStatus === 'downloading' && currentDownloadRef.current) {
+        try {
+          // resumable objects from createDownloadResumable have cancelAsync or pauseAsync
+          if ((currentDownloadRef.current as any).cancelAsync) {
+            await (currentDownloadRef.current as any).cancelAsync();
+          } else if ((currentDownloadRef.current as any).pauseAsync) {
+            await (currentDownloadRef.current as any).pauseAsync();
+          }
+        } catch (e) {}
+        currentDownloadRef.current = null;
+      }
+
+      // Decline/Cancel logic
       try {
         const myIp = await Network.getIpAddressAsync();
         const pollId = deviceId || (myIp.includes('.') ? myIp.split('.').pop() : myIp);
-        await fetch(`http://${pendingRequest.desktopIp}:3030/respond-to-connection`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ deviceId: pollId, accepted: false })
-        });
+        
+        if (transferStatus === 'idle' || transferStatus === 'waiting-transfer') {
+            await fetch(`http://${pendingRequest.desktopIp}:3030/respond-to-connection`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ deviceId: pollId, accepted: false })
+            });
+        } else {
+            // Already transferring, call cancel-transfer
+            await fetch(`http://${pendingRequest.desktopIp}:3030/cancel-transfer/${pollId}`);
+        }
       } catch (e) {}
+      
       setPendingRequest(null);
+      setTransferStatus('idle');
       return;
     }
 
@@ -418,11 +568,23 @@ export default function ReceiveScreen() {
     <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
       {/* Top Header Icons */}
       <View style={styles.header}>
-        <IconButton
-          icon="history"
-          size={24}
-          onPress={() => setHistoryVisible(true)}
-        />
+        <View style={{ flexDirection: 'row' }}>
+          <IconButton
+            icon="history"
+            size={24}
+            onPress={() => setHistoryVisible(true)}
+          />
+          <IconButton
+            icon="refresh"
+            size={24}
+            onPress={() => {
+              // Trigger a subset of polling immediately
+              // (The useEffect will pick up discoveredDesktops and poll at its next tick, 
+              // but we can also manually trigger discovery update)
+              setDiscoveredDesktops([]); // Force a re-scan
+            }}
+          />
+        </View>
         <IconButton icon="information-outline" size={24} onPress={() => {}} />
       </View>
 
@@ -533,41 +695,43 @@ export default function ReceiveScreen() {
 
                   <View style={styles.modalFooter}>
                     <Button
-                      mode="text"
-                      onPress={() => {}}
-                      icon="cog"
-                      textColor={theme.colors.onSurfaceVariant}
+                      mode="contained-tonal"
+                      onPress={() => optionsSheetRef.current?.present()}
+                      icon="format-list-bulleted"
+                      textColor={theme.colors.primary}
                       style={styles.optionsButtonCompact}
-                      labelStyle={{ fontSize: 13, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 1 }}
+                      labelStyle={{ fontSize: 13, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 }}
+                      contentStyle={{ height: 40 }}
                     >
-                      Options
+                      View Files
                     </Button>
 
                     <View style={styles.footerActionRow}>
-                      <Button
-                        mode="contained"
-                        onPress={() => respondToRequest(false)}
-                        style={styles.declineButtonCompact}
-                        buttonColor={theme.colors.errorContainer}
-                        textColor={theme.colors.onErrorContainer}
-                        contentStyle={styles.buttonContentHeight}
-                        labelStyle={styles.buttonLabel}
-                        icon="close"
-                      >
-                        Decline
-                      </Button>
-                      <Button
-                        mode="contained"
-                        onPress={() => respondToRequest(true)}
-                        style={styles.acceptButtonCompact}
-                        buttonColor={theme.colors.primaryContainer}
-                        textColor={theme.colors.onPrimaryContainer}
-                        contentStyle={styles.buttonContentHeight}
-                        labelStyle={styles.buttonLabel}
-                        icon="check"
-                      >
-                        Accept
-                      </Button>
+                      <View style={styles.actionButtonWrapper}>
+                        <Button
+                          mode="contained-tonal"
+                          onPress={() => respondToRequest(false)}
+                          style={[styles.compactPillButton, { backgroundColor: theme.colors.errorContainer }]}
+                          textColor={theme.colors.onErrorContainer}
+                          contentStyle={styles.compactButtonContent}
+                          labelStyle={styles.compactButtonLabel}
+                        >
+                          Decline
+                        </Button>
+                      </View>
+                      <View style={styles.actionButtonWrapper}>
+                        <Button
+                          mode="contained"
+                          onPress={() => respondToRequest(true)}
+                          style={styles.compactPillButton}
+                          buttonColor={theme.colors.primary}
+                          textColor={theme.colors.onPrimary}
+                          contentStyle={styles.compactButtonContent}
+                          labelStyle={styles.compactButtonLabel}
+                        >
+                          Accept
+                        </Button>
+                      </View>
                     </View>
                   </View>
                 </>
@@ -580,15 +744,15 @@ export default function ReceiveScreen() {
                  </View>
               )}
 
-              {transferStatus !== 'idle' && (transferStatus === 'waiting-transfer' || transferStatus === 'downloading' || transferStatus === 'done' || transferStatus === 'error') && pendingRequest && (
+              {transferStatus !== 'idle' && (transferStatus === 'waiting-transfer' || transferStatus === 'downloading' || transferStatus === 'saving' || transferStatus === 'done' || transferStatus === 'error') && pendingRequest && (
                  <View style={[styles.transferContent, { backgroundColor: theme.colors.surface, flex: 1 }]}>
                     <View style={styles.modalHeaderList}>
                        <Text style={[styles.modalHeaderTitle, { color: theme.colors.onSurface }]}>
-                          {transferStatus === 'done' ? 'Finished' : 'Receiving files'}
+                          {transferStatus === 'done' ? 'Finished' : (transferStatus === 'saving' ? 'Saving files...' : (transferStatus === 'error' ? 'Transfer Failed' : 'Receiving files'))}
                        </Text>
-                       <Text style={[styles.saveToText, { color: theme.colors.secondary }]}>
-                          Save to folder: <Text style={[styles.saveToLink, { color: theme.colors.primary }]}>{saveToFolderPath}</Text>
-                       </Text>
+                        <Text style={[styles.saveToText, { color: theme.colors.secondary }]}>
+                           from {pendingRequest?.name || 'Unknown Device'}
+                        </Text>
                     </View>
 
                     <ScrollView style={styles.modalItemList}>
@@ -688,9 +852,9 @@ export default function ReceiveScreen() {
                             }} 
                             textColor={theme.colors.primary} 
                             labelStyle={styles.actionButtonLabel}
-                            icon={transferStatus === 'done' ? 'check-circle' : 'close'}
+                            icon={transferStatus === 'done' ? 'check-circle' : transferStatus === 'error' ? 'close-circle' : 'close'}
                           >
-                            {transferStatus === 'done' ? 'Done' : 'Cancel'}
+                            {transferStatus === 'done' ? 'Done' : transferStatus === 'error' ? 'Close' : 'Cancel'}
                           </Button>
                        </View>
                     </View>
@@ -706,6 +870,96 @@ export default function ReceiveScreen() {
         visible={historyVisible} 
         onDismiss={() => setHistoryVisible(false)} 
       />
+
+      <BottomSheetModal
+        ref={optionsSheetRef}
+        index={0}
+        snapPoints={snapPoints}
+        backdropComponent={(props) => (
+          <BottomSheetBackdrop {...props} disappearsOnIndex={-1} appearsOnIndex={0} />
+        )}
+        backgroundStyle={{ backgroundColor: theme.colors.surface }}
+        handleIndicatorStyle={{ backgroundColor: theme.colors.onSurfaceVariant }}
+      >
+        <BottomSheetView style={{ flex: 1, paddingBottom: 16 }}>
+          <View style={{ paddingHorizontal: 24, paddingTop: 8, paddingBottom: 16 }}>
+            <Text variant="titleLarge" style={{ fontWeight: '800', letterSpacing: -0.5 }}>Incoming Files</Text>
+            <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant, marginTop: 2 }}>
+              {pendingRequest?.files?.length || 0} items • {formatFileSize(pendingRequest?.files?.reduce((acc: number, f: any) => acc + (f.size || 0), 0) || 0)}
+            </Text>
+          </View>
+          <BottomSheetScrollView 
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={{ paddingHorizontal: 16 }}
+          >
+            {pendingRequest?.files?.map((file: any, index: number) => (
+              <Card 
+                key={index} 
+                style={{ marginBottom: 8, borderRadius: 16, backgroundColor: 'transparent' }} 
+                mode="contained"
+              >
+                <View style={{ flexDirection: 'row', alignItems: 'center', padding: 12 }}>
+                  <View style={{ 
+                    width: 44, 
+                    height: 44, 
+                    borderRadius: 12, 
+                    backgroundColor: theme.colors.surfaceVariant, 
+                    alignItems: 'center', 
+                    justifyContent: 'center',
+                    marginRight: 16,
+                    borderWidth: 1,
+                    borderColor: theme.colors.outlineVariant
+                  }}>
+                    <MaterialCommunityIcons 
+                      name={isImage(file.name) ? "image-outline" : "file-outline"} 
+                      size={24} 
+                      color={theme.colors.primary} 
+                    />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text 
+                      variant="bodyLarge" 
+                      style={{ fontWeight: '700', color: theme.colors.onSurface }}
+                    >
+                      {truncateFileName(file.name, 40) || "Unknown File"}
+                    </Text>
+                    <Text variant="labelMedium" style={{ color: theme.colors.onSurfaceVariant }}>
+                      {formatFileSize(file.size)}
+                    </Text>
+                  </View>
+                </View>
+                {index < pendingRequest.files.length - 1 && <Divider style={{ marginHorizontal: 12, opacity: 0.5 }} />}
+              </Card>
+            ))}
+            {(!pendingRequest?.files || pendingRequest.files.length === 0) && (
+              <View style={{ padding: 60, alignItems: 'center' }}>
+                <View style={{ 
+                  width: 80, 
+                  height: 80, 
+                  borderRadius: 40, 
+                  backgroundColor: theme.colors.surfaceVariant,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  marginBottom: 16
+                }}>
+                  <MaterialCommunityIcons name="file-question-outline" size={48} color={theme.colors.onSurfaceDisabled} />
+                </View>
+                <Text variant="bodyLarge" style={{ color: theme.colors.onSurfaceVariant, fontWeight: '500' }}>No file details available</Text>
+              </View>
+            )}
+          </BottomSheetScrollView>
+          <View style={{ paddingHorizontal: 24, paddingVertical: 16 }}>
+            <Button 
+              mode="contained" 
+              onPress={() => optionsSheetRef.current?.dismiss()}
+              style={{ borderRadius: 28 }}
+              contentStyle={{ height: 50 }}
+            >
+              Close Preview
+            </Button>
+          </View>
+        </BottomSheetView>
+      </BottomSheetModal>
     </SafeAreaView>
   );
 }
@@ -790,7 +1044,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 24,
-    borderWidth: 1,
+    borderWidth: 0,
   },
   transferContent: {
     flex: 1,
@@ -885,27 +1139,28 @@ const styles = StyleSheet.create({
   optionsButtonCompact: {
     alignSelf: 'center',
     marginBottom: 10,
+    borderRadius: 20,
   },
   footerActionRow: {
     flexDirection: 'row',
+    justifyContent: 'center',
     gap: 12,
+    paddingHorizontal: 32,
   },
-  declineButtonCompact: {
+  actionButtonWrapper: {
     flex: 1,
-    borderRadius: 20,
+    maxWidth: 140,
   },
-  acceptButtonCompact: {
-    flex: 1,
-    borderRadius: 20,
+  compactPillButton: {
+    borderRadius: 24,
   },
-  buttonContentHeight: {
-    height: 60,
+  compactButtonContent: {
+    height: 44,
   },
-  buttonLabel: {
-    fontWeight: '800',
-    fontSize: 13,
-    textTransform: 'uppercase',
-    letterSpacing: 1,
+  compactButtonLabel: {
+    fontWeight: '700',
+    fontSize: 14,
+    textTransform: 'none',
   },
   modalHeaderList: {
     paddingHorizontal: 24,
@@ -919,9 +1174,6 @@ const styles = StyleSheet.create({
   },
   saveToText: {
     fontSize: 14,
-  },
-  saveToLink: {
-    textDecorationLine: 'underline',
   },
   modalItemList: {
     flex: 1,

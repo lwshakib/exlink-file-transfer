@@ -1,83 +1,106 @@
 # ExLink File Transfer
 
-Cross‑platform local network file transfer between **Desktop (Electron)** and **Mobile (Expo/React Native)**.
+<p align="center">
+  <img src="01.png" width="45%" style="border-radius: 12px; margin-right: 10px;" />
+  <img src="03.jpg" width="22%" style="border-radius: 12px;" />
+</p>
 
-- **Desktop app**: `desktop/` (Electron + React + TypeScript + Vite)
-- **Mobile app**: `mobile/` (Expo Router + React Native Paper + TypeScript)
+A premium, localized file transfer solution designed for speed, simplicity, and seamless cross-platform communication. Transfer files, folders, and text between **Desktop** and **Mobile** with zero configuration.
 
-## What it does
+---
 
-- **Discover devices** on the same Wi‑Fi/LAN
-- **Pair (accept/decline)** before a transfer starts
-- **Transfer files** with progress UI
-  - Mobile → Desktop: mobile pushes uploads to the desktop server
-  - Desktop → Desktop: desktop pushes uploads to the other desktop server
-  - Desktop → Mobile: desktop queues, mobile pulls downloads (works around mobile constraints)
+## ✨ Features
 
-## Repository structure
+- 🚀 **Lightning Fast**: Blazing fast transfers over your local Wi-Fi or LAN.
+- 📱 **Cross-Platform**: Seamlessly connect Windows, macOS, and Linux with Android and iOS.
+- 🔍 **Auto-Discovery**: Devices on the same network find each other automatically—no IP typing required.
+- 🔒 **Privacy First**: Your data never leaves your network. Transfers are peer-to-peer.
+- 🎨 **Modern UI**: Clean, responsive design with support for custom themes and dark mode.
+- 📋 **Universal Clipboard**: Share text snippets and links instantly across devices.
+- 🗂️ **Batch Transfer**: Send multiple files and entire folders in one go.
 
-```
-exlink-file-transfer/
-├── desktop/                 # Electron desktop app
-├── mobile/                  # Expo mobile app
-├── HOW_IT_WORKS.md          # End-to-end workflow & API (recommended read)
-├── CODEBASE_ANALYSIS.md     # Deep dive analysis snapshot
-├── CONTRIBUTING.md
-├── CODE_OF_CONDUCT.md
-└── LICENSE
-```
+---
 
-## Network ports & protocol (high level)
+## 📸 App Showcase
 
-- **UDP discovery**: port `41234` (desktop broadcasts; desktop listens)
-- **HTTP server**: port `3030` (desktop runs an Express server)
+### Desktop Experience
+<p align="center">
+  <img src="02.png" width="80%" style="border-radius: 12px; border: 1px solid #333;" />
+  <br>
+  <em>The Send screen on Desktop allows for quick file and folder selection with automatic device discovery.</em>
+</p>
 
-Core endpoints on the desktop server (see `HOW_IT_WORKS.md` for full flows):
+### Mobile Experience
+<p align="center">
+  <img src="04.jpg" width="30%" style="border-radius: 12px; margin-right: 20px;" />
+  <img src="05.jpg" width="30%" style="border-radius: 12px;" />
+  <br>
+  <em>Mobile app features discovery, batch selection, and extensive settings.</em>
+</p>
 
-- `GET /get-server-info`
-- `POST /announce`
-- `POST /request-connect`
-- `POST /respond-to-connection`
-- `GET /check-pairing-requests/:deviceId`
-- `POST /upload`
-- `GET /transfer-status/:deviceId`
-- `GET /download/:deviceId/:fileIndex`
-- `GET /transfer-finish/:deviceId`
+---
 
-## Getting started
+## 🛠️ Tech Stack
 
-### Desktop (Electron)
+- **Desktop**: Electron + React + TypeScript + Vite + TailwindCSS + Shadcn/UI
+- **Mobile**: Expo Router + React Native Paper + TypeScript
+- **Networking**: UDP Discovery + Express (HTTP) Server
 
-```bash
-cd desktop
-npm install
-npm run dev
-```
+---
 
-### Mobile (Expo)
+## 🚀 Getting Started
 
-```bash
-cd mobile
-npm install
-npx expo start
-```
+### Desktop (PC/Mac/Linux)
+1.  Navigate to the desktop directory:
+    ```bash
+    cd desktop
+    ```
+2.  Install dependencies:
+    ```bash
+    npm install
+    ```
+3.  Launch the app:
+    ```bash
+    npm run dev
+    ```
 
-## Device names (editable + persisted)
+### Mobile (Android/iOS)
+1.  Navigate to the mobile directory:
+    ```bash
+    cd mobile
+    ```
+2.  Install dependencies:
+    ```bash
+    npm install
+    ```
+3.  Start Expo:
+    ```bash
+    npx expo start
+    ```
 
-- **Desktop**: editable in Desktop Settings; persisted by the Electron main process.
-- **Mobile**: editable in Mobile Settings; persisted in AsyncStorage.
+---
 
-The **Receive** screen shows your current device name and uses it during discovery/pairing.
+## 📖 How It Works
 
-## Security note
+ExLink uses a custom protocol for discovery and transfer:
+- **Discovery**: Devices pulse on UDP port `41234` to announce their presence.
+- **Transfer**: File streams are handled via a local HTTP server on port `3030`.
+- **Pairing**: A secure-first approach where users must manually accept or decline incoming requests.
 
-This project currently assumes a **trusted local network**:
+*For a deep dive into the protocol, check out [HOW_IT_WORKS.md](./HOW_IT_WORKS.md).*
 
-- Transfers use **plain HTTP** (no TLS)
-- No authentication/encryption is enforced at the protocol layer
+---
 
-If you plan to use this beyond trusted LANs, you should add authentication + encryption.
+## 🤝 Contributing & Community
 
-## Contributing
+We welcome contributions! Whether it's a bug fix, feature request, or UI improvement, please read our [CONTRIBUTING.md](./CONTRIBUTING.md) to get started.
 
-See `CONTRIBUTING.md`. Maintainer GitHub: **LW Shakib**.
+- **Maintainer**: [LW Shakib](https://github.com/lwshakib)
+- **Code of Conduct**: [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md)
+- **License**: [MIT](./LICENSE)
+
+---
+
+<p align="center">
+  Built with ❤️ for a better file sharing experience.
+</p>

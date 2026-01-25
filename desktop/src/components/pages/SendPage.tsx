@@ -164,7 +164,8 @@ export function SendPage() {
     try {
       await window.ipcRenderer.invoke('initiate-pairing', { 
         deviceId: device.id, 
-        deviceIp: device.ip 
+        deviceIp: device.ip,
+        items: selectedItems
       });
       // If it's a desktop, we might also want to try direct POST for speed, 
       // but let's stick to the unified flow for now.
@@ -253,7 +254,7 @@ export function SendPage() {
   }
 
   return (
-    <div className="flex-1 flex flex-col px-6 py-8 max-w-4xl mx-auto w-full space-y-6 overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+    <div className="flex-1 flex flex-col px-6 py-8 max-w-4xl mx-auto w-full space-y-6 overflow-y-auto">
       {/* Selection Section */}
       <section className="space-y-3">
         <div className="flex items-center justify-between px-1">

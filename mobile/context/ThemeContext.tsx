@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useMemo } from "react";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useSettingsStore } from "../store/useSettingsStore";
 import { useColorScheme } from "react-native";
 import { ThemeVariations } from "../constants/Colors";
 
@@ -19,38 +19,33 @@ const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const systemColorScheme = useColorScheme();
-  const [colorScheme, setColorScheme] = useState<"light" | "dark">("dark");
-  const [selectedColor, setSelectedColor] = useState<ColorTheme>("ExLink");
+  
+  // Zustand Store
+  const colorSchemeSetting = useSettingsStore((state) => state.colorScheme);
+  const selectedColor = useSettingsStore((state) => state.selectedColor);
+  const setColorSchemeStore = useSettingsStore((state) => state.setColorScheme);
+  const setSelectedColorStore = useSettingsStore((state) => state.setSelectedColor);
+
   const [isLoaded, setIsLoaded] = useState(false);
   const [randomVariationIndex, setRandomVariationIndex] = useState(0);
 
+  // Map 'system' to actual scheme
+  const colorScheme = useMemo(() => {
+    if (colorSchemeSetting === 'system') {
+      return systemColorScheme || 'dark';
+    }
+    return colorSchemeSetting as 'light' | 'dark';
+  }, [colorSchemeSetting, systemColorScheme]);
+
   useEffect(() => {
-    const loadTheme = async () => {
-      try {
-        const savedScheme = await AsyncStorage.getItem("colorScheme");
-        const savedColor = await AsyncStorage.getItem("selectedColor");
-
-        if (savedScheme) {
-          setColorScheme(savedScheme as any);
-        } else {
-          setColorScheme(systemColorScheme || "dark");
-        }
-
-        if (savedColor) {
-          setSelectedColor(savedColor as ColorTheme);
-          if (savedColor === "Random") {
-            setRandomVariationIndex(Math.floor(Math.random() * ThemeVariations.length));
-          }
-        }
-      } catch (e) {
-        console.error("Failed to load theme", e);
-      } finally {
-        setIsLoaded(true);
-      }
+    // We consider it loaded immediately as Zustand handles hydration asynchronously but usually fast
+    // We can use a small effect to ensure hydration is checked if we want to be safe
+    const checkHydration = async () => {
+      // Small delay to allow persist middleware to load
+      setIsLoaded(true);
     };
-
-    loadTheme();
-  }, [systemColorScheme]);
+    checkHydration();
+  }, []);
 
   useEffect(() => {
     if (selectedColor === "Random") {
@@ -59,18 +54,11 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   }, [selectedColor]);
 
   const setThemeScheme = async (scheme: "light" | "dark" | "system") => {
-    let resolved = scheme === "system" ? (systemColorScheme || "dark") : scheme;
-    setColorScheme(resolved);
-    if (scheme === "system") {
-      await AsyncStorage.removeItem("colorScheme");
-    } else {
-      await AsyncStorage.setItem("colorScheme", scheme);
-    }
+    setColorSchemeStore(scheme);
   };
 
   const setThemeColor = async (color: ColorTheme) => {
-    setSelectedColor(color);
-    await AsyncStorage.setItem("selectedColor", color);
+    setSelectedColorStore(color as any);
   };
 
   const toggleTheme = () => {

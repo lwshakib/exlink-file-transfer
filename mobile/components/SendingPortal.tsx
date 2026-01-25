@@ -5,7 +5,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Device from "expo-device";
 import * as Network from "expo-network";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useSettingsStore } from "@/store/useSettingsStore";
 import { useSelection } from "@/hooks/useSelection";
 import Animated, { 
   useSharedValue, 
@@ -158,9 +158,10 @@ const SendingPortal = ({ visible, onDismiss, targetDevice }: SendingPortalProps)
 
     try {
       const brand = Device.brand || Device.modelName || "Mobile";
-      const name = (await AsyncStorage.getItem("deviceName")) || Device.deviceName || "Mobile Device";
+      const { deviceName, deviceId } = useSettingsStore.getState();
+      const name = deviceName || Device.deviceName || "Mobile Device";
       
-      let pollId = await AsyncStorage.getItem("deviceId");
+      let pollId = deviceId;
       if (!pollId) {
         const myIp = await Network.getIpAddressAsync();
         pollId = (myIp && myIp.includes('.')) ? myIp.split('.').pop()! : 'mobile';
@@ -196,6 +197,8 @@ const SendingPortal = ({ visible, onDismiss, targetDevice }: SendingPortalProps)
         setStatus('sending');
         // Start upload flow
         setTimeout(() => uploadFiles(pollId!, itemsToSend), 100);
+      } else if (data.status === 'declined' || data.status === 'cancelled') {
+        setStatus('refused');
       } else {
         setStatus('refused');
       }
@@ -303,6 +306,8 @@ const SendingPortal = ({ visible, onDismiss, targetDevice }: SendingPortalProps)
       try {
         const myIp = await Network.getIpAddressAsync();
         const pollId = (myIp && myIp.includes('.')) ? myIp.split('.').pop() : '000';
+        // Call both to ensure pairing or active transfer is cancelled
+        fetch(`http://${targetDevice.ip}:${targetDevice.port}/cancel-transfer/${pollId}`).catch(() => {});
         fetch(`http://${targetDevice.ip}:${targetDevice.port}/cancel-pairing/${pollId}`).catch(() => {});
       } catch (e) {}
     }

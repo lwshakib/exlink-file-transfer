@@ -1,23 +1,25 @@
 # Contributing to ExLink
 
-Thanks for contributing to **ExLink File Transfer**!
+First off, thank you for considering contributing to **ExLink File Transfer**! Your help makes this project better for everyone.
 
-Maintainer: **LW Shakib**
+---
 
-## Repo overview
+## 🏗️ Repository Architecture
 
-- `desktop/`: Electron + React desktop app (UDP discovery + Express server)
-- `mobile/`: Expo Router mobile app (subnet scan + upload/download client)
+ExLink is split into two main environments:
 
-Useful docs:
+- **Desktop (`/desktop`)**: An Electron-based application built with React, Vite, and TailwindCSS. It handles device discovery via UDP and hosts an Express server for file transfers.
+- **Mobile (`/mobile`)**: A React Native application built with Expo Router and React Native Paper. It scans the network and communicates with the desktop server.
 
-- `HOW_IT_WORKS.md` (protocol + flows)
-- `CODEBASE_ANALYSIS.md` (detailed snapshot)
+### Core Documentation
+- [How It Works](./HOW_IT_WORKS.md): Learn about the protocol, pairing sequence, and transfer flows.
+- [Codebase Analysis](./CODEBASE_ANALYSIS.md): A detailed snapshot of the project structure and logic.
 
-## Development setup
+---
+
+## 🛠️ Development Setup
 
 ### Desktop
-
 ```bash
 cd desktop
 npm install
@@ -25,53 +27,51 @@ npm run dev
 ```
 
 ### Mobile
-
 ```bash
 cd mobile
 npm install
 npx expo start
 ```
 
-## Code style & quality
+---
 
-- **TypeScript**: keep types explicit around network payloads and IPC boundaries
-- **No breaking protocol changes** without updating `HOW_IT_WORKS.md` and keeping old clients in mind
-- **Keep UI simple**: avoid adding settings that don’t affect behavior yet
+## 🧪 Quality Standards
 
-## Linting
+- **TypeScript**: We heavily rely on TypeScript. Please ensure all new code is properly typed, especially for network payloads and IPC communication.
+- **Protocol Integrity**: Avoid making breaking changes to the protocol without updating `HOW_IT_WORKS.md`. We aim for backward compatibility where possible.
+- **UI/UX Consistency**: Keep the design simple, premium, and responsive. Before changing major UI elements, please open an issue to discuss.
 
-Desktop:
+### Linting
+We use ESLint to keep the codebase clean. Please run linting before submitting a PR:
 
-```bash
-cd desktop
-npm run lint
-```
+- **Desktop**: `npm run lint` inside the `desktop/` folder.
+- **Mobile**: `npm run lint` inside the `mobile/` folder.
 
-Mobile:
+---
 
-```bash
-cd mobile
-npm run lint
-```
+## 🗺️ What to Work On
 
-## What to work on
+We're always looking for help in these areas:
+- **Reliability**: Improving connection stability, handling timeouts, and better error recovery.
+- **Transfer Features**: Support for folder structure preservation, resuming interrupted transfers, and checksum verification.
+- **Security**: Implementing a device trust model, optional TLS support, and token-based authentication.
+- **UX Polish**: Better feedback for network issues, cleaner device lists, and localized translations.
 
-Good areas for contributions:
+---
 
-- Reliability: timeouts, retries, cancellation behavior
-- Transfer robustness: resume support, folder structure, multiple-file manifest
-- Security hardening: auth/token exchange, optional TLS, device trust model
-- UX polish: error messages, offline states, device list quality
+## 📥 Submitting Your Contribution
 
-## Pull requests
+1.  **Focus**: Keep PRs focused on a single feature or bug fix.
+2.  **Screenshots**: If your change affects the UI, please include screenshots or a short video in the PR description.
+3.  **Testing**: Mention which platforms you tested on (e.g., Windows 11 + Android 13).
+4.  **Documentation**: Update relevant Markdown files if you change application behavior.
 
-- Keep PRs focused (one feature/bug per PR)
-- Include screenshots/screen recordings for UI changes
-- Mention platform tested: Windows/macOS/Linux + Android/iOS
-- Update documentation when behavior changes
+---
 
-## Reporting security issues
+## 🛡️ Reporting Security Issues
 
-Please avoid filing public issues for sensitive security vulnerabilities.
-Instead, contact the maintainer (GitHub: **LW Shakib**) with details and reproduction steps.
+Please do not report security vulnerabilities through public issues. Instead, contact the maintainer directly via GitHub (**LW Shakib**) to discuss the issue and a potential fix.
 
+---
+
+Thank you for being part of the ExLink community!

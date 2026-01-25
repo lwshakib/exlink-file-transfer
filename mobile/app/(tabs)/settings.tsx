@@ -9,6 +9,7 @@ import { uniqueNamesGenerator, adjectives, animals } from "unique-names-generato
 import * as FileSystem from "expo-file-system/legacy";
 import * as DocumentPicker from "expo-document-picker";
 import Svg, { G, Path } from "react-native-svg";
+import { useSettingsStore } from "@/store/useSettingsStore";
 
 const SettingRow = ({ label, children }: { label: string; children: React.ReactNode }) => (
   <View style={styles.settingRow}>
@@ -86,35 +87,47 @@ export default function SettingsScreen() {
   const theme = useTheme();
   const { colorScheme, setThemeScheme, selectedColor, setThemeColor } = useAppTheme();
   
-  const [deviceName, setDeviceName] = useState("Loading...");
+  // Zustand Store
+  const deviceName = useSettingsStore((state) => state.deviceName);
+  const setDeviceName = useSettingsStore((state) => state.setDeviceName);
+  const serverRunning = useSettingsStore((state) => state.serverRunning);
+  const setServerRunning = useSettingsStore((state) => state.setServerRunning);
+  const saveMediaToGallery = useSettingsStore((state) => state.saveMediaToGallery);
+  const setSaveMediaToGallery = useSettingsStore((state) => state.setSaveMediaToGallery);
+  const saveToFolderPath = useSettingsStore((state) => state.saveToFolderPath);
+  const setSaveToFolderPath = useSettingsStore((state) => state.setSaveToFolderPath);
+
+  // Local UI status
+  const [saveToFolder, setSaveToFolder] = useState("Internal");
   const [deviceNameDialogVisible, setDeviceNameDialogVisible] = useState(false);
   const [deviceNameDraft, setDeviceNameDraft] = useState("");
-  const [serverRunning, setServerRunning] = useState(true);
-  const [saveMediaToGallery, setSaveMediaToGallery] = useState(false);
-  const [saveToFolder, setSaveToFolder] = useState("Downloads");
-  const [saveToFolderPath, setSaveToFolderPath] = useState<string | null>(null);
   const [aboutDialogVisible, setAboutDialogVisible] = useState(false);
 
   useEffect(() => {
-    const loadSettings = async () => {
-      const name = await AsyncStorage.getItem("deviceName");
-      if (name) setDeviceName(name);
-      
-      const mediaSetting = await AsyncStorage.getItem("saveMediaToGallery");
-      // Default to true if not set
-      setSaveMediaToGallery(mediaSetting === null ? true : mediaSetting === "true");
-      
-      const folderPath = await AsyncStorage.getItem("saveToFolderPath");
-      if (folderPath) {
-        setSaveToFolderPath(folderPath);
-        const folderName = folderPath.split('/').pop() || folderPath.split('\\').pop() || "Custom";
+    if (saveToFolderPath) {
+      if (saveToFolderPath.includes('primary%3ADownloads') || saveToFolderPath.includes('Download')) {
+        setSaveToFolder('Downloads');
+      } else {
+        const decodedUri = decodeURIComponent(saveToFolderPath);
+        const folderName = decodedUri.split('%3A').pop()?.split('/').pop() || 
+                          decodedUri.split('/').pop() || "Custom Folder";
         setSaveToFolder(folderName);
       }
-      
-      const serverState = await AsyncStorage.getItem("serverRunning");
-      if (serverState !== null) setServerRunning(serverState === "true");
+    } else {
+      setSaveToFolder('Internal (Tap to change)');
+    }
+  }, [saveToFolderPath]);
+
+  // First-run SAF check
+  useEffect(() => {
+    const checkFirstRun = async () => {
+      if (Platform.OS === 'android' && !saveToFolderPath) {
+        // We could automatically prompt here, but it might be annoying if done immediately. 
+        // Best to just wait for the user to tap, or do it once.
+        // Let's stick to the user's intent if they specifically asked for it.
+      }
     };
-    loadSettings();
+    checkFirstRun();
   }, []);
 
   const [themeMenuVisible, setThemeMenuVisible] = useState(false);
@@ -135,41 +148,27 @@ export default function SettingsScreen() {
     setDeviceNameDialogVisible(true);
   };
 
-  const saveDeviceName = async () => {
+  const saveDeviceName = () => {
     const next = deviceNameDraft.trim();
     if (!next) return;
-    
-    await AsyncStorage.setItem("deviceName", next);
     setDeviceName(next);
     setDeviceNameDialogVisible(false);
   };
 
-  const handleServerToggle = async (value: boolean) => {
+  const handleServerToggle = (value: boolean) => {
     setServerRunning(value);
-    await AsyncStorage.setItem("serverRunning", value ? "true" : "false");
   };
 
-
-
-  const handleSaveMediaToggle = async (value: boolean) => {
+  const handleSaveMediaToggle = (value: boolean) => {
     setSaveMediaToGallery(value);
-    await AsyncStorage.setItem("saveMediaToGallery", value.toString());
   };
 
   const handleSelectFolder = async () => {
     try {
-      if (Platform.OS === 'android') {
+      if (Platform.OS === "android") {
         const permissions = await FileSystem.StorageAccessFramework.requestDirectoryPermissionsAsync();
         if (permissions.granted) {
-          const uri = permissions.directoryUri;
-          setSaveToFolderPath(uri);
-          
-          // Decode URL to get a readable folder name
-          const decodedUri = decodeURIComponent(uri);
-          const folderName = decodedUri.split('%3A').pop()?.split('/').pop() || "Custom";
-          setSaveToFolder(folderName);
-          
-          await AsyncStorage.setItem("saveToFolderPath", uri);
+          setSaveToFolderPath(permissions.directoryUri);
           return;
         }
       }
@@ -184,9 +183,6 @@ export default function SettingsScreen() {
         const uri = result.assets[0].uri;
         const dir = uri.substring(0, uri.lastIndexOf('/'));
         setSaveToFolderPath(dir);
-        const folderName = dir.split('/').pop() || "Custom";
-        setSaveToFolder(folderName);
-        await AsyncStorage.setItem("saveToFolderPath", dir);
       }
     } catch (e) {
       console.error("Error selecting folder:", e);

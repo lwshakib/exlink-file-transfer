@@ -47521,12 +47521,14 @@ serverApp.post("/upload", (req2, res2) => {
   let lastUpdateTime = 0;
   const THROTTLE_MS = 100;
   req2.on("data", (chunk) => {
+    var _a;
     receivedBytes += chunk.length;
     const now = Date.now();
     if (win && (now - lastUpdateTime > THROTTLE_MS || receivedBytes === totalSize)) {
       lastUpdateTime = now;
       win.webContents.send("upload-progress", {
         id: transferId,
+        remoteIp: (_a = req2.socket.remoteAddress) == null ? void 0 : _a.replace("::ffff:", ""),
         progress: totalSize > 0 ? receivedBytes / totalSize : 0,
         processedBytes: receivedBytes,
         totalBytes: totalSize,
@@ -47543,10 +47545,12 @@ serverApp.post("/upload", (req2, res2) => {
     const fstream = fs$2.createWriteStream(saveTo);
     file.pipe(fstream);
     fstream.on("close", () => {
+      var _a;
       console.log(`[Upload] ✅ File SAVED to: ${saveTo}`);
       if (win) {
         win.webContents.send("upload-complete", {
           id: transferId,
+          remoteIp: (_a = req2.socket.remoteAddress) == null ? void 0 : _a.replace("::ffff:", ""),
           name: filename,
           size: receivedBytes,
           path: saveTo,
@@ -47699,6 +47703,23 @@ serverApp.get("/cancel-pairing/:deviceId", (req2, res2) => {
   }
   res2.json({ status: "ok" });
 });
+serverApp.get("/cancel-transfer/:deviceId", (req2, res2) => {
+  const { deviceId } = req2.params;
+  console.log(`Transfer cancelled by remote device: ${deviceId}`);
+  const activeReq = activeRequests.get(deviceId);
+  if (activeReq) {
+    activeReq.destroy();
+    activeRequests.delete(deviceId);
+    win == null ? void 0 : win.webContents.send("transfer-error", { deviceId, error: "Cancelled by remote device" });
+  }
+  const transfer = activeTransfers.get(deviceId);
+  if (transfer) {
+    transfer.controller.abort();
+    activeTransfers.delete(deviceId);
+    win == null ? void 0 : win.webContents.send("transfer-error", { deviceId, error: "Cancelled by remote device" });
+  }
+  res2.json({ status: "ok" });
+});
 serverApp.get("/transfer-finish/:deviceId", (req2, res2) => {
   const { deviceId } = req2.params;
   console.log(`[Upload] Transfer session finished for: ${deviceId}`);
@@ -47736,7 +47757,8 @@ serverApp.get("/check-pairing-requests/:deviceId", (req2, res2) => {
         name: serverName,
         id: serverId,
         os: os.platform() === "win32" ? "Windows" : os.platform() === "darwin" ? "MacOS" : "Linux",
-        ip: getLocalIPs()[0]
+        ip: getLocalIPs()[0],
+        files: outgoing.files || []
       }
     });
   }
@@ -47862,7 +47884,7 @@ ipcMain.on("set-server-name", (_event, { name }) => {
   serverName = name;
   saveConfig();
 });
-ipcMain.handle("initiate-pairing", async (_event, { deviceId, deviceIp }) => {
+ipcMain.handle("initiate-pairing", async (_event, { deviceId, deviceIp, items }) => {
   const node2 = nearbyNodes.get(deviceId);
   const isMobile = (node2 == null ? void 0 : node2.platform) === "mobile" || !node2;
   console.log(`Initiating pairing with ${deviceId} (${(node2 == null ? void 0 : node2.platform) || "unknown"}) at ${deviceIp}`);
@@ -47875,7 +47897,12 @@ ipcMain.handle("initiate-pairing", async (_event, { deviceId, deviceIp }) => {
     os: node2 == null ? void 0 : node2.os
   });
   if (isMobile) {
-    outgoingRequests.set(deviceId, { deviceId, deviceIp, timestamp: Date.now() });
+    outgoingRequests.set(deviceId, {
+      deviceId,
+      deviceIp,
+      timestamp: Date.now(),
+      files: items || []
+    });
     return { status: "waiting" };
   } else {
     try {
@@ -48011,14 +48038,24 @@ Content-Type: application/octet-stream\r
     activeTransfers.delete(deviceId);
   }
 });
-ipcMain.handle("cancel-transfer", (_event, { deviceId }) => {
+ipcMain.handle("cancel-transfer", (_event, { deviceId, targetIp }) => {
   const transfer = activeTransfers.get(deviceId);
   if (transfer) {
     transfer.controller.abort();
     activeTransfers.delete(deviceId);
-    return true;
   }
-  return false;
+  const activeReq = activeRequests.get(deviceId);
+  if (activeReq) {
+    activeReq.destroy();
+    activeRequests.delete(deviceId);
+  }
+  if (targetIp) {
+    const notifyUrl = `http://${targetIp}:3030/cancel-transfer/${serverId}`;
+    console.log(`Notifying remote device of cancellation: ${notifyUrl}`);
+    fetch(notifyUrl).catch(() => {
+    });
+  }
+  return true;
 });
 ipcMain.handle("open-folder", () => shell.openPath(uploadDir));
 ipcMain.handle("open-file", (_event, filePath) => {
