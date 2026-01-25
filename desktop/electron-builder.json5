@@ -6,6 +6,7 @@
   "executableName": "exlink",
   "copyright": "Copyright © 2026 LW Shakib",
   "asar": true,
+  "compression": "maximum",
   "directories": {
     "output": "release/${version}"
   },
@@ -13,6 +14,21 @@
     "dist",
     "dist-electron"
   ],
+  "publish": [
+    {
+      "provider": "github",
+      "owner": "lwshakib",
+      "repo": "exlink-file-transfer",
+      "releaseType": "draft"
+    }
+  ],
+  "extraMetadata": {
+    "version": "0.1.0",
+    "description": "Premium local file transfer solution for seamless cross-platform communication.",
+    "author": "LW Shakib",
+    "homepage": "https://github.com/lwshakib/exlink-file-transfer",
+    "license": "MIT"
+  },
   "win": {
     "icon": "public/icons/win/icon.ico",
     "publisherName": "LW Shakib",
@@ -28,18 +44,21 @@
         "target": "portable"
       }
     ],
-    "artifactName": "${productName}-Windows-${version}-Setup.${ext}"
+    "artifactName": "${productName}-Windows-${version}-Setup.${ext}",
+    "verifyUpdateCodeSignature": false
   },
   "nsis": {
     "oneClick": false,
     "perMachine": true,
     "allowToChangeInstallationDirectory": true,
     "deleteAppDataOnUninstall": false,
+    "allowElevation": true,
     "createDesktopShortcut": "always",
     "createStartMenuShortcut": true,
     "shortcutName": "ExLink",
     "installerIcon": "public/icons/win/icon.ico",
     "uninstallerIcon": "public/icons/win/icon.ico",
+    "installerHeaderIcon": "public/icons/win/icon.ico",
     "uninstallDisplayName": "ExLink File Transfer",
     "runAfterFinish": true
   },
@@ -49,28 +68,36 @@
       "dmg",
       "zip"
     ],
+    "hardenedRuntime": true,
+    "gatekeeperAssess": false,
     "category": "public.app-category.utilities",
     "artifactName": "${productName}-Mac-${version}.${ext}",
-    "type": "distribution"
+    "extendInfo": {
+      "NSAppleEventsUsageDescription": "ExLink requires access to Apple Events for optimized cross-process communication.",
+      "CFBundleDisplayName": "ExLink",
+      "CFBundleName": "ExLink"
+    }
   },
   "dmg": {
+    "title": "${productName} ${version}",
+    "icon": "public/icons/mac/icon.icns",
+    "window": {
+      "width": 540,
+      "height": 380
+    },
     "contents": [
       {
         "x": 410,
-        "y": 150,
+        "y": 180,
         "type": "link",
         "path": "/Applications"
       },
       {
         "x": 130,
-        "y": 150,
+        "y": 180,
         "type": "file"
       }
-    ],
-    "window": {
-      "width": 540,
-      "height": 380
-    }
+    ]
   },
   "linux": {
     "icon": "public/icons/png",
@@ -80,6 +107,13 @@
     ],
     "category": "Utility",
     "artifactName": "${productName}-Linux-${version}.${ext}",
-    "maintainer": "LW Shakib <lwshakib@example.com>"
+    "maintainer": "LW Shakib <lwshakib@github.com>",
+    "desktop": {
+      "StartupWMClass": "exlink",
+      "Name": "ExLink",
+      "GenericName": "File Transfer Tool",
+      "Comment": "Fast, localized file transfer across devices.",
+      "Keywords": "file;transfer;sharing;network;wifi;p2p;"
+    }
   }
 }
