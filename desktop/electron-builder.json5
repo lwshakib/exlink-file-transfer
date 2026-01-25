@@ -1,9 +1,11 @@
 // @see - https://www.electron.build/configuration/configuration
 {
   "$schema": "https://raw.githubusercontent.com/electron-userland/electron-builder/master/packages/app-builder-lib/scheme.json",
-  "appId": "YourAppID",
+  "appId": "com.lwshakib.exlink",
+  "productName": "ExLink",
+  "executableName": "exlink",
+  "copyright": "Copyright © 2026 LW Shakib",
   "asar": true,
-  "productName": "YourAppName",
   "directories": {
     "output": "release/${version}"
   },
@@ -11,33 +13,73 @@
     "dist",
     "dist-electron"
   ],
-  "mac": {
-    "target": [
-      "dmg"
-    ],
-    "artifactName": "${productName}-Mac-${version}-Installer.${ext}"
-  },
   "win": {
+    "icon": "public/icons/win/icon.ico",
+    "publisherName": "LW Shakib",
     "target": [
       {
         "target": "nsis",
         "arch": [
-          "x64"
+          "x64",
+          "ia32"
         ]
+      },
+      {
+        "target": "portable"
       }
     ],
     "artifactName": "${productName}-Windows-${version}-Setup.${ext}"
   },
   "nsis": {
     "oneClick": false,
-    "perMachine": false,
+    "perMachine": true,
     "allowToChangeInstallationDirectory": true,
-    "deleteAppDataOnUninstall": false
+    "deleteAppDataOnUninstall": false,
+    "createDesktopShortcut": "always",
+    "createStartMenuShortcut": true,
+    "shortcutName": "ExLink",
+    "installerIcon": "public/icons/win/icon.ico",
+    "uninstallerIcon": "public/icons/win/icon.ico",
+    "uninstallDisplayName": "ExLink File Transfer",
+    "runAfterFinish": true
+  },
+  "mac": {
+    "icon": "public/icons/mac/icon.icns",
+    "target": [
+      "dmg",
+      "zip"
+    ],
+    "category": "public.app-category.utilities",
+    "artifactName": "${productName}-Mac-${version}.${ext}",
+    "type": "distribution"
+  },
+  "dmg": {
+    "contents": [
+      {
+        "x": 410,
+        "y": 150,
+        "type": "link",
+        "path": "/Applications"
+      },
+      {
+        "x": 130,
+        "y": 150,
+        "type": "file"
+      }
+    ],
+    "window": {
+      "width": 540,
+      "height": 380
+    }
   },
   "linux": {
+    "icon": "public/icons/png",
     "target": [
-      "AppImage"
+      "AppImage",
+      "deb"
     ],
-    "artifactName": "${productName}-Linux-${version}.${ext}"
+    "category": "Utility",
+    "artifactName": "${productName}-Linux-${version}.${ext}",
+    "maintainer": "LW Shakib <lwshakib@example.com>"
   }
 }
