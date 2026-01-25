@@ -1,106 +1,130 @@
-# ExLink File Transfer
+# 🚀 ExLink File Transfer
 
 <p align="center">
-  <img src="01.png" width="45%" style="border-radius: 12px; margin-right: 10px;" />
-  <img src="03.jpg" width="22%" style="border-radius: 12px;" />
+  <img src="01.png" width="45%" style="border-radius: 12px; margin-right: 10px; box-shadow: 0 4px 20px rgba(0,0,0,0.3);" />
+  <img src="03.jpg" width="22%" style="border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.3);" />
 </p>
 
-A premium, localized file transfer solution designed for speed, simplicity, and seamless cross-platform communication. Transfer files, folders, and text between **Desktop** and **Mobile** with zero configuration.
-
----
-
-## ✨ Features
-
-- 🚀 **Lightning Fast**: Blazing fast transfers over your local Wi-Fi or LAN.
-- 📱 **Cross-Platform**: Seamlessly connect Windows, macOS, and Linux with Android and iOS.
-- 🔍 **Auto-Discovery**: Devices on the same network find each other automatically—no IP typing required.
-- 🔒 **Privacy First**: Your data never leaves your network. Transfers are peer-to-peer.
-- 🎨 **Modern UI**: Clean, responsive design with support for custom themes and dark mode.
-- 📋 **Universal Clipboard**: Share text snippets and links instantly across devices.
-- 🗂️ **Batch Transfer**: Send multiple files and entire folders in one go.
-
----
-
-## 📸 App Showcase
-
-### Desktop Experience
 <p align="center">
-  <img src="02.png" width="80%" style="border-radius: 12px; border: 1px solid #333;" />
+  <strong>The ultimate high-performance, localized file transfer solution.</strong><br>
+  Designed for speed, built for privacy, and crafted with a premium user experience.
+</p>
+
+---
+
+## 🌟 Overview
+
+ExLink is a powerful, cross-platform file transfer utility that allows you to move files, folders, and text between **Desktop** and **Mobile** devices with zero configuration. By staying entirely within your local network, ExLink ensures your data is transferred at the maximum speed possible while keeping it off third-party servers.
+
+## ✨ Key Features
+
+- 🏎️ **Blazing Fast**: Leverages your local Wi-Fi or LAN to achieve transfer speeds far exceeding cloud-based solutions.
+- 📱 **Universal Compatibility**: A unified experience across Windows, macOS, Linux, Android, and iOS.
+- 🛰️ **Zero Configuration Discovery**: Intelligent UDP broadcasting and subnet scanning ensure your devices find each other instantly.
+- 🔒 **Peer-to-Peer Privacy**: No accounts, no internet required, and no data logs. Your files move directly from one device to another.
+- 🎨 **Premium Aesthetic**: A modern, clean UI with Glassmorphism elements, dark mode support, and smooth animations.
+- 📋 **Seamless Clipboard**: Share links, snippets, and passwords instantly with the Universal Clipboard feature.
+- 📦 **Bulk Transfers**: Select hundreds of files or entire directory trees and watch them transfer in a single batch.
+- 📡 **Real-time Feedback**: Detailed progress bars, speed metrics, and estimated time remaining for every transfer.
+
+---
+
+## 📸 Visual Showcase
+
+### 🖥️ Desktop Experience
+<p align="center">
+  <img src="02.png" width="85%" style="border-radius: 12px; border: 1px solid rgba(255,255,255,0.1); box-shadow: 0 10px 30px rgba(0,0,0,0.5);" />
   <br>
-  <em>The Send screen on Desktop allows for quick file and folder selection with automatic device discovery.</em>
+  <em>The Desktop Send screen featuring automatic device discovery and intuitive file selection.</em>
 </p>
 
-### Mobile Experience
+### 📱 Mobile Experience
 <p align="center">
-  <img src="04.jpg" width="30%" style="border-radius: 12px; margin-right: 20px;" />
-  <img src="05.jpg" width="30%" style="border-radius: 12px;" />
+  <img src="04.jpg" width="30%" style="border-radius: 12px; margin-right: 20px; box-shadow: 0 5px 15px rgba(0,0,0,0.2);" />
+  <img src="05.jpg" width="30%" style="border-radius: 12px; box-shadow: 0 5px 15px rgba(0,0,0,0.2);" />
   <br>
-  <em>Mobile app features discovery, batch selection, and extensive settings.</em>
+  <em>Mobile app optimized for one-handed operation with powerful discovery and batch management.</em>
 </p>
 
 ---
 
-## 🛠️ Tech Stack
+## 🏗️ Architecture & Tech Stack
 
-- **Desktop**: Electron + React + TypeScript + Vite + TailwindCSS + Shadcn/UI
-- **Mobile**: Expo Router + React Native Paper + TypeScript
-- **Networking**: UDP Discovery + Express (HTTP) Server
+ExLink is built with a modern, high-performance stack to ensure reliability and speed:
 
----
-
-## 🚀 Getting Started
-
-### Desktop (PC/Mac/Linux)
-1.  Navigate to the desktop directory:
-    ```bash
-    cd desktop
-    ```
-2.  Install dependencies:
-    ```bash
-    npm install
-    ```
-3.  Launch the app:
-    ```bash
-    npm run dev
-    ```
-
-### Mobile (Android/iOS)
-1.  Navigate to the mobile directory:
-    ```bash
-    cd mobile
-    ```
-2.  Install dependencies:
-    ```bash
-    npm install
-    ```
-3.  Start Expo:
-    ```bash
-    npx expo start
-    ```
+| Layer | Technologies |
+| :--- | :--- |
+| **Desktop** | [Electron](https://www.electronjs.org/), [React](https://reactjs.org/), [Vite](https://vitejs.dev/), [TailwindCSS](https://tailwindcss.com/), [Shadcn UI](https://ui.shadcn.com/) |
+| **Mobile** | [React Native](https://reactnative.dev/), [Expo](https://expo.dev/), [Expo Router](https://docs.expo.dev/router/introduction/), [React Native Paper](https://reactnativepaper.com/) |
+| **State Management** | [Zustand](https://github.com/pmndrs/zustand) (Desktop & Mobile) |
+| **Networking** | Custom UDP Discovery Protocol + High-speed Express HTTP Streaming |
 
 ---
 
-## 📖 How It Works
+## 🚀 Quick Start
 
-ExLink uses a custom protocol for discovery and transfer:
-- **Discovery**: Devices pulse on UDP port `41234` to announce their presence.
-- **Transfer**: File streams are handled via a local HTTP server on port `3030`.
-- **Pairing**: A secure-first approach where users must manually accept or decline incoming requests.
+### 🏁 Desktop Setup
+1. Clone the repository and enter the desktop directory:
+   ```bash
+   cd desktop
+   ```
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
+3. Run the development environment:
+   ```bash
+   npm run dev
+   ```
 
-*For a deep dive into the protocol, check out [HOW_IT_WORKS.md](./HOW_IT_WORKS.md).*
+### 📲 Mobile Setup
+1. Enter the mobile directory:
+   ```bash
+   cd mobile
+   ```
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
+3. Launch the Expo Go environment:
+   ```bash
+   npx expo start
+   ```
 
 ---
 
-## 🤝 Contributing & Community
+## 🔬 How It Works (The ExLink Protocol)
 
-We welcome contributions! Whether it's a bug fix, feature request, or UI improvement, please read our [CONTRIBUTING.md](./CONTRIBUTING.md) to get started.
+ExLink uses a proprietary discovery and transfer handshake:
 
-- **Maintainer**: [LW Shakib](https://github.com/lwshakib)
-- **Code of Conduct**: [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md)
+1.  **UDP Pulse**: The Desktop app pulses discovery packets on UDP Port `41234`.
+2.  **Subnet Scan**: Mobile devices scan the local subnet and announce themselves to detected Desktops.
+3.  **Encrypted Handshake**: A pairing request is initiated where the user must explicitly approve the connection.
+4.  **Streaming Transfer**: Files are streamed directly between devices using optimized HTTP chunks on Port `3030`.
+
+> [!TIP]
+> For a technical deep-dive into the protocol, check our [HOW_IT_WORKS.md](./HOW_IT_WORKS.md) guide.
+
+---
+
+## 🤝 Contributing
+
+We welcome contributions of all kinds! Whether you are fixing a bug, adding a feature, or improving documentation, we value your help.
+
+- **Development Guide**: See [CONTRIBUTING.md](./CONTRIBUTING.md)
+- **Code of Conduct**: Review our [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md)
+- **Roadmap**: Check out the [Issues](https://github.com/lwshakib/exlink-file-transfer/issues) for high-priority tasks.
+
+---
+
+## 📜 License & Credits
+
 - **License**: [MIT](./LICENSE)
+- **Maintainer**: [LW Shakib](https://github.com/lwshakib)
+- **Special Thanks**: To the open-source community for the amazing libraries that make ExLink possible.
 
 ---
 
 <p align="center">
-  Built with ❤️ for a better file sharing experience.
+  Built with obsession for performance by <strong>LW Shakib</strong>.
 </p>

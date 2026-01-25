@@ -1,223 +1,129 @@
-# How ExLink Works
+# 📖 How ExLink Works
 
-This document explains ExLink’s **end-to-end workflow**: discovery → pairing → transfer, and points you to the key files that implement each step.
+This document provides a deep dive into the **ExLink Protocol** and the architectural decisions that power our high-speed, localized file transfers.
 
-If you want a deeper code snapshot, also see `CODEBASE_ANALYSIS.md`.
+---
 
-## High level architecture
+## 🏗️ High-Level Architecture
 
-ExLink is split into two apps:
+ExLink follows a **Node-based Client-Server model** within the local area network (LAN). The roles are dynamic depending on who is sending and who is receiving.
 
-- **Desktop** (`desktop/`): runs the **network services**
-  - UDP discovery broadcaster/listener
-  - Express HTTP server for pairing and file transfer
-  - Renderer UI that shows Receive/Send/Settings
-- **Mobile** (`mobile/`): runs the **client**
-  - subnet scanning for desktops
-  - pairing UI + upload/download client logic
+- **Desktop Subsystem (`/desktop`)**:
+  - Acts as the primary **Network Hub**.
+  - Runs a high-performance **Express.js** HTTP server for handling streaming payloads.
+  - Manages **UDP Broadcasts** to announce presence to other nodes.
+  - Implements the **Electron Main Process** for file system access and system-level networking.
 
-## Ports
+- **Mobile Subsystem (`/mobile`)**:
+  - Acts as a **Mobile Node**.
+  - Performs **Subnet Scanning** to locate active Desktop Hubs.
+  - Communicates via a **Polling & Push** hybrid model since mobile devices generally cannot host accessible HTTP servers.
 
-- UDP discovery: `41234`
-- Desktop HTTP server: `3030`
+---
 
-## Key files (by responsibility)
+## 📡 The Discovery Protocol
 
-### Desktop
+ExLink uses a dual-layer discovery mechanism to ensure 100% reliability across different network configurations.
 
-- **Server + discovery + IPC**: `desktop/electron/main.ts`
-- **IPC bridge**: `desktop/electron/preload.ts`
-- **UI shell (tabs + overlays)**: `desktop/src/App.tsx`
-- **Send UI**: `desktop/src/components/pages/SendPage.tsx`
-- **Receive UI (shows device name/id)**: `desktop/src/components/pages/ReceivePage.tsx`
-- **Settings (device name + theme)**: `desktop/src/components/pages/SettingsPage.tsx`
+### 1. UDP Pulsing (Desktop to LAN)
+The Desktop app broadcasts a heartbeat every 3 seconds on **UDP Port 41234**.
 
-### Mobile
-
-- **Global scanning/announce loop**: `mobile/app/_layout.tsx`
-- **Tab router + tab bar**: `mobile/app/(tabs)/_layout.tsx`
-- **Send screen**: `mobile/app/(tabs)/send.tsx`
-- **Send transfer portal (pair + upload)**: `mobile/components/SendingPortal.tsx`
-- **Receive screen (poll + download)**: `mobile/app/(tabs)/receive.tsx`
-- **Settings (device name + theme)**: `mobile/app/(tabs)/settings.tsx`
-
-## Device identity (name + id)
-
-Both apps show a **device name** on the Receive screen.
-
-- Desktop name is stored by the Electron main process (and used in `/get-server-info` and discovery messages).
-- Mobile name is stored in AsyncStorage (`deviceName`).
-
-IDs are currently based on **the last octet of the local IPv4 address** (example: `192.168.1.42` → `42`).
-
-## Discovery flow
-
-### Desktop → LAN (UDP broadcast)
-
-Desktop broadcasts a JSON message every few seconds:
-
-- Implemented in `desktop/electron/main.ts` (UDP socket + broadcast loop)
-- Port: `41234`
-
-Example payload shape:
-
+**Payload Structure:**
 ```json
 {
   "type": "discovery",
-  "id": "42",
-  "name": "My Desktop",
-  "ip": "192.168.1.42",
+  "id": "last-octet-of-ip",
+  "name": "User's PC",
+  "ip": "192.168.1.15",
   "port": 3030,
   "platform": "desktop",
-  "os": "Windows"
+  "os": "windows" | "macos" | "linux"
 }
 ```
 
-### Mobile → LAN (subnet scan + announce)
+### 2. Subnet Scanning (Mobile to Desktop)
+The Mobile app scans its current IPv4 subnet (e.g., `192.168.1.0/24`) by attempting a `GET /get-server-info` on Port `3030` of every IP. This ensures discovery even if UDP broadcasts are blocked by the router.
 
-Mobile scans the local subnet (IPv4 only) for a desktop server:
+---
 
-- Requests: `GET http://{ip}:3030/get-server-info`
-- On success: `POST http://{ip}:3030/announce` (mobile identity)
+## 🤝 The Pairing Handshake
 
-Implemented in:
+Transfers never start automatically. Every connection requires a secure handshake.
 
-- `mobile/app/_layout.tsx` (global background scanning + periodic announce)
-- `mobile/app/(tabs)/send.tsx` (on-demand scan for the Send screen)
-
-## Pairing flow (accept / decline)
-
-Pairing is a “permission check” before transfer.
-
-There are two pairing mechanisms, depending on initiator and platform.
-
-### A) Mobile → Desktop (direct request/response)
-
-Mobile sends a pairing request:
-
-- **Request**: `POST /request-connect`
-- **Desktop UI** shows accept/decline
-- **Desktop server** responds to that HTTP request with `{ status: "accepted" | "declined" }`
-
-Mermaid sequence:
-
+### Scenario A: Mobile Initiates (Sending to Desktop)
 ```mermaid
 sequenceDiagram
-  participant M as Mobile
-  participant D as Desktop (Express)
-  participant UI as Desktop UI
-
-  M->>D: POST /request-connect (deviceId,name,brand,totalFiles,totalSize)
-  D->>UI: IPC "connection-request"
-  UI->>D: IPC "respond-to-connection" (accepted/declined)
-  D-->>M: 200 {status:"accepted"} or {status:"declined"}
+    participant M as Mobile Node
+    participant D as Desktop Hub
+    participant UI as Desktop User
+    
+    M->>D: POST /request-connect { deviceName, filesCount, totalSize }
+    D->>UI: Show Pairing Request Modal
+    UI->>D: User Clicks "Accept"
+    D-->>M: HTTP 200 { status: "accepted", pairToken: "..." }
 ```
 
-Files involved:
-
-- Server endpoint: `desktop/electron/main.ts` (`POST /request-connect`)
-- Desktop accept/decline: `desktop/src/App.tsx` + `ipcMain.handle('respond-to-connection', ...)`
-- Mobile request: `mobile/components/SendingPortal.tsx`
-
-### B) Desktop → Mobile (mobile polls)
-
-Because mobile doesn’t run a local HTTP server, the desktop records an outgoing request and mobile polls the desktop:
-
-- Desktop stores an outgoing request in memory
-- Mobile polls: `GET /check-pairing-requests/:deviceId`
-- Mobile shows accept/decline UI and responds via `POST /respond-to-connection`
-
-Mermaid sequence:
-
+### Scenario B: Desktop Initiates (Sending to Mobile)
+Since Mobile cannot host a server, it **polls** the Desktop for pending requests.
 ```mermaid
 sequenceDiagram
-  participant D as Desktop (Express)
-  participant M as Mobile
-  participant UI as Mobile UI
-
-  D->>D: Store outgoing request (deviceId)
-  M->>D: GET /check-pairing-requests/:deviceId
-  D-->>M: {status:"pending", request:{...}} (if outgoing exists)
-  UI->>D: POST /respond-to-connection (accepted/declined)
-  D-->>UI: Desktop UI gets IPC "pairing-response"
+    participant D as Desktop Hub
+    participant M as Mobile Node
+    participant UI as Mobile User
+    
+    D->>D: Queue Outgoing Request
+    M->>D: GET /check-pairing-requests/:mobileId (Polling 1s)
+    D-->>M: HTTP 200 { status: "pending", data: {...} }
+    M->>UI: Show Accept/Decline UI
+    UI->>D: POST /respond-to-connection { status: "accepted" }
 ```
 
-Files involved:
+---
 
-- Desktop outgoing storage + polling endpoint: `desktop/electron/main.ts`
-- Mobile polling loop: `mobile/app/(tabs)/receive.tsx`
+## 🚀 The Transfer Engine
 
-## Transfer flows
+Once paired, ExLink switches to a specialized streaming engine.
 
-### 1) Mobile → Desktop (upload)
+### 1. Mobile → Desktop (Upload)
+- Uses **Multipart/Form-Data** streaming.
+- The Desktop server processes the stream and writes chunks directly to the disk to minimize memory footprint.
+- **Progress Tracking**: Desktop emits `upload-progress` events via IPC to the renderer UI.
 
-After pairing is accepted, mobile uploads selected files:
+### 2. Desktop → Mobile (Download)
+- Desktop queues the files in an internal `pendingDownloads` map.
+- Mobile receives the file list and initiates multiple `GET /download/:deviceId/:fileIndex` requests.
+- This "Pull" model ensures high reliability on Mobile OSs (Android/iOS) which often kill background upload processes.
 
-- **Upload**: `POST /upload` with multipart form data and header `x-transfer-id`
-- Desktop writes files to disk and emits progress to the UI
+---
 
-Mermaid sequence:
+## 📂 Data & State Management
 
-```mermaid
-sequenceDiagram
-  participant M as Mobile
-  participant D as Desktop (Express)
-  participant UI as Desktop UI
+### State Synchronization
+- **Desktop**: Managed via **Zustand** in the renderer and a singleton `TransferManager` in the main process.
+- **Mobile**: Managed via **Zustand**, with device identity persisted in **AsyncStorage**.
 
-  M->>D: POST /upload (multipart) + x-transfer-id
-  D->>UI: IPC "upload-progress"
-  D->>UI: IPC "upload-complete"
-  M->>D: GET /transfer-finish/:deviceId (optional signal)
-```
+### File Preservation
+- **Preserve Metadata**: ExLink attempts to preserve original filenames and sizes.
+- **Batch Integrity**: All files in a single transfer are assigned a `transferId` to ensure they are grouped together in the history.
 
-Files involved:
+---
 
-- Server upload handler: `desktop/electron/main.ts` (`POST /upload`)
-- Mobile upload: `mobile/components/SendingPortal.tsx`
-- Desktop UI overlay: `desktop/src/App.tsx`
+## 🛠️ Port & Protocol Summary
 
-### 2) Desktop → Desktop (push upload)
+| Protocol | Port | Description |
+| :------- | :--- | :---------- |
+| **UDP**  | `41234` | Discovery Broadcasting (Pulse) |
+| **HTTP** | `3030`  | Command API & Binary Streaming |
 
-Desktop reads files from disk and pushes them to the target desktop:
+---
 
-- `POST http://{targetIp}:3030/upload` with a boundary-based streaming body
-- UI progress comes from the sender’s stream progress tracker
+## ⚠️ Limitations & Security
 
-Implemented in `desktop/electron/main.ts` (`ipcMain.handle('start-transfer', ...)`).
+1. **Local Trust**: Currently, ExLink assumes a trusted LAN. No end-to-end encryption (TLS) is implemented for the data stream.
+2. **IP Persistence**: Device IDs are derived from IP addresses. If a device's IP changes during a transfer, the transfer will fail and must be restarted.
+3. **OS Constraints**: Mobile battery optimization may throttle downloads if the app is minimized.
 
-### 3) Desktop → Mobile (queue + pull downloads)
+---
 
-Desktop cannot reliably “push” to mobile, so it queues files and mobile pulls:
-
-1. Desktop stores `pendingDownloads[deviceId] = files[]`
-2. Mobile polls: `GET /transfer-status/:deviceId`
-3. Mobile downloads each file: `GET /download/:deviceId/:index`
-
-Mermaid sequence:
-
-```mermaid
-sequenceDiagram
-  participant D as Desktop (Express)
-  participant M as Mobile
-
-  D->>D: pendingDownloads.set(deviceId, files)
-  M->>D: GET /transfer-status/:deviceId
-  D-->>M: {status:"ready", files:[{name,size,index}...]}
-  loop for each file
-    M->>D: GET /download/:deviceId/:index
-    D-->>M: stream bytes
-  end
-  D->>D: pendingDownloads.delete(deviceId)
-```
-
-Files involved:
-
-- Desktop queue + download endpoints: `desktop/electron/main.ts`
-- Mobile receiver: `mobile/app/(tabs)/receive.tsx`
-
-## Notes / limitations
-
-- The current protocol assumes a **trusted LAN** (no TLS/auth).
-- Device IDs are IP-derived and may collide if IPs change.
-- Some state (pending requests/download queue) is in-memory on desktop; restarting the desktop clears it.
+*Last Updated: January 2026*
 
