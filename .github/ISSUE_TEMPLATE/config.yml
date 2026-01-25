@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: "💬 General Question"
+    url: "https://github.com/lwshakib/exlink-file-transfer/discussions/new?category=q-a"
+    about: "Ask a question about how to use ExLink."
+  - name: "🛡️ Security Issue"
+    url: "https://github.com/lwshakib/exlink-file-transfer/security/advisories/new"
+    about: "Report a security vulnerability. Please do not report these via public issues."
