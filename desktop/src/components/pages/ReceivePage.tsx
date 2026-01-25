@@ -174,7 +174,7 @@ export function ReceivePage() {
 
       {/* Central Icon Area */}
       <div className="mb-12 relative flex items-center justify-center">
-        <LogoIcon size={192} className="opacity-90 transition-transform hover:scale-105 duration-500 shadow-2xl" />
+        <LogoIcon size={192} className="opacity-90 transition-transform hover:scale-105 duration-500" />
       </div>
 
       {/* Device Info */}

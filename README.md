@@ -1,8 +1,8 @@
 # 🚀 ExLink File Transfer
 
 <p align="center">
-  <img src="01.png" width="45%" style="border-radius: 12px; margin-right: 10px; box-shadow: 0 4px 20px rgba(0,0,0,0.3);" />
-  <img src="03.jpg" width="22%" style="border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.3);" />
+  <img src="assets/01.png" width="45%" style="border-radius: 12px; margin-right: 10px; box-shadow: 0 4px 20px rgba(0,0,0,0.3);" />
+  <img src="assets/03.jpg" width="22%" style="border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.3);" />
 </p>
 
 <p align="center">
@@ -33,15 +33,15 @@ ExLink is a powerful, cross-platform file transfer utility that allows you to mo
 
 ### 🖥️ Desktop Experience
 <p align="center">
-  <img src="02.png" width="85%" style="border-radius: 12px; border: 1px solid rgba(255,255,255,0.1); box-shadow: 0 10px 30px rgba(0,0,0,0.5);" />
+  <img src="assets/02.png" width="85%" style="border-radius: 12px; border: 1px solid rgba(255,255,255,0.1); box-shadow: 0 10px 30px rgba(0,0,0,0.5);" />
   <br>
   <em>The Desktop Send screen featuring automatic device discovery and intuitive file selection.</em>
 </p>
 
 ### 📱 Mobile Experience
 <p align="center">
-  <img src="04.jpg" width="30%" style="border-radius: 12px; margin-right: 20px; box-shadow: 0 5px 15px rgba(0,0,0,0.2);" />
-  <img src="05.jpg" width="30%" style="border-radius: 12px; box-shadow: 0 5px 15px rgba(0,0,0,0.2);" />
+  <img src="assets/04.jpg" width="30%" style="border-radius: 12px; margin-right: 20px; box-shadow: 0 5px 15px rgba(0,0,0,0.2);" />
+  <img src="assets/05.jpg" width="30%" style="border-radius: 12px; box-shadow: 0 5px 15px rgba(0,0,0,0.2);" />
   <br>
   <em>Mobile app optimized for one-handed operation with powerful discovery and batch management.</em>
 </p>

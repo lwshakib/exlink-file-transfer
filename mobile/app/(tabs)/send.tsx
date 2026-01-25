@@ -12,6 +12,7 @@ import { useRouter } from "expo-router";
 import { useSelection, SelectedItem } from "@/hooks/useSelection";
 import SelectionDetailsPortal from "@/components/SelectionDetailsPortal";
 import SendingPortal from "@/components/SendingPortal";
+import AppPickerPortal from "@/components/AppPickerPortal";
 import * as FileSystem from "expo-file-system/legacy";
 
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -39,7 +40,9 @@ export default function SendScreen() {
   const bottomSheetModalRef = useRef<BottomSheetModal>(null);
   const [selectionSheetVisible, setSelectionSheetVisible] = useState(false);
   const [sendingPortalVisible, setSendingPortalVisible] = useState(false);
+  const [appPickerVisible, setAppPickerVisible] = useState(false);
   const [selectedDevice, setSelectedDevice] = useState<NearbyDevice | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
   const snapPoints = useMemo(() => ['45%'], []);
 
   useEffect(() => {
@@ -191,47 +194,58 @@ export default function SendScreen() {
       try {
         const permissions = await FileSystem.StorageAccessFramework.requestDirectoryPermissionsAsync();
         if (permissions.granted) {
-          // In a real implementation, we might want to iterate or zip the folder.
-          // For now, we'll inform the user how to send multiple files if they prefer.
-          alert("Folder selection granted. Please select files within the folder for now, or use a Zip app to share an entire directory.");
-          handleFilePick();
+          setIsProcessing(true);
+          const directoryUri = permissions.directoryUri;
+          const files = await FileSystem.StorageAccessFramework.readDirectoryAsync(directoryUri);
+          
+          const newItems: SelectedItem[] = [];
+          
+          for (const fileUri of files) {
+            try {
+              const info = await FileSystem.getInfoAsync(fileUri);
+              if (info.exists && !info.isDirectory) {
+                // Get filename from URI - SAF URIs are complex, but usually the last part is the name
+                const decodedUri = decodeURIComponent(fileUri);
+                let name = decodedUri.split('/').pop() || "file";
+                if (name.includes(':')) {
+                  name = name.split(':').pop() || name;
+                }
+
+                newItems.push({
+                  id: fileUri,
+                  name: name,
+                  size: (info as any).size || 0,
+                  type: 'file',
+                  uri: fileUri,
+                });
+              }
+            } catch (err) {
+              console.warn("Error getting info for file:", fileUri, err);
+            }
+          }
+          
+          if (newItems.length > 0) {
+            addItems(newItems);
+            bottomSheetModalRef.current?.dismiss();
+          } else {
+            alert("No files found in the selected folder.");
+          }
+          setIsProcessing(false);
         }
       } catch (e) {
         console.error("Folder picker error:", e);
-        handleFilePick();
+        setIsProcessing(false);
       }
     } else {
+      // iOS doesn't support directory selection via SAF
+      alert("Folder selection is currently optimized for Android. On iOS, please select multiple files using the 'File' option.");
       handleFilePick();
     }
   };
 
-  const handleAppPick = async () => {
-    if (Platform.OS === 'android') {
-      // Show info dialog first
-      alert("To share an INSTALLED app, find it on your home screen or app drawer, long-press it, and use the 'Share' option. To pick an .APK file from storage, click OK.");
-      
-      try {
-        const result = await DocumentPicker.getDocumentAsync({
-          type: ["application/vnd.android.package-archive"],
-          multiple: true,
-        });
-        if (!result.canceled) {
-          const newItems: SelectedItem[] = result.assets.map(asset => ({
-            id: asset.uri,
-            name: asset.name,
-            size: asset.size || 0,
-            type: 'app',
-            uri: asset.uri,
-          }));
-          addItems(newItems);
-          bottomSheetModalRef.current?.dismiss();
-        }
-      } catch (err) {
-        console.error("Error picking app:", err);
-      }
-    } else {
-      alert("App sharing insight: On iOS, you can share apps by finding them in the App Store or using the Share sheet from the home screen icon (if supported). EXLink directly supports .apk sharing on Android.");
-    }
+  const handleAppPick = () => {
+    setAppPickerVisible(true);
+    bottomSheetModalRef.current?.dismiss();
   };
 
   const SELECTION_ITEMS = [
@@ -432,6 +446,19 @@ export default function SendScreen() {
         </View>
       </ScrollView>
 
+      {/* Processing Dialog */}
+      <Portal>
+        <Dialog visible={isProcessing} dismissable={false} style={{ borderRadius: 28 }}>
+          <Dialog.Title>Scanning Folder</Dialog.Title>
+          <Dialog.Content>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <MaterialCommunityIcons name="folder-search-outline" size={32} color={theme.colors.primary} style={{ marginRight: 16 }} />
+              <Text variant="bodyMedium">Analyzing items and preparing for transfer. This may take a moment...</Text>
+            </View>
+          </Dialog.Content>
+        </Dialog>
+      </Portal>
+
       {/* Text Input Dialog */}
       <Portal>
         <Dialog visible={textDialogVisible} onDismiss={() => setTextDialogVisible(false)} style={{ borderRadius: 28 }}>
@@ -496,6 +523,12 @@ export default function SendScreen() {
       <SelectionDetailsPortal 
         visible={selectionSheetVisible} 
         onDismiss={() => setSelectionSheetVisible(false)} 
+      />
+
+      <AppPickerPortal
+        visible={appPickerVisible}
+        onDismiss={() => setAppPickerVisible(false)}
+        onSelectApps={(apps) => addItems(apps)}
       />
 
       <SendingPortal
