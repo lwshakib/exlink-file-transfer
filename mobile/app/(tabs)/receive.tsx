@@ -808,7 +808,7 @@ export default function ReceiveScreen() {
             else setIsMinimized(true);
           }}
           contentContainerStyle={[styles.modalContainer, { backgroundColor: theme.colors.background }]}
-          dismissable={true}
+          dismissable={transferStatus === 'idle' || transferStatus === 'done' || transferStatus === 'error'}
         >
           <SafeAreaView style={{ flex: 1 }} edges={['bottom', 'left', 'right']}>
             <View style={styles.modalContent}>
@@ -900,12 +900,28 @@ export default function ReceiveScreen() {
               {transferStatus !== 'idle' && (transferStatus === 'waiting-transfer' || transferStatus === 'downloading' || transferStatus === 'saving' || transferStatus === 'done' || transferStatus === 'error') && pendingRequest && (
                  <View style={[styles.transferContent, { backgroundColor: theme.colors.surface, flex: 1 }]}>
                     <View style={styles.modalHeaderList}>
-                       <Text style={[styles.modalHeaderTitle, { color: theme.colors.onSurface }]}>
-                          {transferStatus === 'done' ? 'Finished' : (transferStatus === 'saving' ? 'Saving files...' : (transferStatus === 'error' ? 'Transfer Failed' : 'Receiving files'))}
-                       </Text>
-                        <Text style={[styles.saveToText, { color: theme.colors.secondary }]}>
-                           from {pendingRequest?.name || 'Unknown Device'}
-                        </Text>
+                        {transferStatus === 'done' ? (
+                          <View style={{ alignItems: 'center', paddingVertical: 10, gap: 8 }}>
+                            <View style={[styles.doneCircle, { backgroundColor: theme.colors.primaryContainer, width: 64, height: 64, borderRadius: 32 }]}>
+                              <MaterialCommunityIcons name="check" size={40} color={theme.colors.primary} />
+                            </View>
+                            <Text style={[styles.modalHeaderTitle, { color: theme.colors.onSurface, fontWeight: '800', fontSize: 24 }]}>
+                               Received successfully
+                            </Text>
+                            <Text style={[styles.saveToText, { color: theme.colors.onSurfaceVariant }]}>
+                               from {pendingRequest?.name || 'Unknown Device'}
+                            </Text>
+                          </View>
+                        ) : (
+                          <>
+                            <Text style={[styles.modalHeaderTitle, { color: theme.colors.onSurface }]}>
+                               {transferStatus === 'saving' ? 'Saving files...' : (transferStatus === 'error' ? 'Transfer Failed' : 'Receiving files')}
+                            </Text>
+                            <Text style={[styles.saveToText, { color: theme.colors.secondary }]}>
+                               from {pendingRequest?.name || 'Unknown Device'}
+                            </Text>
+                          </>
+                        )}
                     </View>
 
                     <ScrollView style={styles.modalItemList}>
@@ -932,7 +948,12 @@ export default function ReceiveScreen() {
                                     {formatFileSize(file.size)}
                                   </Text>
                                </View>
-                               {file.status === 'done' && <Text style={{ color: theme.colors.primary, fontSize: 12, marginTop: -4 }}>Done</Text>}
+                               {file.status === 'done' && (
+                                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: -4 }}>
+                                   <MaterialCommunityIcons name="check-circle" size={14} color={theme.colors.primary} />
+                                   <Text style={{ color: theme.colors.primary, fontSize: 12 }}>Done</Text>
+                                 </View>
+                               )}
                                <View style={[styles.modalItemProgressBarContainer, { backgroundColor: theme.colors.surfaceVariant }]}>
                                   <View style={[styles.modalItemProgressBar, { backgroundColor: theme.colors.primary, width: `${(file.progress || 0) * 100}%` }]} />
                                 </View>
@@ -979,23 +1000,25 @@ export default function ReceiveScreen() {
                          </View>
                        )}
 
-                       <View style={styles.modalActionRow}>
-                          <Button 
-                            mode="text" 
-                            onPress={() => setShowAdvanced(!showAdvanced)} 
-                            textColor={theme.colors.primary} 
-                            labelStyle={styles.actionButtonLabel}
-                            icon={showAdvanced ? 'eye-off' : () => (
-                              <View style={[styles.advancedIcon, { borderColor: theme.colors.outline }]}>
-                                 <Text style={[styles.advancedIconText, { color: theme.colors.primary }]}>i</Text>
-                              </View>
-                            )}
-                          >
-                            {showAdvanced ? 'Hide' : 'Advanced'}
-                          </Button>
+                       <View style={[styles.modalActionRow, transferStatus === 'done' && { justifyContent: 'center' }]}>
+                          {transferStatus !== 'done' && (
+                            <Button 
+                              mode="text" 
+                              onPress={() => setShowAdvanced(!showAdvanced)} 
+                              textColor={theme.colors.primary} 
+                              labelStyle={styles.actionButtonLabel}
+                              icon={showAdvanced ? 'eye-off' : () => (
+                                <View style={[styles.advancedIcon, { borderColor: theme.colors.outline }]}>
+                                   <Text style={[styles.advancedIconText, { color: theme.colors.primary }]}>i</Text>
+                                </View>
+                              )}
+                            >
+                              {showAdvanced ? 'Hide' : 'Advanced'}
+                            </Button>
+                          )}
 
                           <Button 
-                            mode="text" 
+                            mode={transferStatus === 'done' ? "contained" : "text"} 
                             onPress={() => {
                                if (transferStatus === 'done' || transferStatus === 'error') {
                                  closeTransfer();
@@ -1003,8 +1026,16 @@ export default function ReceiveScreen() {
                                  respondToRequest(false);
                                }
                             }} 
-                            textColor={theme.colors.primary} 
-                            labelStyle={styles.actionButtonLabel}
+                            textColor={transferStatus === 'done' ? theme.colors.onPrimary : theme.colors.primary} 
+                            buttonColor={transferStatus === 'done' ? theme.colors.primary : undefined}
+                            labelStyle={[
+                              styles.actionButtonLabel,
+                              transferStatus === 'done' && { fontWeight: 'bold', paddingHorizontal: 24, fontSize: 16 }
+                            ]}
+                            style={[
+                              transferStatus === 'done' ? styles.doneButton : { borderRadius: 28 }
+                            ]}
+                            contentStyle={transferStatus === 'done' ? { height: 50 } : {}}
                             icon={transferStatus === 'done' ? 'check-circle' : transferStatus === 'error' ? 'close-circle' : 'close'}
                           >
                             {transferStatus === 'done' ? 'Done' : transferStatus === 'error' ? 'Close' : 'Cancel'}
@@ -1384,6 +1415,7 @@ const styles = StyleSheet.create({
   modalActionRow: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
+    alignItems: 'center',
     gap: 16,
   },
   actionButtonLabel: {

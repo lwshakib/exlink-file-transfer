@@ -319,6 +319,7 @@ const SendingPortal = ({ visible, onDismiss, targetDevice }: SendingPortalProps)
       <Modal
         visible={visible}
         onDismiss={handleCancel}
+        dismissable={status === 'done' || status === 'error' || status === 'refused' || status === 'waiting'}
         contentContainerStyle={[
           styles.modalContainer,
           { backgroundColor: theme.colors.background }
@@ -364,10 +365,24 @@ const SendingPortal = ({ visible, onDismiss, targetDevice }: SendingPortalProps)
               </View>
             ) : (
               <>
-                <View style={styles.header}>
-                  <Text variant="headlineSmall" style={[styles.headerTitle, { color: theme.colors.onSurface }]}>
-                    {status === 'done' ? 'Finished' : 'Sending files'}
-                  </Text>
+                <View style={[styles.header, status === 'done' && { alignItems: 'center', paddingTop: 30 }]}>
+                  {status === 'done' ? (
+                    <View style={{ alignItems: 'center', gap: 12 }}>
+                      <View style={{ backgroundColor: theme.colors.primaryContainer, width: 64, height: 64, borderRadius: 32, alignItems: 'center', justifyContent: 'center' }}>
+                        <MaterialCommunityIcons name="check" size={40} color={theme.colors.primary} />
+                      </View>
+                      <Text variant="headlineSmall" style={[styles.headerTitle, { color: theme.colors.onSurface, fontWeight: '800' }]}>
+                        Sent successfully
+                      </Text>
+                      <Text style={{ color: theme.colors.onSurfaceVariant, marginTop: -4 }}>
+                        to {targetDevice?.name || 'Device'}
+                      </Text>
+                    </View>
+                  ) : (
+                    <Text variant="headlineSmall" style={[styles.headerTitle, { color: theme.colors.onSurface }]}>
+                      {status === 'sending' ? 'Sending files' : 'Preparing...'}
+                    </Text>
+                  )}
                 </View>
 
                 <ScrollView style={styles.itemList} contentContainerStyle={styles.itemListContent}>
@@ -393,7 +408,12 @@ const SendingPortal = ({ visible, onDismiss, targetDevice }: SendingPortalProps)
                            <Text style={[styles.fileName, { color: theme.colors.onSurface }]}>
                              {item.name} ({ formatFileSize(item.size) })
                            </Text>
-                           {isDone && <Text style={{ color: theme.colors.primary, fontSize: 12, marginTop: -4 }}>Done</Text>}
+                           {isDone && (
+                             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: -4 }}>
+                               <MaterialCommunityIcons name="check-circle" size={14} color={theme.colors.primary} />
+                               <Text style={{ color: theme.colors.primary, fontSize: 12 }}>Done</Text>
+                             </View>
+                           )}
                            <View style={[styles.itemProgressBarContainer, { backgroundColor: theme.colors.surfaceVariant }]}>
                               <View style={[styles.itemProgressBar, { backgroundColor: theme.colors.primary, width: `${itemProgress}%` }]} />
                            </View>
@@ -427,35 +447,38 @@ const SendingPortal = ({ visible, onDismiss, targetDevice }: SendingPortalProps)
                      </View>
                   )}
 
-                  <View style={status === 'done' ? styles.actionRowDone : styles.actionRow}>
-                     <Button 
-                      mode="text" 
-                      onPress={() => setShowAdvanced(!showAdvanced)} 
-                      textColor={theme.colors.primary} 
-                      labelStyle={styles.actionButtonLabel}
-                      icon={showAdvanced ? 'eye-off' : () => (
-                        <View style={[styles.advancedIcon, { borderColor: theme.colors.outlineVariant }]}>
-                           <Text style={[styles.advancedIconText, { color: theme.colors.primary }]}>i</Text>
-                        </View>
-                      )}
-                     >
-                       {showAdvanced ? 'Hide' : 'Advanced'}
-                     </Button>
+                  <View style={[status === 'done' ? styles.actionRowDone : styles.actionRow, status === 'done' && { justifyContent: 'center' }]}>
+                     {status !== 'done' && (
+                       <Button 
+                        mode="text" 
+                        onPress={() => setShowAdvanced(!showAdvanced)} 
+                        textColor={theme.colors.primary} 
+                        labelStyle={styles.actionButtonLabel}
+                        icon={showAdvanced ? 'eye-off' : () => (
+                          <View style={[styles.advancedIcon, { borderColor: theme.colors.outlineVariant }]}>
+                             <Text style={[styles.advancedIconText, { color: theme.colors.primary }]}>i</Text>
+                          </View>
+                        )}
+                       >
+                         {showAdvanced ? 'Hide' : 'Advanced'}
+                       </Button>
+                     )}
 
-                     <Button 
-                      mode={status === 'done' ? "contained" : "text"} 
-                      onPress={handleCancel} 
-                      textColor={status === 'done' ? theme.colors.onPrimary : theme.colors.primary} 
-                      buttonColor={status === 'done' ? theme.colors.primary : undefined}
-                      labelStyle={[
-                        styles.actionButtonLabel,
-                        status === 'done' && { fontWeight: 'bold', paddingHorizontal: 16 }
-                      ]}
-                      style={status === 'done' && { borderRadius: 28 }}
-                      icon={status === 'done' ? 'check-circle' : 'close'}
-                     >
+                      <Button 
+                       mode={status === 'done' ? "contained" : "text"} 
+                       onPress={handleCancel} 
+                       textColor={status === 'done' ? theme.colors.onPrimary : theme.colors.primary} 
+                       buttonColor={status === 'done' ? theme.colors.primary : undefined}
+                       labelStyle={[
+                         styles.actionButtonLabel,
+                         status === 'done' && { fontWeight: 'bold', paddingHorizontal: 24, fontSize: 16 }
+                       ]}
+                       style={status === 'done' ? { borderRadius: 28, width: 200 } : { borderRadius: 28 }}
+                       contentStyle={status === 'done' ? { height: 50 } : {}}
+                       icon={status === 'done' ? 'check-circle' : 'close'}
+                      >
                        {status === 'done' ? 'Done' : 'Cancel'}
-                     </Button>
+                      </Button>
                   </View>
                 </View>
               </>
