@@ -9,7 +9,7 @@ import * as Network from "expo-network";
 import { File, Directory, Paths } from "expo-file-system";
 import * as FileSystemLegacy from "expo-file-system/legacy";
 import * as MediaLibrary from "expo-media-library";
-import { uniqueNamesGenerator, adjectives, animals } from "unique-names-generator";
+  import { uniqueNamesGenerator, adjectives, animals } from "unique-names-generator";
 import HistoryPortal from "@/components/HistoryPortal";
 import { useFocusEffect } from "@react-navigation/native";
 import { BottomSheetModal, BottomSheetView, BottomSheetScrollView, BottomSheetBackdrop } from "@gorhom/bottom-sheet";
