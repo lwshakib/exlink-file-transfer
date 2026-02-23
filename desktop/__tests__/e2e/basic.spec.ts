@@ -10,6 +10,8 @@ test('launch app', async () => {
       path.resolve('dist-electron/main.js'),
       '--no-sandbox',
       '--disable-setuid-sandbox',
+      '--disable-dev-shm-usage',
+      '--disable-gpu',
     ],
   });
 

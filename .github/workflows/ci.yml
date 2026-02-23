@@ -47,10 +47,15 @@ jobs:
         # Required for E2E tests to have a headless browser environment
         run: bun x playwright install --with-deps
 
+      - name: Build Desktop
+        working-directory: ./desktop
+        # Builds the application to generate dist-electron/main.js
+        run: bun x tsc && bun x vite build
+
       - name: Run Desktop E2E Tests
         working-directory: ./desktop
-        # Runs Playwright tests against the compiled Electron build
-        run: bun run test:e2e
+        # xvfb-run provides a virtual display for Electron to launch on Linux
+        run: xvfb-run bun run test:e2e
 
       - name: Upload Playwright report
         uses: actions/upload-artifact@v4
