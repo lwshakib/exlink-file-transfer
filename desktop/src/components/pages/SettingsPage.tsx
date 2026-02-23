@@ -7,7 +7,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 
-import { useTheme } from '@/components/theme-provider';
+import { useTheme, ColorTheme } from '@/components/theme-provider';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -173,7 +173,7 @@ export function SettingsPage() {
 
             <div className="flex items-center justify-between p-3 rounded-xl hover:bg-muted/50 transition-colors">
               <span className="text-sm font-medium">Color</span>
-              <Select value={colorTheme} onValueChange={(v) => setColorTheme(v as string)}>
+              <Select value={colorTheme} onValueChange={(v) => setColorTheme(v as ColorTheme)}>
                 <SelectTrigger className="w-[140px] bg-muted/50 border-none rounded-lg h-9">
                   <SelectValue placeholder="Select color" />
                 </SelectTrigger>

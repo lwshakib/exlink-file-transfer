@@ -26,7 +26,8 @@ export function ReceivePage() {
   // Identity & History Worker: Synchronizes local storage pulses with React state
   useEffect(() => {
     // Strategy: Fetch unique station identifiers once on component mount
-    window.ipcRenderer.invoke('get-server-info').then((info) => {
+    window.ipcRenderer.invoke('get-server-info').then((res) => {
+      const info = res as { name: string; id: string };
       setDeviceName(info.name);
       setDeviceId(info.id);
     });

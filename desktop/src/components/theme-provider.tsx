@@ -1,8 +1,8 @@
 /* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, useEffect, useState } from 'react';
 
-type Theme = 'dark' | 'light' | 'system';
-type ColorTheme = 'zinc' | 'emerald' | 'violet' | 'blue' | 'amber' | 'rose' | 'random';
+export type Theme = 'dark' | 'light' | 'system';
+export type ColorTheme = 'zinc' | 'emerald' | 'violet' | 'blue' | 'amber' | 'rose' | 'random';
 
 type ThemeProviderProps = {
   children: React.ReactNode;
