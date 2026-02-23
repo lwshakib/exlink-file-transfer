@@ -6,7 +6,11 @@ import path from 'path';
 test('launch app', async () => {
   // Strategy: Launch Electron using the compiled main entry point
   const electronApp = await electron.launch({
-    args: [path.resolve('dist-electron/main.js')],
+    args: [
+      path.resolve('dist-electron/main.js'),
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+    ],
   });
 
   // Verify internal Electron state (packaging/development mode)
