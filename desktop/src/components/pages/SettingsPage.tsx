@@ -24,24 +24,36 @@ import {
 import { Dices } from 'lucide-react';
 import { uniqueNamesGenerator, adjectives, animals } from 'unique-names-generator';
 
+// SettingsPage manages user preferences for appearance, identity, and background server behavior
 export function SettingsPage() {
+  // --- UI & Theming Hooks ---
   const { theme, setTheme, colorTheme, setColorTheme } = useTheme();
+
+  // --- Identity States ---
   const [deviceName, setDeviceName] = useState('');
   const [deviceNameDraft, setDeviceNameDraft] = useState('');
   const [isSavingName, setIsSavingName] = useState(false);
   const [deviceNameDialogOpen, setDeviceNameDialogOpen] = useState(false);
+  
+  // --- Server & Filesystem States ---
   const [serverRunning, setServerRunning] = useState(true);
   const [nameChanged, setNameChanged] = useState(false);
   const [saveToFolder, setSaveToFolder] = useState('');
   const [aboutDialogOpen, setAboutDialogOpen] = useState(false);
 
+  // Preference Sync Worker: Hydrates the UI with persistent settings from the Main process
   useEffect(() => {
+    // Identity Sync
     window.ipcRenderer.invoke('get-server-info').then((info: any) => {
       setDeviceName(info?.name || '');
     });
+
+    // Filesystem Sync: Where are we currently landing bytes?
     window.ipcRenderer.invoke('get-upload-dir').then((dir: string) => {
       setSaveToFolder(dir);
     });
+
+    // Network Sync: Verify if the background TCP listener is active
     window.ipcRenderer.invoke('get-server-status').then((status: any) => {
       setServerRunning(status?.running ?? true);
     });
@@ -63,6 +75,7 @@ export function SettingsPage() {
     setNameChanged(false);
   };
 
+  // Persists the new device identity to the Main process configuration file
   const saveDeviceName = async () => {
     const next = deviceNameDraft.trim();
     if (!next) {
@@ -73,10 +86,11 @@ export function SettingsPage() {
     const changed = next !== deviceName;
     try {
       setIsSavingName(true);
+      // Logic: Tell Main process to update its listener/discovery advertisement name
       window.ipcRenderer.send('set-server-name', { name: next });
       setDeviceName(next);
       setDeviceNameDialogOpen(false);
-      setNameChanged(changed);
+      setNameChanged(changed); // Trigger restart warning if applicable
       toast.success('Device name saved');
     } finally {
       setIsSavingName(false);

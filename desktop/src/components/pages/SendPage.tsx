@@ -42,9 +42,15 @@ interface NearbyNode {
   brand?: string; // For mobile: Tecno, Samsung, etc.
 }
 
+// SendPage manages the source side of file transfers: selecting items and discovering target devices
 export function SendPage() {
+  // Discovery State: List of active ExLink stations found on the LAN
   const [devices, setDevices] = useState<NearbyNode[]>([]);
+  
+  // Centralized Selection Hook: Tracks files, folders, and text objects ready for transfer
   const { selectedItems, addItems, clearSelection, hasSelection, removeItem } = useSelection();
+  
+  // UI Component States
   const [isTextDialogOpen, setIsTextDialogOpen] = useState(false);
   const [isAddMenuOpen, setIsAddMenuOpen] = useState(false);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
@@ -60,11 +66,14 @@ export function SendPage() {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
   };
 
+  // Discovery Worker: Syncs the UI with the background network scanner
   useEffect(() => {
+    // Initial fetch of already known devices
     window.ipcRenderer.invoke('get-nearby-nodes').then((nodes: NearbyNode[]) => {
       setDevices(nodes);
     });
 
+    // Event listener for real-time subnet updates from Electron main process
     const removeListener = window.ipcRenderer.on(
       'nearby-nodes-updated',
       (_event: any, nodes: NearbyNode[]) => {
@@ -106,11 +115,13 @@ export function SendPage() {
     return a.name.localeCompare(b.name);
   });
 
+  // Native File Picker Strategy: Triggers OS-native dialog via IPC for cross-platform support
   const handleFilePick = async () => {
     try {
       const items: { path: string; name: string; size: number }[] =
         await window.ipcRenderer.invoke('share-files');
       if (items && items.length > 0) {
+        // Map native paths to internal Selection Schema
         const newItems: SelectedItem[] = items.map((item) => ({
           id: `${item.path}-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
           name: item.name,
@@ -126,6 +137,7 @@ export function SendPage() {
     }
   };
 
+  // Folder Picker Integration: Allows selecting entire directories (handled recursively by backend)
   const handleFolderPick = async () => {
     try {
       const items: { path: string; name: string; size: number }[] =
@@ -183,22 +195,23 @@ export function SendPage() {
     }
   };
 
+  // Transfer Initiation: Handshakes with the selected device to prompt user acceptance
   const handleDeviceClick = async (device: NearbyNode) => {
     if (!hasSelection) {
       toast.error('Please select at least one file or item to share first.');
       return;
     }
 
+    // Modal feedback for long-running handshake
     toast.loading(`Waiting for ${device.name} to accept...`, { id: 'pairing' });
 
     try {
+      // Logic: Tell Main process to send a Pairing Request (JSON over TCP/HTTP)
       await window.ipcRenderer.invoke('initiate-pairing', {
         deviceId: device.id,
         deviceIp: device.ip,
         items: selectedItems,
       });
-      // If it's a desktop, we might also want to try direct POST for speed,
-      // but let's stick to the unified flow for now.
     } catch (e) {
       toast.error('Failed to initiate pairing.', { id: 'pairing' });
     }

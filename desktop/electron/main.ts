@@ -23,15 +23,16 @@ process.env.VITE_PUBLIC = VITE_DEV_SERVER_URL
   ? path.join(process.env.APP_ROOT, 'public')
   : RENDERER_DIST;
 
+// --- Constants & Global State ---
 let win: BrowserWindow | null;
-const HTTP_PORT = 3030;
-const DISCOVERY_PORT = 41234;
-const DISCOVERY_INTERVAL = 3000;
+const HTTP_PORT = 3030; // Dedicated port for file transfers and handshake
+const DISCOVERY_PORT = 41234; // UDP port for LAN discovery packets
+const DISCOVERY_INTERVAL = 3000; // Time between heartbeat broadcasts
 
-// Identity Persistence
+// Identity Persistence: Stores the unique station name generated for this PC
 const configPath = path.join(app.getPath('userData'), 'server-config.json');
 let serverName = os.hostname();
-// Default to empty, will be populated from IP
+// Dynamic Identity: Calculated from the current network IP to avoid hard-coded IDs
 let serverId = '';
 
 function getServerIdFromIp() {
@@ -43,15 +44,16 @@ function getServerIdFromIp() {
   return '000';
 }
 
+// Persistence Logic: Ensures the server name and last used folder are restored on startup
 function loadConfig() {
   try {
     if (fs.existsSync(configPath)) {
       const data = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
       if (data.name) serverName = data.name;
       if (data.uploadDir) uploadDir = data.uploadDir;
-      // We don't persist serverId anymore as it depends on the current IP
+      // Note: We don't persist serverId; it's derived from IP to ensure LAN uniqueness
     } else {
-      // First run: generate friendly name
+      // First Run Experience: Generate a friendly "Adjective Animal" name (e.g., "Silver Fox")
       serverName = uniqueNamesGenerator({
         dictionaries: [adjectives, animals],
         length: 2,
@@ -60,7 +62,6 @@ function loadConfig() {
       });
       saveConfig();
     }
-    // Always calculate current ID from IP
     serverId = getServerIdFromIp();
     loadUploadDir();
   } catch (e) {
@@ -76,7 +77,7 @@ function saveConfig() {
   }
 }
 
-// Ensure identity is loaded immediately
+// Ensure identity is loaded immediately as app boots
 app.whenReady().then(() => {
   loadConfig();
 });
@@ -112,14 +113,18 @@ let httpServer: http.Server | null = null;
 let udpBroadcastInterval: NodeJS.Timeout | null = null;
 
 // --- Discovery Protocol (UDP) ---
+// This service broadcasts the PC's identity to the LAN and listens for other ExLink stations.
 const udpSocket = dgram.createSocket('udp4');
 udpSocket.on('error', (err) => console.log(`UDP error:\n${err.stack}`));
 
+// Listener: Parses incoming identity packets and updates the Discovered Devices map
 udpSocket.on('message', (msg, _rinfo) => {
   try {
     const data = JSON.parse(msg.toString());
+    // Filter: Ignore packets from ourselves
     if (data.type === 'discovery' && data.ip !== getLocalIPs()[0]) {
       nearbyNodes.set(data.id, { ...data, lastSeen: Date.now() });
+      // Notify Renderer to update the "Nearby Devices" UI list
       win?.webContents.send('nearby-nodes-updated', Array.from(nearbyNodes.values()));
     }
   } catch (e) {}
@@ -129,6 +134,7 @@ udpSocket.bind(DISCOVERY_PORT, () => {
   udpSocket.setBroadcast(true);
   const startBroadcast = () => {
     if (udpBroadcastInterval) clearInterval(udpBroadcastInterval);
+    // Heartbeat: Send identity packet every 3 seconds to stay visible
     udpBroadcastInterval = setInterval(() => {
       if (!serverRunning) return;
       const localIp = getLocalIPs()[0];
@@ -143,11 +149,10 @@ udpSocket.bind(DISCOVERY_PORT, () => {
       });
       udpSocket.send(message, 0, message.length, DISCOVERY_PORT, '255.255.255.255');
 
-      // Cleanup stale nodes
+      // Garbage Collection: Remove stations that haven't sent a packet recently (20s timeout)
       const now = Date.now();
       let changed = false;
       for (const [id, node] of nearbyNodes.entries()) {
-        // Be more forgiving: 20s timeout (DISCOVERY_INTERVAL * 6.6)
         if (now - node.lastSeen > DISCOVERY_INTERVAL * 6.6) {
           nearbyNodes.delete(id);
           changed = true;
@@ -160,28 +165,25 @@ udpSocket.bind(DISCOVERY_PORT, () => {
 });
 
 // --- HTTP Server (Express) ---
+// Handles large file streams and pairing handshakes via standard HTTP/POST.
 const serverApp = express();
 serverApp.use(cors());
 serverApp.use(express.json());
 
 import busboy from 'busboy';
 
-// Endpoints
+// Incoming Upload Endpoint: Optimized for high-speed streaming without memory buffering
 serverApp.post('/upload', (req: Request, res: Response) => {
+  // Session tracking: Use provided ID or generate a fallback
   const transferId = Array.isArray(req.headers['x-transfer-id'])
     ? req.headers['x-transfer-id'][0]
     : (req.headers['x-transfer-id'] as string) || Math.random().toString(36).substring(7);
 
-  console.log(
-    `[Upload] New request starting: ${transferId}, content-length: ${req.headers['content-length']}`
-  );
-  console.log(`[Upload] Content-Type: ${req.headers['content-type']}`);
   activeRequests.set(transferId, req);
 
-  // Busboy requires Content-Type header. If expo-file-system doesn't set it, we'll add a default
+  // Busboy Setup: Parsing multipart bodies (files) in real-time
   const headers = { ...req.headers };
   if (!headers['content-type']) {
-    console.log(`[Upload] ⚠️  Missing Content-Type, setting default multipart/form-data`);
     headers['content-type'] = 'multipart/form-data';
   }
 
@@ -189,9 +191,9 @@ serverApp.post('/upload', (req: Request, res: Response) => {
   const totalSize = parseInt(req.headers['content-length'] || '0');
   let receivedBytes = 0;
   let lastUpdateTime = 0;
-  const THROTTLE_MS = 100;
+  const THROTTLE_MS = 100; // Limits IPC packet frequency to 10Hz to prevent UI lockup
 
-  // Track raw request progress for smoother UI and less busboy interference
+  // Progress tracking via raw socket data events (more granular than busboy chunks)
   req.on('data', (chunk) => {
     receivedBytes += chunk.length;
     const now = Date.now();
@@ -210,17 +212,17 @@ serverApp.post('/upload', (req: Request, res: Response) => {
     }
   });
 
+  // Event: Busboy identified a file stream in the request body
   bb.on('file', (_, file, info) => {
-    const { filename, mimeType } = info;
-    console.log(`[Upload] Busboy found file: ${filename} (${mimeType})`);
-
+    const { filename } = info;
     const saveTo = path.join(uploadDir, `${Date.now()}-${filename}`);
     const fstream = fs.createWriteStream(saveTo);
 
+    // Direct pipe to disk: Minimal CPU/RAM overhead
     file.pipe(fstream);
 
     fstream.on('close', () => {
-      console.log(`[Upload] ✅ File SAVED to: ${saveTo}`);
+      // Signal completion to UI and record for history
       if (win) {
         win.webContents.send('upload-complete', {
           id: transferId,
@@ -236,23 +238,17 @@ serverApp.post('/upload', (req: Request, res: Response) => {
       }
     });
 
-    fstream.on('open', () => {
-      console.log(`[Upload] 📂 fstream OPENED for: ${filename}`);
-    });
-
     fstream.on('error', (err) => {
       console.error(`[Upload] ❌ fstream ERROR for ${filename}:`, err);
     });
   });
 
   bb.on('finish', () => {
-    console.log(`[Upload] 🏁 Busboy finished for: ${transferId}`);
     activeRequests.delete(transferId);
     if (!res.headersSent) res.json({ status: 'ok' });
   });
 
   bb.on('error', (err: any) => {
-    console.error(`[Upload] ❌ Busboy parsing ERROR:`, err);
     activeRequests.delete(transferId);
     if (win) win.webContents.send('upload-error', { id: transferId, error: err.message });
     if (!res.headersSent) res.status(500).json({ error: err.message });
@@ -261,10 +257,11 @@ serverApp.post('/upload', (req: Request, res: Response) => {
   req.pipe(bb);
 });
 
+// Connection Handshake: Remote devices call this to prompt the desktop for a transfer session
 serverApp.post('/request-connect', (req, res) => {
   const { deviceId, name, platform, brand, totalFiles, totalSize, files } = req.body;
-  console.log(`Connection request from ${name} (${deviceId}) proposing ${totalFiles} files`);
 
+  // Track the request so we can respond later when the user clicks "Accept"
   pendingConnections.set(deviceId, {
     res,
     name,
@@ -276,6 +273,8 @@ serverApp.post('/request-connect', (req, res) => {
     files: files || [],
     timestamp: Date.now(),
   });
+  
+  // Triggers the "Interaction Dialog" on the desktop UI
   win?.webContents.send('connection-request', {
     deviceId,
     name,
@@ -369,18 +368,20 @@ serverApp.get('/get-server-info', (_req, res) => {
   });
 });
 
+// Pairing Feedback: Remote devices call this to tell the desktop if their handshake was accepted
 serverApp.post('/respond-to-connection', (req, res) => {
   const { deviceId, accepted } = req.body;
   console.log(`Connection response from ${deviceId}: ${accepted}`);
 
   const outgoing = outgoingRequests.get(deviceId);
   if (outgoing) {
+    // Branch 1: Response to a request we (the desktop) initiated
     win?.webContents.send('pairing-response', { deviceId, accepted });
     outgoingRequests.delete(deviceId);
     return res.json({ status: 'ok' });
   }
 
-  // Handle it as a response to an incoming request (legacy/direct)
+  // Branch 2: Response to a request the remote device initiated (e.g., from mobile)
   const pending = pendingConnections.get(deviceId);
   if (pending) {
     pending.res.json({ status: accepted ? 'accepted' : 'declined' });
@@ -430,9 +431,9 @@ serverApp.get('/cancel-transfer/:deviceId', (req, res) => {
   res.json({ status: 'ok' });
 });
 
+// Termination Endpoint: Signal that a batch transfer session is officially complete
 serverApp.get('/transfer-finish/:deviceId', (req, res) => {
   const { deviceId } = req.params;
-  console.log(`[Upload] Transfer session finished for: ${deviceId}`);
   if (win) {
     win.webContents.send('transfer-complete', { deviceId });
   }
@@ -462,10 +463,11 @@ setInterval(() => {
   if (changed) win?.webContents.send('nearby-nodes-updated', Array.from(nearbyNodes.values()));
 }, 5000);
 
+// Polling Endpoint (Mobile Compatibility): Mobile devices check this to see if the desktop has a message for them
 serverApp.get('/check-pairing-requests/:deviceId', (req, res) => {
   const { deviceId } = req.params;
 
-  // ONLY check outgoing requests (initiated by this desktop to the device)
+  // Strategy: We only return "Pending" if the desktop explicitly initiated a connection to this mobile ID
   // This tells the mobile device: "Hey, I (the desktop) am trying to connect to you."
   const outgoing = outgoingRequests.get(deviceId);
   if (outgoing) {
@@ -481,11 +483,7 @@ serverApp.get('/check-pairing-requests/:deviceId', (req, res) => {
     });
   }
 
-  // We do NOT return pending for incoming connections here,
-  // because the mobile device is already waiting for the POST response
-  // from /request-connect. Returning it here makes the mobile think
-  // the desktop initiated a separate request.
-
+  // Implementation Note: We avoid returning pending for incoming connections here to prevent duplicate signaling
   res.json({ status: 'none' });
 });
 
@@ -506,24 +504,21 @@ serverApp.get('/transfer-status/:deviceId', (req, res) => {
   res.json({ status: 'none' });
 });
 
+// --- Sequential Download Service (Desktop -> Mobile) ---
+// This handles the specialized flow where mobile pulls files one-by-one to avoid memory overflows.
 serverApp.get('/download/:deviceId/:fileIndex', (req, res) => {
   const { deviceId, fileIndex } = req.params;
-  console.log(`Download request: device=${deviceId}, index=${fileIndex}`);
-
   const index = parseInt(fileIndex);
   const download = pendingDownloads.get(deviceId);
 
   if (!download || !download.files[index]) {
-    console.error(`Download failed: No pending download for device ${deviceId} or index ${index}`);
     return res.status(404).send('File not found');
   }
 
   const file = download.files[index];
-  const filePath = file.path;
-  const fileName = file.name;
+  const { path: filePath, name: fileName } = file;
 
   if (!fs.existsSync(filePath)) {
-    console.error(`Download failed: File missing on disk at ${filePath}`);
     return res.status(404).send('File missing on server');
   }
 
@@ -531,26 +526,24 @@ serverApp.get('/download/:deviceId/:fileIndex', (req, res) => {
   const fileSize = stats.size;
   const totalBytes = download.files.reduce((acc, f) => acc + (f.size || 0), 0);
 
-  // Calculate previously processed bytes (all files before this one)
+  // Calculate previously processed bytes (all files before this one in the current batch)
   const previouslyProcessed = download.files
     .slice(0, index)
     .reduce((acc, f) => acc + (f.size || 0), 0);
 
-  // Set explicit headers
+  // Standard Headers for Binary Streams
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Expose-Headers', 'Content-Length, Content-Disposition');
   res.setHeader('Content-Type', 'application/octet-stream');
   res.setHeader('Content-Length', fileSize);
   res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
 
-  console.log(`Serving file: ${fileName} (${filePath})`);
-
   let fileProcessed = 0;
   let lastUpdateTime = 0;
   const THROTTLE_MS = 100;
-
   const fileStream = fs.createReadStream(filePath);
 
+  // Progress Proxy: Intercepts the stream to calculate throughput and overall session progress for the UI
   const progressTracker = new Transform({
     transform(chunk, _encoding, callback) {
       fileProcessed += chunk.length;
@@ -561,9 +554,9 @@ serverApp.get('/download/:deviceId/:fileIndex', (req, res) => {
         lastUpdateTime = now;
         win.webContents.send('transfer-progress', {
           deviceId,
-          progress: currentOverallProcessed / totalBytes, // Overall progress
-          fileProgress: fileProcessed / fileSize, // Per-file progress
-          speed: 0, // Calculated in renderer
+          progress: currentOverallProcessed / totalBytes,
+          fileProgress: fileProcessed / fileSize,
+          speed: 0, // Throttle/speed calculation is generally handled by the renderer UI
           currentFile: fileName,
           currentIndex: index + 1,
           totalFiles: download.files.length,
@@ -583,7 +576,7 @@ serverApp.get('/download/:deviceId/:fileIndex', (req, res) => {
   });
 
   res.on('finish', () => {
-    console.log(`Successfully finished serving ${fileName}`);
+    // If this was the last file in the batch, clear the session and notify UI
     if (index === download.files.length - 1) {
       if (win) win.webContents.send('transfer-complete', { deviceId });
       pendingDownloads.delete(deviceId);
@@ -721,57 +714,46 @@ ipcMain.handle('respond-to-connection', (_event, { deviceId, accepted }) => {
   return false;
 });
 
+// Transfer Sequence: Initiates the recursive HTTP push flow for Desktop -> Desktop transfers
 ipcMain.handle('start-transfer', async (_event, { deviceId, deviceIp, platform, items }) => {
-  console.log(`Starting transfer to ${deviceId} at ${deviceIp} with ${items.length} items`);
-
   const controller = new AbortController();
   activeTransfers.set(deviceId, { controller, files: items });
 
-  // If target is mobile, we queue for download instead of pushing
+  // Handle Mobile Target: Mobile devices pull files sequentially to avoid memory pressure on handhelds.
+  // We simply register them in the local pendingDownloads queue for the mobile to fetch.
   if (platform === 'mobile') {
-    console.log(`Queueing files for mobile download: ${deviceId}`);
     pendingDownloads.set(deviceId, { files: items, timestamp: Date.now() });
-    // Notify UI we are waiting/ready
     return;
   }
 
+  // Handle Desktop Target: Iterate through files and PUSH them via individual POST streams
   const totalBytes = items.reduce((acc: number, item: any) => acc + (item.size || 0), 0);
   let processedBytes = 0;
-  let startTime = Date.now();
 
   try {
     for (let i = 0; i < items.length; i++) {
       const item = items[i];
-      if (item.type !== 'file') continue;
+      if (item.type !== 'file') continue; // Folders are handled by iterating their children
 
-      const fileName = item.name;
-      const filePath = item.path;
-      const fileSize = item.size;
-
+      const { name: fileName, path: filePath, size: fileSize } = item;
       let fileProcessed = 0;
       let fileLastUpdateTime = 0;
       const THROTTLE_MS = 200;
 
+      // Stream Transformer: Calculates progress for the UI while data flows from disk to network
       const progressTracker = new Transform({
-        transform(
-          chunk: Buffer,
-          _encoding: BufferEncoding,
-          callback: (error?: Error | null, data?: any) => void
-        ) {
+        transform(chunk: Buffer, _encoding: BufferEncoding, callback: any) {
           fileProcessed += chunk.length;
           const currentTotalProcessed = processedBytes + fileProcessed;
-          const progress = currentTotalProcessed / totalBytes;
-          const elapsed = (Date.now() - startTime) / 1000;
-          const speed = currentTotalProcessed / elapsed;
           const now = Date.now();
 
-          if (win && (now - fileLastUpdateTime > THROTTLE_MS || progress === 1)) {
+          // Performance Note: 200ms throttle prevents IPC flooding that could lag the UI
+          if (win && (now - fileLastUpdateTime > THROTTLE_MS || currentTotalProcessed === totalBytes)) {
             fileLastUpdateTime = now;
             win.webContents.send('transfer-progress', {
               deviceId,
-              progress,
+              progress: currentTotalProcessed / totalBytes,
               fileProgress: fileProcessed / fileSize,
-              speed,
               currentFile: fileName,
               currentIndex: i + 1,
               totalFiles: items.length,
@@ -785,7 +767,7 @@ ipcMain.handle('start-transfer', async (_event, { deviceId, deviceIp, platform, 
 
       const fileStream = fs.createReadStream(filePath).pipe(progressTracker);
 
-      // We'll use a library-free boundary-based stream upload
+      // Raw Multipart Generator: Manual boundary injection for high-performance streaming without wrapper overhead
       const boundary = '----ExLinkBoundary' + Math.random().toString(36).substring(2);
       const header = `--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="${fileName}"\r\nContent-Type: application/octet-stream\r\n\r\n`;
       const footer = `\r\n--${boundary}--\r\n`;
@@ -810,17 +792,14 @@ ipcMain.handle('start-transfer', async (_event, { deviceId, deviceIp, platform, 
       } as any);
 
       if (!response.ok) throw new Error(`Failed to upload ${fileName}`);
-
       processedBytes += fileSize;
     }
 
+    // Success: Notify UI that the entire batch is complete
     win?.webContents.send('transfer-complete', { deviceId });
     activeTransfers.delete(deviceId);
   } catch (e: any) {
-    if (e.name === 'AbortError') {
-      console.log('Transfer cancelled by user');
-    } else {
-      console.error('Transfer error:', e);
+    if (e.name !== 'AbortError') {
       win?.webContents.send('transfer-error', { deviceId, error: e.message });
     }
     activeTransfers.delete(deviceId);
@@ -852,12 +831,15 @@ ipcMain.handle('cancel-transfer', (_event, { deviceId, targetIp }) => {
   return true;
 });
 
+// --- Native Shell Integration ---
+// Allows the React frontend to open local folders and reveal files in Explorer/Finder
 ipcMain.handle('open-folder', () => shell.openPath(uploadDir));
 
 ipcMain.handle('open-file', (_event, filePath) => {
   if (filePath && fs.existsSync(filePath)) shell.showItemInFolder(filePath);
 });
 
+// Native File Pickers: Opens the OS dialog for file/directory selection
 ipcMain.handle('share-files', async () => {
   if (!win) return;
   const { canceled, filePaths } = await dialog.showOpenDialog(win, {
@@ -893,6 +875,8 @@ ipcMain.handle('share-folders', async () => {
   return sharedItems;
 });
 
+// --- Window Control Listeners ---
+// Subscribed to by the custom TitleBar component in the React frontend
 ipcMain.on('window-minimize', () => win?.minimize());
 ipcMain.on('window-maximize', () => {
   if (win?.isMaximized()) win.unmaximize();
@@ -940,10 +924,11 @@ process.env.VITE_PUBLIC = VITE_DEV_SERVER_URL
   ? path.join(process.env.APP_ROOT, 'public')
   : RENDERER_DIST;
 
+// --- Main Process Lifecycle ---
 function createWindow() {
   win = new BrowserWindow({
     icon: iconPath,
-    frame: false,
+    frame: false, // Frameless window for custom glassmorphism styling
     width: 1000,
     height: 700,
     minWidth: 800,

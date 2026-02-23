@@ -26,7 +26,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 
+// Main entry point for the Desktop application, managing core application state, IPC communication, and layout
 function App() {
+  // Navigation State: Controls which main view is currently visible
   const [activeTab, setActiveTab] = useState<'receive' | 'send' | 'settings'>('receive');
   const [pendingRequest, setPendingRequest] = useState<{
     deviceId: string;
@@ -56,6 +58,7 @@ function App() {
     window.ipcRenderer.invoke('get-upload-dir').then(setSavePath);
   }, []);
 
+  // Transfer Lifecycle State: Tracks sending/receiving progress, metrics, and terminal states
   const [transferData, setTransferData] = useState<{
     type: 'sending' | 'receiving';
     status: 'transferring' | 'completed' | 'error';
@@ -100,19 +103,23 @@ function App() {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
   };
 
+  // Performance Monitor Hook: Tracks transfer duration and calculates real-time throughput
   useEffect(() => {
     let interval: any;
     if (transferData && transferData.status === 'transferring') {
+      // Mark start time if not already set to track total duration
       if (!transferStartTime) {
         setTransferStartTime(Date.now());
       }
+      
+      // Secondary clock for UI duration display
       interval = setInterval(() => {
         if (transferStartTime) {
           setTransferDuration(Math.floor((Date.now() - transferStartTime) / 1000));
         }
       }, 1000);
 
-      // Speed calculation with smoothing
+      // Speed calculation logic: derives B/s by sampling delta bytes every second
       prevBytesRef.current = lastProcessedRef.current;
       speedsRef.current = [];
       speedIntervalRef.current = setInterval(() => {
@@ -120,19 +127,20 @@ function App() {
         const diff = current - prevBytesRef.current;
         const speed = Math.max(0, diff);
 
-        // Moving average of last 3 samples
+        // Smoothing: Moving average of the last 3 samples to reduce jitter
         speedsRef.current.push(speed);
         if (speedsRef.current.length > 3) speedsRef.current.shift();
 
         const avgSpeed = speedsRef.current.reduce((a, b) => a + b, 0) / speedsRef.current.length;
         setCurrentSpeed(avgSpeed);
-        currentSpeedRef.current = avgSpeed; // Update the ref
+        currentSpeedRef.current = avgSpeed; // Store in ref for immediate access in nested callbacks
 
         prevBytesRef.current = current;
       }, 1000);
     } else if (transferData && transferData.status === 'completed') {
       setCurrentSpeed(0);
     } else {
+      // Cleanup states when idle or on error
       setTransferStartTime(null);
       setTransferDuration(0);
       setCurrentSpeed(0);
@@ -178,8 +186,9 @@ function App() {
     return `${min}:${sec.toString().padStart(2, '0')}`;
   };
 
+  // IPC Communication Layer: Connects React frontend events to the Electron Main process backend
   useEffect(() => {
-    // Get local info for pairing UI
+    // Initial identity fetch: populate local PC identifiers (Name, IP, OS)
     window.ipcRenderer.invoke('get-server-info').then((info) => {
       setLocalInfo({
         name: info.name,
@@ -188,6 +197,7 @@ function App() {
       });
     });
 
+    // Listener for incoming pairing requests from mobile/other stations
     const removeReqListener = window.ipcRenderer.on(
       'connection-request',
       (_event: any, req: any) => {
@@ -195,17 +205,20 @@ function App() {
       }
     );
 
+    // Flow for when a remote device answers our pairing attempt
     const removeResListener = window.ipcRenderer.on(
       'pairing-response',
       (_event: any, { accepted }: { accepted: boolean }) => {
         if (waitingFor && accepted) {
-          // Start transfer
+          // Handshake Successful -> Signal backend to start HTTP file pushing
           window.ipcRenderer.invoke('start-transfer', {
             deviceId: waitingFor.deviceId,
             deviceIp: waitingFor.ip,
             platform: waitingFor.platform,
             items: selectedItems,
           });
+          
+          // Move UI into Sending mode
           setTransferData({
             type: 'sending',
             status: 'transferring',
@@ -230,11 +243,13 @@ function App() {
           });
           setWaitingFor(null);
         } else if (waitingFor && !accepted) {
+          // Handshake Rejected: Update UI to show 'Declined' status
           setWaitingFor((prev) => (prev ? { ...prev, status: 'declined' } : null));
         }
       }
     );
 
+    // Sync UI with backend initiation events (important for cross-window sync)
     const removeStartListener = window.ipcRenderer.on(
       'pairing-initiated-ui',
       (_event: any, req: any) => {
@@ -242,21 +257,22 @@ function App() {
       }
     );
 
+    // Real-time progress packets from the active HTTP upload stream (Sending Mode)
     const removeProgressListener = window.ipcRenderer.on(
       'transfer-progress',
       (_event: any, data: any) => {
-        console.log('[IPC] transfer-progress:', data.processedBytes);
         lastProcessedRef.current = data.processedBytes;
         setTransferData((prev) => ({
           ...prev,
           ...data,
-          speed: currentSpeedRef.current, // Use ref instead of state
+          speed: currentSpeedRef.current, // Sync with our independent duration worker
           type: prev?.type || 'sending',
           status: 'transferring',
         }));
       }
     );
 
+    // Real-time progress packets from the active HTTP download server (Receiving Mode)
     const removeIncomingListener = window.ipcRenderer.on(
       'upload-progress',
       (_event: any, data: any) => {
@@ -309,14 +325,14 @@ function App() {
       setTransferData((prev) => (prev ? { ...prev, status: 'error' } : null));
     });
 
+    // Milestone Event: One file in a batch successfully hit disk
     const removeUploadCompleteListener = window.ipcRenderer.on(
       'upload-complete',
       (_event: any, data: any) => {
-        console.log('[IPC] upload-complete:', data.name);
         completedFilesCountRef.current += 1;
         completedFilesBytesRef.current += data.size;
 
-        // Save to history
+        // Persist file metadata to local history for future reference
         try {
           const historyJson = localStorage.getItem('transfer-history');
           const history = historyJson ? JSON.parse(historyJson) : [];
@@ -331,7 +347,7 @@ function App() {
           history.push(newItem);
           localStorage.setItem('transfer-history', JSON.stringify(history));
 
-          // Trigger a local event or allow history page to poll
+          // Dispatch event to refresh History components automatically
           window.dispatchEvent(new Event('history-updated'));
         } catch (e) {
           console.error('Failed to save history:', e);
@@ -352,6 +368,7 @@ function App() {
       }
     );
 
+    // Terminal Event: All files in the current session batch are finished
     const removeSessionCompleteListener = window.ipcRenderer.on('transfer-complete', () => {
       console.log('[IPC] transfer-complete');
       setCurrentSpeed(0);
@@ -359,6 +376,7 @@ function App() {
       setTransferData((prev) => (prev ? { ...prev, status: 'completed', progress: 1 } : null));
     });
 
+    // Subscriptions Cleanup: Prevent memory leaks and duplicate signals
     return () => {
       if (removeReqListener) removeReqListener();
       if (removeResListener) removeResListener();

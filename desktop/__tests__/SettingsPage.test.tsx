@@ -4,7 +4,8 @@ import { ThemeProvider } from '../src/components/theme-provider';
 import { vi, describe, it, expect, beforeEach } from 'vitest';
 import React from 'react';
 
-// Mock Sonner
+// --- Global Mocks ---
+// Mock toast notifications to verify UI feedback without side effects
 vi.mock('sonner', () => ({
   toast: {
     success: vi.fn(),
@@ -15,7 +16,9 @@ vi.mock('sonner', () => ({
 describe('SettingsPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    // Default mocks for IPC calls
+    
+    // --- IPC Mocking Setup ---
+    // Simulates the main process responses for app configuration and state
     vi.mocked(window.ipcRenderer.invoke).mockImplementation((channel: string) => {
       if (channel === 'get-server-info') {
         return Promise.resolve({ name: 'Test Device', id: '123', os: 'win32' });
@@ -30,6 +33,7 @@ describe('SettingsPage', () => {
     });
   });
 
+  // Test Case: Validates basic component mounting and static text rendering
   it('renders settings title', async () => {
     await act(async () => {
       render(
@@ -42,6 +46,7 @@ describe('SettingsPage', () => {
     expect(screen.getByText('Settings')).toBeInTheDocument();
   });
 
+  // Test Case: Verifies that identity data fetched via IPC is correctly populated in the UI
   it('loads and displays device name', async () => {
     await act(async () => {
       render(
@@ -56,6 +61,7 @@ describe('SettingsPage', () => {
     });
   });
 
+  // Test Case: Ensures the current download path is visible (extracts leaf folder name)
   it('displays the save folder', async () => {
     await act(async () => {
       render(
@@ -66,11 +72,12 @@ describe('SettingsPage', () => {
     });
 
     await waitFor(() => {
-      // It might match 'ExLink' in the color selector or the folder path
-      // We just want to ensure it's there
+      // In SettingsPage, 'C:\Downloads\ExLink' usually displays as just 'ExLink' 
+      // via the .pop() logic on path separators.
       const elements = screen.getAllByText(/ExLink/i);
       expect(elements.length).toBeGreaterThan(0);
     });
   });
 });
+
 

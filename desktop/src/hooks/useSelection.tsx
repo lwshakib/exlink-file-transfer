@@ -9,6 +9,7 @@ export interface SelectedItem {
   content?: string;
 }
 
+// SelectionContext defines the shared state for items queued for transfer (files, folders, or text)
 interface SelectionContextType {
   selectedItems: SelectedItem[];
   addItem: (item: SelectedItem) => void;
@@ -21,17 +22,21 @@ interface SelectionContextType {
 
 const SelectionContext = createContext<SelectionContextType | undefined>(undefined);
 
+// Provider component that wraps the app to enable selection tracking across different pages
 export function SelectionProvider({ children }: { children: ReactNode }) {
   const [selectedItems, setSelectedItems] = useState<SelectedItem[]>([]);
 
+  // Individual item append
   const addItem = (item: SelectedItem) => {
     setSelectedItems((prev) => [...prev, item]);
   };
 
+  // Bulk item append
   const addItems = (items: SelectedItem[]) => {
     setSelectedItems((prev) => [...prev, ...items]);
   };
 
+  // Filter-out removal by ID
   const removeItem = (id: string) => {
     setSelectedItems((prev) => prev.filter((item) => item.id !== id));
   };
@@ -40,6 +45,7 @@ export function SelectionProvider({ children }: { children: ReactNode }) {
     setSelectedItems([]);
   };
 
+  // Memoized derived state for cumulative size metrics
   const totalSize = selectedItems.reduce((acc, item) => acc + item.size, 0);
 
   return (

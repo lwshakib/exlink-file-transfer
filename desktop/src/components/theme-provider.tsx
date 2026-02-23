@@ -27,6 +27,7 @@ const initialState: ThemeProviderState = {
 
 const ThemeProviderContext = createContext<ThemeProviderState>(initialState);
 
+// ThemeProvider handles the dynamic switching of application-wide CSS variable classes
 export function ThemeProvider({
   children,
   defaultTheme = 'system',
@@ -42,6 +43,7 @@ export function ThemeProvider({
     () => (localStorage.getItem(colorStorageKey) as ColorTheme) || defaultColorTheme
   );
 
+  // Appearance Sync: Updates document root classes to match Dark, Light, or System modes
   useEffect(() => {
     const root = window.document.documentElement;
     root.classList.remove('light', 'dark');
@@ -56,14 +58,16 @@ export function ThemeProvider({
     }
   }, [theme]);
 
+  // Color Palette Sync: Maps HSL accent variables (zinc, emerald, etc.) to the document root
   useEffect(() => {
     const root = window.document.documentElement;
 
-    // Remove all possible color theme classes
+    // Remove all possible color theme classes to prevent collisions
     const colorThemes: ColorTheme[] = ['zinc', 'emerald', 'violet', 'blue', 'amber', 'rose'];
     colorThemes.forEach((t) => root.classList.remove(`theme-${t}`));
 
     let effectiveColor = colorTheme;
+    // Implementation: 'random' picks a high-contrast hue from the preset scale
     if (colorTheme === 'random') {
       const available = colorThemes.filter((t) => t !== 'zinc'); // Randomly pick from colors
       effectiveColor = available[Math.floor(Math.random() * available.length)];

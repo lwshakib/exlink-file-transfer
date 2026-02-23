@@ -13,19 +13,25 @@ interface HistoryItem {
   path?: string;
 }
 
+// ReceivePage serves as the landing view for the desktop app, displaying identity and transfer history
 export function ReceivePage() {
+  // --- Persona States ---
   const [deviceName, setDeviceName] = useState('');
   const [deviceId, setDeviceId] = useState('');
+  
+  // --- History & UI Navigation States ---
   const [showHistory, setShowHistory] = useState(false);
   const [history, setHistory] = useState<HistoryItem[]>([]);
 
+  // Identity & History Worker: Synchronizes local storage pulses with React state
   useEffect(() => {
-    // Get identity from main process (which handles persistence/generation)
+    // Strategy: Fetch unique station identifiers once on component mount
     window.ipcRenderer.invoke('get-server-info').then((info) => {
       setDeviceName(info.name);
       setDeviceId(info.id);
     });
 
+    // Strategy: Decrypt and load persistent transfer logs from browser's LocalStorage
     const loadHistory = () => {
       const historyJson = localStorage.getItem('transfer-history');
       if (historyJson) {
@@ -35,7 +41,7 @@ export function ReceivePage() {
 
     loadHistory();
 
-    // Listen for history updates from App.tsx
+    // Pub/Sub: Listen for global 'history-updated' events fired by the IPC listener in App.tsx
     window.addEventListener('history-updated', loadHistory);
     return () => window.removeEventListener('history-updated', loadHistory);
   }, []);
@@ -45,6 +51,7 @@ export function ReceivePage() {
     setHistory([]);
   };
 
+  // Native Integration: Opens the OS-specific file explorer pointing to the downloads folder
   const openFolder = () => {
     window.ipcRenderer.invoke('open-folder');
   };

@@ -1,0 +1,94 @@
+name: CI
+
+# This workflow runs on every push to the main branch and on pull requests.
+# it performs linting, formatting checks, and runs both unit and E2E tests for 
+# the Desktop and Mobile applications.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  # Desktop Job: Handles validation for the Electron/Vite desktop application
+  desktop:
+    name: Desktop CI
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install Desktop dependencies
+        working-directory: ./desktop
+        run: bun install --frozen-lockfile
+
+      - name: Check Desktop formatting
+        working-directory: ./desktop
+        # Verifies that code follows Prettier styles without modifying files
+        run: bun x prettier --check .
+
+      - name: Lint Desktop
+        working-directory: ./desktop
+        # Runs ESLint to check for code quality and TypeScript errors
+        run: bun run lint
+
+      - name: Run Desktop Unit Tests
+        working-directory: ./desktop
+        # Executes Vitest suite for component and utility logic
+        run: bun run test
+
+      - name: Install Playwright Browsers
+        working-directory: ./desktop
+        # Required for E2E tests to have a headless browser environment
+        run: bun x playwright install --with-deps
+
+      - name: Run Desktop E2E Tests
+        working-directory: ./desktop
+        # Runs Playwright tests against the compiled Electron build
+        run: bun run test:e2e
+
+      - name: Upload Playwright report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: desktop-playwright-report
+          path: desktop/playwright-report/
+          retention-days: 30
+
+  # Mobile Job: Handles validation for the Expo/React Native mobile application
+  mobile:
+    name: Mobile CI
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install Mobile dependencies
+        working-directory: ./mobile
+        run: bun install --frozen-lockfile
+
+      - name: Check Mobile formatting
+        working-directory: ./mobile
+        # Verifies formatting using Prettier
+        run: bun x prettier --check .
+
+      - name: Lint Mobile
+        working-directory: ./mobile
+        # Runs project-specific linting (expo lint)
+        run: bun run lint
+
+      - name: Run Mobile Unit Tests
+        working-directory: ./mobile
+        # Runs Jest tests for mobile components and hooks
+        run: bun run test
+
