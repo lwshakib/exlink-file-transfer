@@ -49,8 +49,8 @@ jobs:
 
       - name: Build Desktop
         working-directory: ./desktop
-        # Builds the application to generate dist-electron/main.js
-        run: bun run build
+        # Builds the application and packages it without publishing to GitHub
+        run: bun run build -- --publish never
 
       - name: Run Desktop E2E Tests
         working-directory: ./desktop
