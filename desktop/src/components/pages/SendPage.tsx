@@ -46,10 +46,10 @@ interface NearbyNode {
 export function SendPage() {
   // Discovery State: List of active ExLink stations found on the LAN
   const [devices, setDevices] = useState<NearbyNode[]>([]);
-  
+
   // Centralized Selection Hook: Tracks files, folders, and text objects ready for transfer
   const { selectedItems, addItems, clearSelection, hasSelection, removeItem } = useSelection();
-  
+
   // UI Component States
   const [isTextDialogOpen, setIsTextDialogOpen] = useState(false);
   const [isAddMenuOpen, setIsAddMenuOpen] = useState(false);

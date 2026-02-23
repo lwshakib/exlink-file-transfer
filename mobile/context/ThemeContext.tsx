@@ -87,7 +87,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   // Finds the variation that strictly matches the selected brand string name.
   const selectedVariation = useMemo(() => {
     // Return early with defaults if not fully loaded yet
-    if (!isLoaded) return ThemeVariations[0]; 
+    if (!isLoaded) return ThemeVariations[0];
     if (selectedColor === 'Random') {
       // Provide the randomly selected index variation
       return ThemeVariations[randomVariationIndex];

@@ -204,7 +204,7 @@ export default function ReceiveScreen() {
 
   // Background Discovery & Polling Service: Scans network for desktops and checks them for pending requests
   useEffect(() => {
-    // Kill worker if user manually disabled server functionality 
+    // Kill worker if user manually disabled server functionality
     if (!serverRunning) return;
 
     const pollForRequests = async () => {
@@ -352,7 +352,7 @@ export default function ReceiveScreen() {
     // Extract persistence and storage settings from the unified shop store
     const { saveToFolderPath, saveMediaToGallery } = useSettingsStore.getState();
     const shouldSaveToGallery = saveMediaToGallery;
-    
+
     // Check if the current save path uses Android's Storage Access Framework
     const isSAF = saveToFolderPath && saveToFolderPath.startsWith('content://');
 
@@ -360,7 +360,19 @@ export default function ReceiveScreen() {
     const isMediaFile = (name: string) => {
       const ext = name.toLowerCase().split('.').pop();
       return [
-        'jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'mp4', 'mov', 'avi', 'mkv', 'mp3', 'wav', 'm4a',
+        'jpg',
+        'jpeg',
+        'png',
+        'gif',
+        'bmp',
+        'webp',
+        'mp4',
+        'mov',
+        'avi',
+        'mkv',
+        'mp3',
+        'wav',
+        'm4a',
       ].includes(ext || '');
     };
 

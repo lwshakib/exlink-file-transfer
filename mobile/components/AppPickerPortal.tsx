@@ -68,7 +68,7 @@ const AppPickerPortal = ({ visible, onDismiss, onSelectApps }: AppPickerPortalPr
         type: ['application/vnd.android.package-archive'], // MIME type for APKs
         multiple: true, // Allow selecting more than one
       });
-      
+
       // If the user didn't cancel the file picker
       if (!result.canceled) {
         // Map native file objects back to our internal SelectedItem structure
@@ -79,7 +79,7 @@ const AppPickerPortal = ({ visible, onDismiss, onSelectApps }: AppPickerPortalPr
           type: 'app', // Distinct type for processing later
           uri: asset.uri, // Keeps a reference to local URI needed for transfer
         }));
-        
+
         // Push the formatted items up to the parent component
         onSelectApps(newItems);
         // Automatically close the portal and return to the main screen
@@ -148,7 +148,7 @@ const AppPickerPortal = ({ visible, onDismiss, onSelectApps }: AppPickerPortalPr
               <Text variant="labelLarge" style={styles.sectionLabel}>
                 Installed Apps (Simplified List)
               </Text>
-              
+
               {/* Iterates dynamically over our memoized list rendering list items for each */}
               {filteredApps.map((app) => (
                 <List.Item

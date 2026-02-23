@@ -111,7 +111,7 @@ function App() {
       if (!transferStartTime) {
         setTransferStartTime(Date.now());
       }
-      
+
       // Secondary clock for UI duration display
       interval = setInterval(() => {
         if (transferStartTime) {
@@ -217,7 +217,7 @@ function App() {
             platform: waitingFor.platform,
             items: selectedItems,
           });
-          
+
           // Move UI into Sending mode
           setTransferData({
             type: 'sending',

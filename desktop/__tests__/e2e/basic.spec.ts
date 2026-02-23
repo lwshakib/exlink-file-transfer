@@ -18,7 +18,7 @@ test('launch app', async () => {
 
   // Flow: Select the main application window and wait for the React hydration
   const window = await electronApp.firstWindow();
-  
+
   // Wait for the window to load completely before querying elements
   await window.waitForLoadState('domcontentloaded');
 
@@ -29,4 +29,3 @@ test('launch app', async () => {
   // Cleanup: Gracefully terminate the app session
   await electronApp.close();
 });
-

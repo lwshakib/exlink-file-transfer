@@ -15,8 +15,8 @@ interface SelectionDetailsPortalProps {
 const SelectionDetailsPortal = ({ visible, onDismiss }: SelectionDetailsPortalProps) => {
   // Pull current global theme object for style synchronization
   const theme = useTheme();
-  
-  // Consume data context containing currently selected items, total size computed, and array modifiers 
+
+  // Consume data context containing currently selected items, total size computed, and array modifiers
   const { selectedItems, removeItem, clearSelection, totalSize } = useSelection();
 
   // Helper function safely scaling a byte count into MB, KB, etc. with math abstractions
@@ -60,7 +60,6 @@ const SelectionDetailsPortal = ({ visible, onDismiss }: SelectionDetailsPortalPr
         {/* Bounds UI effectively from intruding on gesture controls or hardware cutouts */}
         <SafeAreaView style={styles.safeArea} edges={['bottom']}>
           <View style={styles.container}>
-            
             {/* Nav Header Area rendering a title context and a backward exit button */}
             <View style={[styles.appBar, { marginTop: Platform.OS === 'android' ? 8 : 0 }]}>
               <IconButton
@@ -104,7 +103,6 @@ const SelectionDetailsPortal = ({ visible, onDismiss }: SelectionDetailsPortalPr
               {selectedItems.map((item) => (
                 <Card key={item.id} style={styles.itemCard} mode="contained">
                   <View style={styles.itemRow}>
-                    
                     {/* Visual presentation block. Prioritizes thumbnail images or falls over dynamically to generic file icons */}
                     <View style={styles.thumbnailWrapper}>
                       {item.type === 'media' && item.uri ? (
@@ -185,7 +183,7 @@ const SelectionDetailsPortal = ({ visible, onDismiss }: SelectionDetailsPortalPr
   );
 };
 
-// Segregated styling object separating styling declarations completely from rendering logics. 
+// Segregated styling object separating styling declarations completely from rendering logics.
 const styles = StyleSheet.create({
   modalContainer: {
     flex: 1, // Utilize full absolute bounds cleanly under Android and iOS configurations

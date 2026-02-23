@@ -78,16 +78,16 @@ export const useSettingsStore = create<AppSettingsStore>()(
       setServerRunning: (running: boolean) => set({ serverRunning: running }),
       setSaveToFolderPath: (path: string | null) => set({ saveToFolderPath: path }),
       setSaveMediaToGallery: (save: boolean) => set({ saveMediaToGallery: save }),
-      
+
       // Append item to history, but slice to keep only the 100 most recent
       addHistoryItem: (item: HistoryItem) =>
         set((state) => ({
           transferHistory: [...state.transferHistory, item].slice(-100), // Keep last 100 items to save storage
         })),
-        
+
       // Overwrite history with an empty array
       clearHistory: () => set({ transferHistory: [] }),
-      
+
       // Update theme preferences
       setColorScheme: (scheme: 'system' | 'light' | 'dark') => set({ colorScheme: scheme }),
       setSelectedColor: (

@@ -29,19 +29,19 @@ export const useDiscoveryStore = create<DiscoveryStore>((set) => ({
   nearbyDevices: [], // Start with an empty list of devices
   isScanning: false, // Start scanning as false by default
   scanTrigger: 0, // Start scanTrigger at 0
-  
+
   // Increments scanTrigger to force deeply nested components to reactivity refresh scanning
   triggerScan: () => set((state) => ({ scanTrigger: state.scanTrigger + 1 })),
-  
+
   // Directly replaces the nearbyDevices array with a new array
   setNearbyDevices: (devices) => set({ nearbyDevices: devices }),
-  
+
   // Smart update function: merges updates if device exists, otherwise appends new device
   updateDevice: (device) =>
     set((state) => {
       // Check if the device is already in the list by looking up its ID
       const exists = state.nearbyDevices.find((d) => d.id === device.id);
-      
+
       if (exists) {
         // If it exists, map over devices and merge new properties into the existing device
         return {
@@ -50,14 +50,14 @@ export const useDiscoveryStore = create<DiscoveryStore>((set) => ({
           ),
         };
       }
-      
+
       // If it doesn't exist, append the new device to the current list
       return { nearbyDevices: [...state.nearbyDevices, device] };
     }),
-    
+
   // Updates the boolean flag indicating if scanning is active
   setIsScanning: (scanning) => set({ isScanning: scanning }),
-  
+
   // Empties the nearby device list when leaving the screen or resetting
   clearDevices: () => set({ nearbyDevices: [] }),
 }));

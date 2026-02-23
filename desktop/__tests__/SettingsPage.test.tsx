@@ -16,7 +16,7 @@ vi.mock('sonner', () => ({
 describe('SettingsPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    
+
     // --- IPC Mocking Setup ---
     // Simulates the main process responses for app configuration and state
     vi.mocked(window.ipcRenderer.invoke).mockImplementation((channel: string) => {
@@ -72,12 +72,10 @@ describe('SettingsPage', () => {
     });
 
     await waitFor(() => {
-      // In SettingsPage, 'C:\Downloads\ExLink' usually displays as just 'ExLink' 
+      // In SettingsPage, 'C:\Downloads\ExLink' usually displays as just 'ExLink'
       // via the .pop() logic on path separators.
       const elements = screen.getAllByText(/ExLink/i);
       expect(elements.length).toBeGreaterThan(0);
     });
   });
 });
-
-

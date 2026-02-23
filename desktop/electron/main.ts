@@ -273,7 +273,7 @@ serverApp.post('/request-connect', (req, res) => {
     files: files || [],
     timestamp: Date.now(),
   });
-  
+
   // Triggers the "Interaction Dialog" on the desktop UI
   win?.webContents.send('connection-request', {
     deviceId,
@@ -748,7 +748,10 @@ ipcMain.handle('start-transfer', async (_event, { deviceId, deviceIp, platform, 
           const now = Date.now();
 
           // Performance Note: 200ms throttle prevents IPC flooding that could lag the UI
-          if (win && (now - fileLastUpdateTime > THROTTLE_MS || currentTotalProcessed === totalBytes)) {
+          if (
+            win &&
+            (now - fileLastUpdateTime > THROTTLE_MS || currentTotalProcessed === totalBytes)
+          ) {
             fileLastUpdateTime = now;
             win.webContents.send('transfer-progress', {
               deviceId,

@@ -33,7 +33,7 @@ export default function SendScreen() {
   // Global hooks integrating router and UI styling
   const theme = useTheme();
   const router = useRouter();
-  
+
   // Custom hook bringing out universal actions operating across the shared queue
   const { selectedItems, addItems, clearSelection, totalSize } = useSelection();
 
@@ -50,21 +50,21 @@ export default function SendScreen() {
   const [inputText, setInputText] = useState('');
   const [favoriteIds, setFavoriteIds] = useState<string[]>([]);
 
-  // Bottom sheet API reference allowing programmatic invocation 
+  // Bottom sheet API reference allowing programmatic invocation
   const bottomSheetModalRef = useRef<BottomSheetModal>(null);
-  
+
   // Modals visibility toggles mapped securely strictly to boolean paths
   const [selectionSheetVisible, setSelectionSheetVisible] = useState(false);
   const [sendingPortalVisible, setSendingPortalVisible] = useState(false);
   const [appPickerVisible, setAppPickerVisible] = useState(false);
-  
+
   // Track specifically chosen target locally before invoking connection attempts
   const [selectedDevice, setSelectedDevice] = useState<NearbyDevice | null>(null);
-  
+
   // Heavy operation blocking flag (like opening large SAF folders on older droids)
   const [isProcessing, setIsProcessing] = useState(false);
-  
-  // UI scaling anchors forcing sheet popups precisely partially offscreen 
+
+  // UI scaling anchors forcing sheet popups precisely partially offscreen
   const snapPoints = useMemo(() => ['45%'], []);
 
   // Hook booting component immediately trying to find old user preferences asynchronously
@@ -139,7 +139,7 @@ export default function SendScreen() {
   // Re-routes Android intents explicitly towards generic documents abstracting formats entirely
   const handleFilePick = async () => {
     try {
-      // System hook fetching general OS documents gracefully 
+      // System hook fetching general OS documents gracefully
       const result = await DocumentPicker.getDocumentAsync({
         multiple: true,
         type: '*/*',
@@ -155,7 +155,7 @@ export default function SendScreen() {
           uri: asset.uri,
           mimeType: asset.mimeType || 'application/octet-stream',
         }));
-        
+
         // Feed generated array back upward broadly across application store
         addItems(newItems);
         bottomSheetModalRef.current?.dismiss();

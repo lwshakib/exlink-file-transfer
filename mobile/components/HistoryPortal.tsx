@@ -15,7 +15,7 @@ interface HistoryPortalProps {
 const HistoryPortal = ({ visible, onDismiss }: HistoryPortalProps) => {
   // Access global theme configuration from React Native Paper
   const theme = useTheme();
-  
+
   // Extract specific state slices and actions from our Zustand settings store
   const history = useSettingsStore((state) => state.transferHistory); // Get the array of past transfers
   const clearHistoryStore = useSettingsStore((state) => state.clearHistory); // Get the function to erase all history
@@ -31,7 +31,7 @@ const HistoryPortal = ({ visible, onDismiss }: HistoryPortalProps) => {
   const getDisplayPath = (uri: string | null) => {
     // If there is no URI set, the app defaults to its own internal storage space
     if (!uri) return 'Not set (Internal)';
-    
+
     // Abstract Android Storage Access Framework URIs to a simpler term
     if (uri.startsWith('content://')) return 'Custom Folder (SAF)';
 
@@ -78,7 +78,7 @@ const HistoryPortal = ({ visible, onDismiss }: HistoryPortalProps) => {
       } else {
         // Fallback behavior when the user has never explicitly picked a folder
         if (Platform.OS === 'android') {
-           // Opens the root file manager on modern Android
+          // Opens the root file manager on modern Android
           await Linking.openURL('content://com.android.externalstorage.documents/root/primary');
         } else {
           // On iOS, no custom link is needed, they inspect via the 'Files' app
@@ -97,7 +97,7 @@ const HistoryPortal = ({ visible, onDismiss }: HistoryPortalProps) => {
     const k = 1024; // Base multiple for byte sizes
     const sizes = ['B', 'KB', 'MB', 'GB', 'TB']; // Suffixes array
     // Compute the log to figure out which array index matches the magnitude
-    const i = Math.floor(Math.log(bytes) / Math.log(k)); 
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
     // Format to 1 decimal place and append the correct suffix
     return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
   };
@@ -124,7 +124,7 @@ const HistoryPortal = ({ visible, onDismiss }: HistoryPortalProps) => {
             color={theme.colors.primary}
           />
         </View>
-        
+
         {/* Text information column displaying file name, details from, and size */}
         <View style={styles.itemInfo}>
           <Text variant="titleSmall" numberOfLines={1}>
@@ -158,7 +158,6 @@ const HistoryPortal = ({ visible, onDismiss }: HistoryPortalProps) => {
         {/* Enforce spacing around edge insets including notch or home bar */}
         <SafeAreaView style={styles.safeArea} edges={['bottom']}>
           <View style={styles.container}>
-            
             {/* App Bar / Header Section connecting close icon to title */}
             <View style={[styles.appBar, { marginTop: Platform.OS === 'android' ? 8 : 0 }]}>
               <IconButton

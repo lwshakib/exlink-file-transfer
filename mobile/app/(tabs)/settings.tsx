@@ -208,7 +208,7 @@ export default function SettingsScreen() {
     setSaveMediaToGallery(value);
   };
 
-  // Platform-Specific Folder Selection: 
+  // Platform-Specific Folder Selection:
   // - Android uses SAF (Storage Access Framework) to gain generic directory permissions.
   // - iOS uses standard DocumentPickers to resolve accessible sandbox directories.
   const handleSelectFolder = async () => {

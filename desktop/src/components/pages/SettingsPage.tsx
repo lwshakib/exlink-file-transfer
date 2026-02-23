@@ -34,7 +34,7 @@ export function SettingsPage() {
   const [deviceNameDraft, setDeviceNameDraft] = useState('');
   const [isSavingName, setIsSavingName] = useState(false);
   const [deviceNameDialogOpen, setDeviceNameDialogOpen] = useState(false);
-  
+
   // --- Server & Filesystem States ---
   const [serverRunning, setServerRunning] = useState(true);
   const [nameChanged, setNameChanged] = useState(false);

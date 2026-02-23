@@ -234,11 +234,11 @@ const SendingPortal = ({ visible, onDismiss, targetDevice }: SendingPortalProps)
   // Core file uploading logic dispatching items iteratively over Multipart Form requests natively
   const uploadFiles = async (myId: string, items: any[]) => {
     if (!targetDevice) return;
-    
+
     // Accumulate sum manually allowing percentage calculations dynamically during progress updates
     let totalBytes = items.reduce((acc, item) => acc + (item.size || 0), 0);
     setTotalTransferSize(totalBytes);
-    
+
     // Running sums to increment correctly between file boundaries natively
     let uploadedOverall = 0;
     lastUploadedRef.current = 0;
@@ -329,7 +329,7 @@ const SendingPortal = ({ visible, onDismiss, targetDevice }: SendingPortalProps)
       try {
         const myIp = await Network.getIpAddressAsync();
         const pollId = myIp && myIp.includes('.') ? myIp.split('.').pop() : '000';
-        
+
         // Dispatch dual endpoints ensuring no hanging locks happen if pairing was never fully achieved
         fetch(`http://${targetDevice.ip}:${targetDevice.port}/cancel-transfer/${pollId}`).catch(
           () => {}

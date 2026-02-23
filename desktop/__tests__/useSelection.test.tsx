@@ -68,4 +68,3 @@ describe('useSelection hook', () => {
     expect(result.current.selectedItems).toEqual([]);
   });
 });
-

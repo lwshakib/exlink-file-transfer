@@ -161,7 +161,7 @@ function InnerLayout() {
               name: deviceName, // Our public name
               ip: myIp, // Formatted host
               port: 3030, // Default app binding
-              platform: 'mobile', 
+              platform: 'mobile',
               brand: brand,
             }),
           }).catch(() => {
@@ -182,7 +182,7 @@ function InnerLayout() {
         const subnet = myIp.substring(0, myIp.lastIndexOf('.') + 1);
         const candidates = Array.from({ length: 254 }, (_, i) => i + 1);
         // Dispatch concurrent promise blasts in batches mapping async network calls to avoid hitting OS limits
-        const batchSize = 35; 
+        const batchSize = 35;
 
         const foundDevices: any[] = [];
 
@@ -197,14 +197,14 @@ function InnerLayout() {
               try {
                 // Short lived controllers to cancel dead sockets forcefully accelerating scans
                 const controller = new AbortController();
-                const timeout = setTimeout(() => controller.abort(), 800); 
+                const timeout = setTimeout(() => controller.abort(), 800);
                 // GET request asking abstract info off the hard-coded standard socket 3030
                 const res = await fetch(`http://${testIp}:3030/get-server-info`, {
                   signal: controller.signal,
                   headers: { Accept: 'application/json' },
                 });
                 clearTimeout(timeout); // Clear abort event if fetch beat it
-                
+
                 // Server responded and parsed valid handshake correctly
                 if (res.ok) {
                   const info = await res.json();

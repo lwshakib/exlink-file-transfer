@@ -18,7 +18,7 @@ export function ReceivePage() {
   // --- Persona States ---
   const [deviceName, setDeviceName] = useState('');
   const [deviceId, setDeviceId] = useState('');
-  
+
   // --- History & UI Navigation States ---
   const [showHistory, setShowHistory] = useState(false);
   const [history, setHistory] = useState<HistoryItem[]>([]);
