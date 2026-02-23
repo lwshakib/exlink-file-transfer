@@ -26,7 +26,7 @@ describe('Discovery Integration', () => {
     // Simulate finding a server on port 3030
     fetchMock.mockResponseOnce(JSON.stringify(mockDeviceInfo));
 
-    // We can't easily trigger the scan from _layout.tsx here, 
+    // We can't easily trigger the scan from _layout.tsx here,
     // but we can test the update logic which is the core of the integration
     useDiscoveryStore.getState().updateDevice(mockDeviceInfo);
 
@@ -38,11 +38,17 @@ describe('Discovery Integration', () => {
 
   it('should handle announcement failures gracefully', async () => {
     fetchMock.mockReject(new Error('Network request failed'));
-    
+
     // Check that store remains consistent even if pings fail
-    const device = { id: 'd2', name: 'Other', ip: '1.2.3.4', port: 3030, platform: 'desktop' as const };
+    const device = {
+      id: 'd2',
+      name: 'Other',
+      ip: '1.2.3.4',
+      port: 3030,
+      platform: 'desktop' as const,
+    };
     useDiscoveryStore.getState().updateDevice(device);
-    
+
     expect(useDiscoveryStore.getState().nearbyDevices).toHaveLength(1);
   });
 });

@@ -31,12 +31,17 @@ jest.mock('@expo/vector-icons', () => ({
 jest.mock('react-native-paper', () => {
   const React = require('react');
   return {
-    Text: ({ children, variant, style }: any) => <div className={variant} style={style}>{children}</div>,
+    Text: ({ children, variant, style }: any) => (
+      <div className={variant} style={style}>
+        {children}
+      </div>
+    ),
     IconButton: (props: any) => <button {...props} />,
     Button: (props: any) => <button {...props}>{props.children}</button>,
     Card: ({ children, style }: any) => <div style={style}>{children}</div>,
     Portal: ({ children }: any) => <div className="portal">{children}</div>,
-    Modal: ({ children, visible }: any) => visible ? <div className="modal">{children}</div> : null,
+    Modal: ({ children, visible }: any) =>
+      visible ? <div className="modal">{children}</div> : null,
     useTheme: () => ({
       colors: {
         background: '#fff',
@@ -56,13 +61,13 @@ describe('SelectionDetailsPortal', () => {
 
     let tree;
     renderer.act(() => {
-      tree = renderer.create(
-        <SelectionDetailsPortal visible={true} onDismiss={jest.fn()} />
-      ).toJSON();
+      tree = renderer
+        .create(<SelectionDetailsPortal visible={true} onDismiss={jest.fn()} />)
+        .toJSON();
     });
 
     expect(tree).toMatchSnapshot();
-    
+
     // Cleanup
     jest.runOnlyPendingTimers();
     jest.useRealTimers();

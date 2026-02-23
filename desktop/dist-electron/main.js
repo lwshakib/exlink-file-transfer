@@ -41882,7 +41882,9 @@ J.use(dv());
 J.use(Qc.json());
 J.post("/upload", (a, e) => {
   const n = Array.isArray(a.headers["x-transfer-id"]) ? a.headers["x-transfer-id"][0] : a.headers["x-transfer-id"] || Math.random().toString(36).substring(7);
-  console.log(`[Upload] New request starting: ${n}, content-length: ${a.headers["content-length"]}`), console.log(`[Upload] Content-Type: ${a.headers["content-type"]}`), ke.set(n, a);
+  console.log(
+    `[Upload] New request starting: ${n}, content-length: ${a.headers["content-length"]}`
+  ), console.log(`[Upload] Content-Type: ${a.headers["content-type"]}`), ke.set(n, a);
   const t = { ...a.headers };
   t["content-type"] || (console.log("[Upload] ⚠️  Missing Content-Type, setting default multipart/form-data"), t["content-type"] = "multipart/form-data");
   const i = ab({ headers: t }), r = parseInt(a.headers["content-length"] || "0");
@@ -42142,7 +42144,9 @@ M.on("set-server-name", (a, { name: e }) => {
 });
 M.handle("initiate-pairing", async (a, { deviceId: e, deviceIp: n, items: t }) => {
   const i = Y.get(e), r = (i == null ? void 0 : i.platform) === "mobile" || !i;
-  if (console.log(`Initiating pairing with ${e} (${(i == null ? void 0 : i.platform) || "unknown"}) at ${n}`), k == null || k.webContents.send("pairing-initiated-ui", {
+  if (console.log(
+    `Initiating pairing with ${e} (${(i == null ? void 0 : i.platform) || "unknown"}) at ${n}`
+  ), k == null || k.webContents.send("pairing-initiated-ui", {
     deviceId: e,
     deviceIp: n,
     name: (i == null ? void 0 : i.name) || "Device",
@@ -42255,7 +42259,9 @@ M.handle("open-file", (a, e) => {
 });
 M.handle("share-files", async () => {
   if (!k) return;
-  const { canceled: a, filePaths: e } = await Un.showOpenDialog(k, { properties: ["openFile", "multiSelections"] });
+  const { canceled: a, filePaths: e } = await Un.showOpenDialog(k, {
+    properties: ["openFile", "multiSelections"]
+  });
   if (a) return;
   const n = [];
   for (const t of e) {
@@ -42270,7 +42276,9 @@ M.handle("share-files", async () => {
 });
 M.handle("share-folders", async () => {
   if (!k) return;
-  const { canceled: a, filePaths: e } = await Un.showOpenDialog(k, { properties: ["openDirectory", "multiSelections"] });
+  const { canceled: a, filePaths: e } = await Un.showOpenDialog(k, {
+    properties: ["openDirectory", "multiSelections"]
+  });
   if (a) return;
   const n = [];
   for (const t of e)

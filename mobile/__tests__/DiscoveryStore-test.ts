@@ -21,12 +21,24 @@ describe('useDiscoveryStore', () => {
   });
 
   it('should update an existing device', () => {
-    const initialDevice = { id: '1', name: 'Initial', ip: '1.1.1.1', port: 3030, platform: 'desktop' as const };
-    const updatedDevice = { id: '1', name: 'Updated', ip: '1.1.1.1', port: 3030, platform: 'desktop' as const };
-    
+    const initialDevice = {
+      id: '1',
+      name: 'Initial',
+      ip: '1.1.1.1',
+      port: 3030,
+      platform: 'desktop' as const,
+    };
+    const updatedDevice = {
+      id: '1',
+      name: 'Updated',
+      ip: '1.1.1.1',
+      port: 3030,
+      platform: 'desktop' as const,
+    };
+
     useDiscoveryStore.getState().updateDevice(initialDevice);
     useDiscoveryStore.getState().updateDevice(updatedDevice);
-    
+
     expect(useDiscoveryStore.getState().nearbyDevices).toHaveLength(1);
     expect(useDiscoveryStore.getState().nearbyDevices[0].name).toBe('Updated');
   });
