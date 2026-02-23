@@ -28,9 +28,13 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useDiscoveryStore, NearbyDevice } from '@/store/useDiscoveryStore';
 import { useSettingsStore } from '@/store/useSettingsStore';
 
+// Main interface for selecting documents, resolving targets, and initiating transfers
 export default function SendScreen() {
+  // Global hooks integrating router and UI styling
   const theme = useTheme();
   const router = useRouter();
+  
+  // Custom hook bringing out universal actions operating across the shared queue
   const { selectedItems, addItems, clearSelection, totalSize } = useSelection();
 
   // Settings Store
@@ -46,14 +50,24 @@ export default function SendScreen() {
   const [inputText, setInputText] = useState('');
   const [favoriteIds, setFavoriteIds] = useState<string[]>([]);
 
+  // Bottom sheet API reference allowing programmatic invocation 
   const bottomSheetModalRef = useRef<BottomSheetModal>(null);
+  
+  // Modals visibility toggles mapped securely strictly to boolean paths
   const [selectionSheetVisible, setSelectionSheetVisible] = useState(false);
   const [sendingPortalVisible, setSendingPortalVisible] = useState(false);
   const [appPickerVisible, setAppPickerVisible] = useState(false);
+  
+  // Track specifically chosen target locally before invoking connection attempts
   const [selectedDevice, setSelectedDevice] = useState<NearbyDevice | null>(null);
+  
+  // Heavy operation blocking flag (like opening large SAF folders on older droids)
   const [isProcessing, setIsProcessing] = useState(false);
+  
+  // UI scaling anchors forcing sheet popups precisely partially offscreen 
   const snapPoints = useMemo(() => ['45%'], []);
 
+  // Hook booting component immediately trying to find old user preferences asynchronously
   useEffect(() => {
     loadFavorites();
   }, []);
@@ -88,11 +102,14 @@ export default function SendScreen() {
     });
   }, [nearbyDevices, favoriteIds]);
 
+  // Fire forced explicit backend subnet sweeping when specifically asked by UI taps
   const startScanning = async () => {
     triggerScan();
   };
 
+  // Connection proxy: checks logic to ensure payload isn't dead before showing connecting overlays
   const handleDevicePress = async (device: NearbyDevice) => {
+    // Failsafe guarding empty clicks
     if (selectedItems.length === 0) {
       alert('Please select at least one item to share before connecting.');
       return;
@@ -119,14 +136,17 @@ export default function SendScreen() {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
   };
 
+  // Re-routes Android intents explicitly towards generic documents abstracting formats entirely
   const handleFilePick = async () => {
     try {
+      // System hook fetching general OS documents gracefully 
       const result = await DocumentPicker.getDocumentAsync({
         multiple: true,
         type: '*/*',
       });
 
       if (!result.canceled) {
+        // Build internal memory objects satisfying our type shapes avoiding TS errors
         const newItems: SelectedItem[] = result.assets.map((asset) => ({
           id: asset.uri,
           name: asset.name,
@@ -135,6 +155,8 @@ export default function SendScreen() {
           uri: asset.uri,
           mimeType: asset.mimeType || 'application/octet-stream',
         }));
+        
+        // Feed generated array back upward broadly across application store
         addItems(newItems);
         bottomSheetModalRef.current?.dismiss();
       }
@@ -284,10 +306,11 @@ export default function SendScreen() {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
-        {/* Selection Summary Card */}
+        {/* Selection Summary Card: Dynamically mounted only if actual items exist in state */}
         {selectedItems.length > 0 && (
           <Card style={styles.summaryCard} mode="contained">
             <Card.Content>
+              {/* Top grouping binding string labels safely pushing metrics */}
               <View style={styles.summaryHeader}>
                 <View>
                   <Text

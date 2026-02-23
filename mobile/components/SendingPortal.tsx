@@ -157,10 +157,11 @@ const SendingPortal = ({ visible, onDismiss, targetDevice }: SendingPortalProps)
     return `${min}:${sec.toString().padStart(2, '0')}`;
   };
 
+  // Handshake function starting the transfer flow gracefully with the remote server
   const connectAndSend = async () => {
     if (!targetDevice || !visible) return;
 
-    // Abort any existing request before starting a new one
+    // Abort any existing HTTP fetch request before starting a new one explicitly
     abortController.current.abort();
     abortController.current = new AbortController();
     const signal = abortController.current.signal;
@@ -230,13 +231,19 @@ const SendingPortal = ({ visible, onDismiss, targetDevice }: SendingPortalProps)
     }
   };
 
+  // Core file uploading logic dispatching items iteratively over Multipart Form requests natively
   const uploadFiles = async (myId: string, items: any[]) => {
     if (!targetDevice) return;
+    
+    // Accumulate sum manually allowing percentage calculations dynamically during progress updates
     let totalBytes = items.reduce((acc, item) => acc + (item.size || 0), 0);
     setTotalTransferSize(totalBytes);
+    
+    // Running sums to increment correctly between file boundaries natively
     let uploadedOverall = 0;
     lastUploadedRef.current = 0;
 
+    // Ordered sequence dispatching guarantees file writes finish orderly and predictably
     for (let i = 0; i < items.length; i++) {
       const item = items[i];
       setCurrentFile(item.name);
@@ -308,19 +315,22 @@ const SendingPortal = ({ visible, onDismiss, targetDevice }: SendingPortalProps)
     setCurrentSpeed(0);
   };
 
+  // Exit handler manually wiping states and sending HTTP abort requests gracefully to stop partial downloads
   const handleCancel = async () => {
-    abortController.current.abort();
+    abortController.current.abort(); // Triggers the signal killing any currently pending fetches seamlessly
 
-    // Clear selection if we finished successfully
+    // Clear UI selection arrays completely if we finished navigating the app back to idle status
     if (status === 'done') {
       clearSelection();
     }
 
+    // Try pinging the target explicitly telling it to delete dangling partial file remnants
     if (targetDevice) {
       try {
         const myIp = await Network.getIpAddressAsync();
         const pollId = myIp && myIp.includes('.') ? myIp.split('.').pop() : '000';
-        // Call both to ensure pairing or active transfer is cancelled
+        
+        // Dispatch dual endpoints ensuring no hanging locks happen if pairing was never fully achieved
         fetch(`http://${targetDevice.ip}:${targetDevice.port}/cancel-transfer/${pollId}`).catch(
           () => {}
         );

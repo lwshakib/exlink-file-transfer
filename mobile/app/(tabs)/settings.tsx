@@ -30,6 +30,7 @@ const SettingRow = ({ label, children }: { label: string; children: React.ReactN
   </View>
 );
 
+// TonalBox is a styled button container matching Material 3 surface tones
 const TonalBox = ({
   text,
   icon,
@@ -121,11 +122,12 @@ const SelectableSetting = ({
   );
 };
 
+// SettingsScreen manages user preferences for identification, networking, and filesystem behavior
 export default function SettingsScreen() {
   const theme = useTheme();
   const { colorScheme, setThemeScheme, selectedColor, setThemeColor } = useAppTheme();
 
-  // Zustand Store
+  // --- Persistent Settings Pulls (Zustand) ---
   const deviceName = useSettingsStore((state) => state.deviceName);
   const setDeviceName = useSettingsStore((state) => state.setDeviceName);
   const serverRunning = useSettingsStore((state) => state.serverRunning);
@@ -135,7 +137,7 @@ export default function SettingsScreen() {
   const saveToFolderPath = useSettingsStore((state) => state.saveToFolderPath);
   const setSaveToFolderPath = useSettingsStore((state) => state.setSaveToFolderPath);
 
-  // Local UI status
+  // --- Local Component State for UI Modals & Feedback ---
   const [saveToFolder, setSaveToFolder] = useState('Internal');
   const [deviceNameDialogVisible, setDeviceNameDialogVisible] = useState(false);
   const [deviceNameDraft, setDeviceNameDraft] = useState('');
@@ -206,9 +208,13 @@ export default function SettingsScreen() {
     setSaveMediaToGallery(value);
   };
 
+  // Platform-Specific Folder Selection: 
+  // - Android uses SAF (Storage Access Framework) to gain generic directory permissions.
+  // - iOS uses standard DocumentPickers to resolve accessible sandbox directories.
   const handleSelectFolder = async () => {
     try {
       if (Platform.OS === 'android') {
+        // Request persistent folder-level access allowing us to write files without individual prompts
         const permissions =
           await FileSystem.StorageAccessFramework.requestDirectoryPermissionsAsync();
         if (permissions.granted) {
@@ -217,7 +223,7 @@ export default function SettingsScreen() {
         }
       }
 
-      // Fallback for iOS or if permissions denied/canceled
+      // iOS Fallback: Allows selecting a specific folder via native file browser
       const result = await DocumentPicker.getDocumentAsync({
         type: '*/*',
         copyToCacheDirectory: false,

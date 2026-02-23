@@ -55,8 +55,9 @@ jest.mock('react-native-paper', () => {
 });
 
 describe('SelectionDetailsPortal', () => {
+  // Snapshot UI Test: Renders the Portal with mock items and verifies the DOM structure remains stable
   it('renders correctly with items', () => {
-    // Stop timers for snapshot consistency
+    // Stop timers for snapshot consistency to avoid flickering UI states (like progress bars)
     jest.useFakeTimers();
 
     let tree;
@@ -68,7 +69,7 @@ describe('SelectionDetailsPortal', () => {
 
     expect(tree).toMatchSnapshot();
 
-    // Cleanup
+    // Cleanup timers to prevent memory leaks in the test runner
     jest.runOnlyPendingTimers();
     jest.useRealTimers();
   });

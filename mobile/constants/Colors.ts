@@ -1,7 +1,11 @@
 /**
  * Below are the colors that are used in the app. The colors are defined in the light and dark mode.
+ * Each variation contains Material Design 3 (M3) compliant color palettes, including primary, secondary, tertiary,
+ * and surface definitions, making it easy to integrate with React Native Paper or custom theming mechanisms.
  */
 
+// Core light mode foundational colors, common across all variations.
+// Shared by various themes to establish consistent error, semantic, and shadow properties in light mode.
 const baseLight = {
   tertiary: 'rgb(121, 89, 0)',
   onTertiary: 'rgb(255, 255, 255)',
@@ -11,10 +15,12 @@ const baseLight = {
   onError: 'rgb(255, 255, 255)',
   errorContainer: 'rgb(255, 218, 214)',
   onErrorContainer: 'rgb(65, 0, 2)',
-  scrim: 'rgb(0, 0, 0)',
-  shadow: 'rgb(0, 0, 0)',
+  scrim: 'rgb(0, 0, 0)', // Color for obscuring content beneath a layer
+  shadow: 'rgb(0, 0, 0)', // Drop shadow layout color
 };
 
+// Core dark mode foundational colors, common across all variations.
+// Used to provide a cohesive semantic and fallback system when in dark mode.
 const baseDark = {
   tertiary: 'rgb(248, 189, 42)',
   onTertiary: 'rgb(64, 45, 0)',
@@ -24,10 +30,15 @@ const baseDark = {
   onError: 'rgb(105, 0, 5)',
   errorContainer: 'rgb(147, 0, 10)',
   onErrorContainer: 'rgb(255, 180, 171)',
-  scrim: 'rgb(0, 0, 0)',
-  shadow: 'rgb(0, 0, 0)',
+  scrim: 'rgb(0, 0, 0)', // Modal overlay dimmer color
+  shadow: 'rgb(0, 0, 0)', // Box shadow defaults
 };
 
+// -------------------------------------------------------------
+// Variations of Themes
+// -------------------------------------------------------------
+
+// 'ExLink' brand theme (Teal/Cyan accents). The main default visual style.
 const ExLink = {
   name: 'ExLink',
   light: {
@@ -366,4 +377,4 @@ const Rose = {
 
 export const ThemeVariations = [ExLink, Emerald, Violet, Blue, Amber, Rose];
 
-export const Colors = ExLink;
+// Expose the primary 'ExLink' configuration as the fallback/default 'Colors'.

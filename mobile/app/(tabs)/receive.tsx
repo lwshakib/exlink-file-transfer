@@ -30,11 +30,13 @@ import {
 } from '@gorhom/bottom-sheet';
 import { useSettingsStore } from '@/store/useSettingsStore';
 
+// ReceiveScreen handles the listener side of the file transfer, managing incoming pairing requests and the download lifecycle
 export default function ReceiveScreen() {
+  // Pull standardized theme and router hooks for UI consistency
   const theme = useTheme();
   const router = useRouter();
 
-  // Zustand Store
+  // --- Global Identity States (Zustand) ---
   const deviceName = useSettingsStore((state) => state.deviceName);
   const deviceId = useSettingsStore((state) => state.deviceId);
   const serverRunning = useSettingsStore((state) => state.serverRunning);
@@ -42,10 +44,11 @@ export default function ReceiveScreen() {
   const setDeviceId = useSettingsStore((state) => state.setDeviceId);
   const setServerRunning = useSettingsStore((state) => state.setServerRunning);
 
+  // --- Discovery & Incoming Flow States ---
   const [pendingRequest, setPendingRequest] = useState<any>(null);
   const [discoveredDesktops, setDiscoveredDesktops] = useState<string[]>([]);
 
-  // Transfer State
+  // --- Transfer Lifecycle State Machine ---
   const [transferStatus, setTransferStatus] = useState<
     'idle' | 'waiting-transfer' | 'downloading' | 'saving' | 'done' | 'error'
   >('idle');
@@ -70,6 +73,7 @@ export default function ReceiveScreen() {
   const speedIntervalRef = useRef<any>(null);
   const currentDownloadRef = useRef<any | null>(null);
 
+  // Truncates long filenames while preserving the extension for UI display
   const truncateFileName = (name: string, maxLength: number = 24) => {
     if (!name || name.length <= maxLength) return name;
     const dotIndex = name.lastIndexOf('.');
@@ -162,6 +166,7 @@ export default function ReceiveScreen() {
     return `${min}:${sec.toString().padStart(2, '0')}`;
   };
 
+  // Asks the OS for networking info to derive a consistent octet-based ID for this mobile station
   const loadIdentity = useCallback(async () => {
     // Generate name if missing
     if (!deviceName) {
@@ -197,18 +202,20 @@ export default function ReceiveScreen() {
     }, [loadIdentity])
   );
 
+  // Background Discovery & Polling Service: Scans network for desktops and checks them for pending requests
   useEffect(() => {
+    // Kill worker if user manually disabled server functionality 
+    if (!serverRunning) return;
+
     const pollForRequests = async () => {
-      if (!serverRunning) return;
       try {
         const myIp = await Network.getIpAddressAsync();
         if (!myIp || myIp.includes(':')) return;
 
-        // Consistent pollId generation
+        // Ensure we use the exact same logic as sending side to derive the unique station identifier
         const pollId = deviceId || (myIp.includes('.') ? myIp.split('.').pop()! : '000');
 
-        // If we have a pending request, check specifically if it still exists
-        // But DON'T clear it if we are already transferring or finished
+        // Logic Branch: We already have a request, just monitor if it's still valid/active
         if (pendingRequest && transferStatus === 'idle') {
           try {
             const res = await fetch(
@@ -216,6 +223,7 @@ export default function ReceiveScreen() {
             );
             if (res.ok) {
               const data = await res.json();
+              // Clear local state if desktop dropped the request (timed out or cancelled)
               if (data.status !== 'pending') {
                 setPendingRequest(null);
                 setTransferStatus('idle');
@@ -234,10 +242,10 @@ export default function ReceiveScreen() {
         const subnet = myIp.substring(0, myIp.lastIndexOf('.') + 1);
         const currentDesktops = [...discoveredDesktops];
 
-        // Scan subnet if we have few desktops or occasionally
+        // Occasional Subnet Scan: Refreshes the list of active desktop stations on the LAN
         if (currentDesktops.length === 0 || Math.random() > 0.7) {
           const candidates = Array.from({ length: 254 }, (_, i) => i + 1);
-          const batchSize = 50;
+          const batchSize = 50; // Parallelize pings to speed up discovery
           for (let i = 0; i < candidates.length; i += batchSize) {
             const batch = candidates.slice(i, i + batchSize);
             await Promise.all(
@@ -247,6 +255,7 @@ export default function ReceiveScreen() {
                 try {
                   const controller = new AbortController();
                   const timeout = setTimeout(() => controller.abort(), 400);
+                  // Hit the info endpoint to verify it's an ExLink station
                   const res = await fetch(`http://${testIp}:3030/get-server-info`, {
                     signal: controller.signal,
                   });
@@ -331,43 +340,36 @@ export default function ReceiveScreen() {
     };
   }, [transferStatus, pendingRequest, serverRunning]);
 
+  // Core logic for processing a list of files and downloading them sequentially
   const downloadFiles = async (files: any[], desktopIp: string, myId: string | null) => {
+    // Initial state setup for tracking collective progress
     const total = files.reduce((acc, f) => acc + f.size, 0);
     setTotalTransferSize(total);
     setDownloadedBytes(0);
     lastDownloadedRef.current = 0;
     setTransferFiles(files.map((f) => ({ ...f, progress: 0, status: 'waiting' })));
 
-    // Load settings from Zustand store
+    // Extract persistence and storage settings from the unified shop store
     const { saveToFolderPath, saveMediaToGallery } = useSettingsStore.getState();
     const shouldSaveToGallery = saveMediaToGallery;
+    
+    // Check if the current save path uses Android's Storage Access Framework
     const isSAF = saveToFolderPath && saveToFolderPath.startsWith('content://');
 
+    // Helper validating if a file extension qualifies for automated gallery insertion
     const isMediaFile = (name: string) => {
       const ext = name.toLowerCase().split('.').pop();
       return [
-        'jpg',
-        'jpeg',
-        'png',
-        'gif',
-        'bmp',
-        'webp',
-        'mp4',
-        'mov',
-        'avi',
-        'mkv',
-        'mp3',
-        'wav',
-        'm4a',
+        'jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'mp4', 'mov', 'avi', 'mkv', 'mp3', 'wav', 'm4a',
       ].includes(ext || '');
     };
 
-    let aggregateDownloaded = 0;
-    const destDir = saveToFolderPath || Paths.document.uri;
+    let aggregateDownloaded = 0; // Total accumulation across all files
+    const destDir = saveToFolderPath || Paths.document.uri; // Default to App Documents if not configured
     let completedFiles = 0;
     let failedFiles = 0;
 
-    // Ensure destination directory exists if it's a local path (non-SAF)
+    // Ensure the physical folder exists (required for non-SAF local paths)
     if (!isSAF) {
       try {
         const dir = new Directory(destDir);

@@ -11,6 +11,7 @@ describe('useSettingsStore', () => {
     useSettingsStore.getState().reset();
   });
 
+  // State Initialization Test: Validates that the persistent store starts with intended defaults
   it('should initialize with default settings', () => {
     const state = useSettingsStore.getState();
     expect(state.deviceName).toBe('');
