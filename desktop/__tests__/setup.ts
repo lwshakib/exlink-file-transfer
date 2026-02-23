@@ -5,10 +5,10 @@ import { vi } from 'vitest';
 declare global {
   interface Window {
     ipcRenderer: {
-      send: (channel: string, ...args: any[]) => void;
-      on: (channel: string, func: (...args: any[]) => void) => () => void;
-      invoke: (channel: string, ...args: any[]) => Promise<any>;
-      removeListener: (channel: string, func: (...args: any[]) => void) => void;
+      send: (channel: string, ...args: unknown[]) => void;
+      on: (channel: string, func: (event: unknown, ...args: unknown[]) => void) => () => void;
+      invoke: (channel: string, ...args: unknown[]) => Promise<unknown>;
+      removeListener: (channel: string, func: (event: unknown, ...args: unknown[]) => void) => void;
     };
     electron: {
       ipcRenderer: Window['ipcRenderer'];

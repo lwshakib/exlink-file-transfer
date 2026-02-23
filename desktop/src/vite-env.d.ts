@@ -2,9 +2,10 @@
 
 interface Window {
   ipcRenderer: {
-    on(channel: string, listener: (...args: any[]) => void): () => void;
-    off(channel: string, ...args: any[]): void;
-    send(channel: string, ...args: any[]): void;
-    invoke(channel: string, ...args: any[]): Promise<any>;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    on(channel: string, listener: (event: any, ...args: any[]) => void): () => void;
+    off(channel: string): void;
+    send(channel: string, ...args: unknown[]): void;
+    invoke(channel: string, ...args: unknown[]): Promise<unknown>;
   };
 }

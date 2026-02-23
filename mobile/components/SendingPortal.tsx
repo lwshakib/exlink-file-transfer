@@ -1,15 +1,6 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { StyleSheet, View, ScrollView, Platform } from 'react-native';
-import {
-  Text,
-  useTheme,
-  Card,
-  IconButton,
-  Button,
-  ActivityIndicator,
-  Modal,
-  Portal,
-} from 'react-native-paper';
+import { Text, useTheme, Button, Modal, Portal } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Device from 'expo-device';
@@ -44,7 +35,6 @@ const SendingPortal = ({ visible, onDismiss, targetDevice }: SendingPortalProps)
     'waiting'
   );
   const [progress, setProgress] = useState(0);
-  const [currentFile, setCurrentFile] = useState('');
   const abortController = useRef(new AbortController());
 
   const [transferStartTime, setTransferStartTime] = useState<number | null>(null);
@@ -65,100 +55,94 @@ const SendingPortal = ({ visible, onDismiss, targetDevice }: SendingPortalProps)
 
   const hasStartedRef = useRef(false);
 
-  useEffect(() => {
-    if (visible && targetDevice && !hasStartedRef.current) {
-      hasStartedRef.current = true;
-      setDisplayItems([...selectedItems]);
-      // Reset only when starting a new session
-      setStatus('waiting');
-      setProgress(0);
-      setCurrentFile('');
-      setDownloadedBytes(0);
-      setCurrentFileIndex(0);
-      setTotalTransferSize(0);
-      setCurrentSpeed(0);
-      setTransferDuration(0);
-      setTransferStartTime(null);
+  // Core file uploading logic dispatching items iteratively over Multipart Form requests natively
+  const uploadFiles = useCallback(
+    async (myId: string, items: any[]) => {
+      if (!targetDevice) return;
 
-      pulse.value = withRepeat(withTiming(1.1, { duration: 1000 }), -1, true);
-      connectAndSend();
-    } else if (!visible) {
-      // Reset the start flag when the portal is closed
-      hasStartedRef.current = false;
-      // Cleanup
-      abortController.current.abort();
-      abortController.current = new AbortController();
-    }
+      // Accumulate sum manually allowing percentage calculations dynamically during progress updates
+      let totalBytes = items.reduce((acc, item) => acc + (item.size || 0), 0);
+      setTotalTransferSize(totalBytes);
 
-    return () => {
-      // We don't abort here because it might be a parent re-render
-      // Only abort on actual unmount or visibility change (handled above)
-    };
-  }, [visible]); // Only trigger on visibility change
+      // Running sums to increment correctly between file boundaries natively
+      let uploadedOverall = 0;
+      lastUploadedRef.current = 0;
 
-  const animatedPulse = useAnimatedStyle(() => ({
-    transform: [{ scale: pulse.value }],
-    opacity: 1.2 - pulse.value,
-  }));
+      // Ordered sequence dispatching guarantees file writes finish orderly and predictably
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        setCurrentFileIndex(i);
 
-  const formatFileSize = (bytes: number) => {
-    if (!bytes || bytes === 0) return '0 B';
-    const k = 1024;
-    const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
-  };
+        try {
+          const formData = new FormData();
+          formData.append('file', {
+            uri: item.uri,
+            type: item.mimeType || 'application/octet-stream',
+            name: item.name,
+          } as any);
 
-  useEffect(() => {
-    let interval: any;
-    if (status === 'sending') {
-      if (!transferStartTime) setTransferStartTime(Date.now());
-      interval = setInterval(() => {
-        if (transferStartTime) {
-          setTransferDuration(Math.floor((Date.now() - transferStartTime) / 1000));
+          const uploadPromise = new Promise<boolean>((resolve, reject) => {
+            const xhr = new XMLHttpRequest();
+
+            xhr.upload.onprogress = (event) => {
+              if (event.lengthComputable) {
+                const currentFileUploaded = event.loaded;
+                const totalUploadedSoFar = uploadedOverall + currentFileUploaded;
+                lastUploadedRef.current = totalUploadedSoFar;
+                setDownloadedBytes(totalUploadedSoFar);
+                setProgress(totalUploadedSoFar / totalBytes);
+              }
+            };
+
+            xhr.onload = () => {
+              if (xhr.status >= 200 && xhr.status < 300) {
+                resolve(true);
+              } else {
+                reject(new Error(`Upload failed with status ${xhr.status}`));
+              }
+            };
+
+            xhr.onerror = () => reject(new Error('Network error'));
+            xhr.onabort = () => reject(new Error('Upload aborted'));
+
+            xhr.open('POST', `http://${targetDevice.ip}:${targetDevice.port}/upload`);
+            xhr.setRequestHeader('x-transfer-id', myId);
+            xhr.send(formData);
+          });
+
+          await uploadPromise;
+
+          uploadedOverall += item.size || 0;
+          lastUploadedRef.current = uploadedOverall;
+          setDownloadedBytes(uploadedOverall);
+          setProgress(uploadedOverall / totalBytes);
+        } catch (e: any) {
+          if (e.name !== 'AbortError' && e.message !== 'Upload aborted') {
+            setStatus('error');
+            return;
+          }
         }
-      }, 1000);
-
-      prevBytesRef.current = 0;
-      speedsRef.current = [];
-      speedIntervalRef.current = setInterval(() => {
-        const current = lastUploadedRef.current;
-        const diff = current - prevBytesRef.current;
-        const speed = Math.max(0, diff);
-
-        speedsRef.current.push(speed);
-        if (speedsRef.current.length > 3) speedsRef.current.shift();
-
-        const avgSpeed = speedsRef.current.reduce((a, b) => a + b, 0) / speedsRef.current.length;
-        setCurrentSpeed(avgSpeed);
-
-        prevBytesRef.current = current;
-      }, 1000);
-    } else if (status === 'done') {
-      setCurrentSpeed(0);
-    } else {
-      setTransferStartTime(null);
-      setTransferDuration(0);
-      setCurrentSpeed(0);
-      if (speedIntervalRef.current) {
-        clearInterval(speedIntervalRef.current);
-        speedIntervalRef.current = null;
       }
-    }
-    return () => {
-      clearInterval(interval);
-      if (speedIntervalRef.current) clearInterval(speedIntervalRef.current);
-    };
-  }, [status, transferStartTime]);
 
-  const formatDuration = (seconds: number) => {
-    const min = Math.floor(seconds / 60);
-    const sec = seconds % 60;
-    return `${min}:${sec.toString().padStart(2, '0')}`;
-  };
+      try {
+        const myIp = await Network.getIpAddressAsync();
+        const pollId = myIp && myIp.includes('.') ? myIp.split('.').pop()! : 'mobile';
+        await fetch(
+          `http://${targetDevice.ip}:${targetDevice.port}/transfer-finish/${pollId}`
+        ).catch(() => {});
+      } catch {}
+
+      setStatus('done');
+      setProgress(1); // Explicitly set to 1 to ensure full progress bar
+      setDownloadedBytes(totalBytes);
+      setCurrentFileIndex(items.length);
+      setCurrentSpeed(0);
+    },
+    [targetDevice]
+  );
 
   // Handshake function starting the transfer flow gracefully with the remote server
-  const connectAndSend = async () => {
+  const connectAndSend = useCallback(async () => {
     if (!targetDevice || !visible) return;
 
     // Abort any existing HTTP fetch request before starting a new one explicitly
@@ -229,90 +213,97 @@ const SendingPortal = ({ visible, onDismiss, targetDevice }: SendingPortalProps)
         }
       }
     }
-  };
+  }, [targetDevice, visible, selectedItems, uploadFiles]);
 
-  // Core file uploading logic dispatching items iteratively over Multipart Form requests natively
-  const uploadFiles = async (myId: string, items: any[]) => {
-    if (!targetDevice) return;
+  useEffect(() => {
+    if (visible && targetDevice && !hasStartedRef.current) {
+      hasStartedRef.current = true;
+      setDisplayItems([...selectedItems]);
+      // Reset only when starting a new session
+      setStatus('waiting');
+      setProgress(0);
+      setDownloadedBytes(0);
+      setCurrentFileIndex(0);
+      setTotalTransferSize(0);
+      setCurrentSpeed(0);
+      setTransferDuration(0);
+      setTransferStartTime(null);
 
-    // Accumulate sum manually allowing percentage calculations dynamically during progress updates
-    let totalBytes = items.reduce((acc, item) => acc + (item.size || 0), 0);
-    setTotalTransferSize(totalBytes);
-
-    // Running sums to increment correctly between file boundaries natively
-    let uploadedOverall = 0;
-    lastUploadedRef.current = 0;
-
-    // Ordered sequence dispatching guarantees file writes finish orderly and predictably
-    for (let i = 0; i < items.length; i++) {
-      const item = items[i];
-      setCurrentFile(item.name);
-      setCurrentFileIndex(i);
-
-      try {
-        const formData = new FormData();
-        formData.append('file', {
-          uri: item.uri,
-          type: item.mimeType || 'application/octet-stream',
-          name: item.name,
-        } as any);
-
-        const uploadPromise = new Promise<boolean>((resolve, reject) => {
-          const xhr = new XMLHttpRequest();
-
-          xhr.upload.onprogress = (event) => {
-            if (event.lengthComputable) {
-              const currentFileUploaded = event.loaded;
-              const totalUploadedSoFar = uploadedOverall + currentFileUploaded;
-              lastUploadedRef.current = totalUploadedSoFar;
-              setDownloadedBytes(totalUploadedSoFar);
-              setProgress(totalUploadedSoFar / totalBytes);
-            }
-          };
-
-          xhr.onload = () => {
-            if (xhr.status >= 200 && xhr.status < 300) {
-              resolve(true);
-            } else {
-              reject(new Error(`Upload failed with status ${xhr.status}`));
-            }
-          };
-
-          xhr.onerror = () => reject(new Error('Network error'));
-          xhr.onabort = () => reject(new Error('Upload aborted'));
-
-          xhr.open('POST', `http://${targetDevice.ip}:${targetDevice.port}/upload`);
-          xhr.setRequestHeader('x-transfer-id', myId);
-          xhr.send(formData);
-        });
-
-        await uploadPromise;
-
-        uploadedOverall += item.size || 0;
-        lastUploadedRef.current = uploadedOverall;
-        setDownloadedBytes(uploadedOverall);
-        setProgress(uploadedOverall / totalBytes);
-      } catch (e: any) {
-        if (e.name !== 'AbortError' && e.message !== 'Upload aborted') {
-          setStatus('error');
-          return;
-        }
-      }
+      pulse.value = withRepeat(withTiming(1.1, { duration: 1000 }), -1, true);
+      connectAndSend();
+    } else if (!visible) {
+      // Reset the start flag when the portal is closed
+      hasStartedRef.current = false;
+      // Cleanup
+      abortController.current.abort();
+      abortController.current = new AbortController();
     }
 
-    try {
-      const myIp = await Network.getIpAddressAsync();
-      const pollId = myIp && myIp.includes('.') ? myIp.split('.').pop()! : 'mobile';
-      await fetch(`http://${targetDevice.ip}:${targetDevice.port}/transfer-finish/${pollId}`).catch(
-        () => {}
-      );
-    } catch (e) {}
+    return () => {
+      // We don't abort here because it might be a parent re-render
+      // Only abort on actual unmount or visibility change (handled above)
+    };
+  }, [visible, targetDevice, selectedItems, connectAndSend, pulse]); // Only trigger on visibility change
 
-    setStatus('done');
-    setProgress(1); // Explicitly set to 1 to ensure full progress bar
-    setDownloadedBytes(totalBytes);
-    setCurrentFileIndex(items.length);
-    setCurrentSpeed(0);
+  const animatedPulse = useAnimatedStyle(() => ({
+    transform: [{ scale: pulse.value }],
+    opacity: 1.2 - pulse.value,
+  }));
+
+  const formatFileSize = (bytes: number) => {
+    if (!bytes || bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+  };
+
+  useEffect(() => {
+    let interval: any;
+    if (status === 'sending') {
+      if (!transferStartTime) setTransferStartTime(Date.now());
+      interval = setInterval(() => {
+        if (transferStartTime) {
+          setTransferDuration(Math.floor((Date.now() - transferStartTime) / 1000));
+        }
+      }, 1000);
+
+      prevBytesRef.current = 0;
+      speedsRef.current = [];
+      speedIntervalRef.current = setInterval(() => {
+        const current = lastUploadedRef.current;
+        const diff = current - prevBytesRef.current;
+        const speed = Math.max(0, diff);
+
+        speedsRef.current.push(speed);
+        if (speedsRef.current.length > 3) speedsRef.current.shift();
+
+        const avgSpeed = speedsRef.current.reduce((a, b) => a + b, 0) / speedsRef.current.length;
+        setCurrentSpeed(avgSpeed);
+
+        prevBytesRef.current = current;
+      }, 1000);
+    } else if (status === 'done') {
+      setCurrentSpeed(0);
+    } else {
+      setTransferStartTime(null);
+      setTransferDuration(0);
+      setCurrentSpeed(0);
+      if (speedIntervalRef.current) {
+        clearInterval(speedIntervalRef.current);
+        speedIntervalRef.current = null;
+      }
+    }
+    return () => {
+      clearInterval(interval);
+      if (speedIntervalRef.current) clearInterval(speedIntervalRef.current);
+    };
+  }, [status, transferStartTime]);
+
+  const formatDuration = (seconds: number) => {
+    const min = Math.floor(seconds / 60);
+    const sec = seconds % 60;
+    return `${min}:${sec.toString().padStart(2, '0')}`;
   };
 
   // Exit handler manually wiping states and sending HTTP abort requests gracefully to stop partial downloads
@@ -337,7 +328,7 @@ const SendingPortal = ({ visible, onDismiss, targetDevice }: SendingPortalProps)
         fetch(`http://${targetDevice.ip}:${targetDevice.port}/cancel-pairing/${pollId}`).catch(
           () => {}
         );
-      } catch (e) {}
+      } catch {}
     }
     onDismiss();
   };
@@ -802,33 +793,30 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    elevation: 4,
+    zIndex: 2,
   },
   waitingTitle: {
-    fontWeight: '400',
+    textAlign: 'center',
     marginBottom: 8,
   },
   idBadgeSmall: {
     paddingHorizontal: 12,
     paddingVertical: 4,
-    borderRadius: 8,
+    borderRadius: 16,
     borderWidth: 1,
-    marginBottom: 40,
+    marginBottom: 24,
   },
   idBadgeTextSmall: {
     fontSize: 12,
-    fontWeight: '500',
+    fontWeight: 'bold',
   },
   waitingStatus: {
     fontSize: 16,
-    marginBottom: 60,
-    textAlign: 'center',
+    marginBottom: 40,
   },
   cancelRequestButton: {
-    width: '100%',
-    height: 56,
-    borderRadius: 16,
-    justifyContent: 'center',
+    borderRadius: 24,
+    paddingHorizontal: 16,
   },
 });
 

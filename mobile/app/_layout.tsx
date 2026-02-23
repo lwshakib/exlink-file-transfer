@@ -1,4 +1,4 @@
-import React, { useMemo, useEffect, useState, useRef } from 'react';
+import React, { useMemo, useEffect, useRef } from 'react';
 import {
   DarkTheme as NavigationDarkTheme,
   DefaultTheme as NavigationDefaultTheme,
@@ -13,7 +13,6 @@ import {
   adaptNavigationTheme,
 } from 'react-native-paper';
 
-import { ThemeVariations } from '../constants/Colors';
 import { ThemeProvider as AppThemeProvider, useAppTheme } from '@/context/ThemeContext';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -48,7 +47,6 @@ function InnerLayout() {
   // Actions and state flags tracking nearby nodes running the same application
   const setNearbyDevices = useDiscoveryStore((state) => state.setNearbyDevices);
   const setIsScanning = useDiscoveryStore((state) => state.setIsScanning);
-  const nearbyDevices = useDiscoveryStore((state) => state.nearbyDevices);
   const scanTrigger = useDiscoveryStore((state) => state.scanTrigger); // A numeric toggle to force scans
 
   // Mutable ref used to hold a persisting list of discovered peers without triggering React re-renders on updates
@@ -135,7 +133,7 @@ function InnerLayout() {
     };
 
     initializeSettings();
-  }, [saveToFolderPath, deviceName, deviceId]);
+  }, [saveToFolderPath, deviceName, deviceId, setDeviceId, setDeviceName, setSaveToFolderPath]);
 
   // Global Discovery Service Hook: Background worker constantly probing subnet for transfer counterparts
   useEffect(() => {
@@ -168,7 +166,7 @@ function InnerLayout() {
             // Intentionally swallowed, targets often drop off Wi-Fi silently between updates
           });
         }
-      } catch (e) {}
+      } catch {}
     };
 
     // Primary sweeping subnet logic iterating IP offsets 1...254 and hitting a discovery endpoint concurrently
@@ -211,7 +209,7 @@ function InnerLayout() {
                   foundDevices.push(info);
                   knownDesktopIps.current.add(testIp); // Cache explicitly without throwing state change
                 }
-              } catch (e) {} // Swallowed silently given timeouts are intended failure paths
+              } catch {} // Swallowed silently given timeouts are intended failure paths
             })
           );
         }
@@ -224,7 +222,7 @@ function InnerLayout() {
         if (knownDesktopIps.current.size > 0) {
           announceToIps(knownDesktopIps.current);
         }
-      } catch (e) {
+      } catch {
         setIsScanning(false);
       }
     };
@@ -247,7 +245,7 @@ function InnerLayout() {
       clearInterval(announceInterval);
       clearInterval(scanInterval);
     };
-  }, [serverRunning, deviceName, deviceId, scanTrigger]); // Listens explicitly to scanTrigger allowing manual user forced rescans remotely
+  }, [serverRunning, deviceName, deviceId, scanTrigger, setIsScanning, setNearbyDevices]); // Listens explicitly to scanTrigger allowing manual user forced rescans remotely
 
   // Blocking logic rendering null securely holding render cycle fully preventing state mismatch before contexts establish
   if (!isLoaded) return null;

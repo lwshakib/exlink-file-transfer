@@ -63,7 +63,7 @@ const HistoryPortal = ({ visible, onDismiss }: HistoryPortalProps) => {
               // Try directly opening that specific deeper URI
               await Linking.openURL(safUri);
               return;
-            } catch (e) {
+            } catch {
               // Fallback to opening the root directory if the specific folder fails
               await Linking.openURL('content://com.android.externalstorage.documents/root/primary');
               return;
@@ -85,7 +85,7 @@ const HistoryPortal = ({ visible, onDismiss }: HistoryPortalProps) => {
           alert('Default storage is App Documents. You can see it in the Files app.');
         }
       }
-    } catch (e) {
+    } catch {
       // General error catch in case no app can handle the Linking request
       alert('Could not open folder directly. Please use your Files / File Manager app.');
     }

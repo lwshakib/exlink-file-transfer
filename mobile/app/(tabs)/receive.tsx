@@ -12,11 +12,11 @@ import {
   Divider,
 } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+
 import Svg, { G, Path } from 'react-native-svg';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Network from 'expo-network';
-import { File, Directory, Paths } from 'expo-file-system';
+import { Directory, Paths } from 'expo-file-system';
 import * as FileSystemLegacy from 'expo-file-system/legacy';
 import * as MediaLibrary from 'expo-media-library';
 import { uniqueNamesGenerator, adjectives, animals } from 'unique-names-generator';
@@ -30,11 +30,36 @@ import {
 } from '@gorhom/bottom-sheet';
 import { useSettingsStore } from '@/store/useSettingsStore';
 
+const getMimeType = (filename: string) => {
+  const ext = filename.split('.').pop()?.toLowerCase();
+  const mimeMap: { [key: string]: string } = {
+    jpg: 'image/jpeg',
+    jpeg: 'image/jpeg',
+    png: 'image/png',
+    gif: 'image/gif',
+    webp: 'image/webp',
+    mp4: 'video/mp4',
+    mov: 'video/quicktime',
+    pdf: 'application/pdf',
+    txt: 'text/plain',
+    zip: 'application/zip',
+    apk: 'application/vnd.android.package-archive',
+    exe: 'application/x-msdownload',
+    msi: 'application/x-msdownload',
+    dmg: 'application/x-apple-diskimage',
+    pkg: 'application/x-newton-compatible-pkg',
+    deb: 'application/x-debian-package',
+    rpm: 'application/x-rpm',
+    bin: 'application/octet-stream',
+    app: 'application/octet-stream',
+  };
+  return mimeMap[ext || ''] || 'application/octet-stream';
+};
+
 // ReceiveScreen handles the listener side of the file transfer, managing incoming pairing requests and the download lifecycle
 export default function ReceiveScreen() {
   // Pull standardized theme and router hooks for UI consistency
   const theme = useTheme();
-  const router = useRouter();
 
   // --- Global Identity States (Zustand) ---
   const deviceName = useSettingsStore((state) => state.deviceName);
@@ -42,7 +67,6 @@ export default function ReceiveScreen() {
   const serverRunning = useSettingsStore((state) => state.serverRunning);
   const setDeviceName = useSettingsStore((state) => state.setDeviceName);
   const setDeviceId = useSettingsStore((state) => state.setDeviceId);
-  const setServerRunning = useSettingsStore((state) => state.setServerRunning);
 
   // --- Discovery & Incoming Flow States ---
   const [pendingRequest, setPendingRequest] = useState<any>(null);
@@ -192,7 +216,7 @@ export default function ReceiveScreen() {
 
   useEffect(() => {
     loadIdentity();
-  }, []);
+  }, [loadIdentity]);
 
   useFocusEffect(
     React.useCallback(() => {
@@ -232,7 +256,7 @@ export default function ReceiveScreen() {
               setPendingRequest(null);
               setTransferStatus('idle');
             }
-          } catch (e) {
+          } catch {
             setPendingRequest(null);
             setTransferStatus('idle');
           }
@@ -265,7 +289,7 @@ export default function ReceiveScreen() {
                       currentDesktops.push(testIp);
                     }
                   }
-                } catch (e) {}
+                } catch {}
               })
             );
           }
@@ -290,18 +314,387 @@ export default function ReceiveScreen() {
                   setPendingRequest({ ...data.request, desktopIp });
                 }
               }
-            } catch (e) {
+            } catch {
               // Only remove if it's a hard failure and not just a timeout during busy network
               // (Optional: Implement a failure count if we want to be more robust)
             }
           })
         );
-      } catch (e) {}
+      } catch {}
     };
 
     const interval = setInterval(pollForRequests, 1000);
     return () => clearInterval(interval);
   }, [discoveredDesktops, transferStatus, serverRunning, pendingRequest, deviceId]);
+
+  // Core logic for processing a list of files and downloading them sequentially
+  const downloadFiles = useCallback(
+    async (files: any[], desktopIp: string, myId: string | null) => {
+      // Initial state setup for tracking collective progress
+      const total = files.reduce((acc, f) => acc + f.size, 0);
+      setTotalTransferSize(total);
+      setDownloadedBytes(0);
+      lastDownloadedRef.current = 0;
+      setTransferFiles(files.map((f) => ({ ...f, progress: 0, status: 'waiting' })));
+
+      // Extract persistence and storage settings from the unified shop store
+      const { saveToFolderPath, saveMediaToGallery } = useSettingsStore.getState();
+      const shouldSaveToGallery = saveMediaToGallery;
+
+      // Check if the current save path uses Android's Storage Access Framework
+      const isSAF = saveToFolderPath && saveToFolderPath.startsWith('content://');
+
+      // Helper validating if a file extension qualifies for automated gallery insertion
+      const isMediaFile = (name: string) => {
+        const ext = name.toLowerCase().split('.').pop();
+        return [
+          'jpg',
+          'jpeg',
+          'png',
+          'gif',
+          'bmp',
+          'webp',
+          'mp4',
+          'mov',
+          'avi',
+          'mkv',
+          'mp3',
+          'wav',
+          'm4a',
+        ].includes(ext || '');
+      };
+
+      let aggregateDownloaded = 0; // Total accumulation across all files
+      const destDir = saveToFolderPath || Paths.document.uri; // Default to App Documents if not configured
+      let completedFiles = 0;
+      let failedFiles = 0;
+
+      // Ensure the physical folder exists (required for non-SAF local paths)
+      if (!isSAF) {
+        try {
+          const dir = new Directory(destDir);
+          if (!dir.exists) {
+            await dir.create();
+            console.log('[Receive] Created destination folder:', destDir);
+          }
+        } catch (e) {
+          console.warn('[Receive] Failed to ensure destDir exists, might fail download:', e);
+        }
+      }
+
+      // Download files directly to destination (or cache for SAF)
+      for (const file of files) {
+        if (transferStatus === 'error' || !pendingRequest) break;
+        setCurrentFilename(file.name);
+        setTransferFiles((prev) =>
+          prev.map((f) => (f.index === file.index ? { ...f, status: 'downloading' } : f))
+        );
+
+        try {
+          const url = `http://${desktopIp}:3030/download/${myId}/${file.index}`;
+
+          // Determine download destination - always download directly to final location
+          // For SAF, Android requires cache first, but we'll move it immediately after
+          const destDir = saveToFolderPath || Paths.document.uri;
+          let downloadUri: string;
+
+          if (isSAF) {
+            // For SAF, we must use cache temporarily (Android limitation)
+            // But we'll move it to SAF immediately after download completes
+            downloadUri = (FileSystemLegacy.cacheDirectory || '') + file.name;
+          } else {
+            // Download directly to final destination (no temporary location)
+            downloadUri = destDir + (destDir.endsWith('/') ? '' : '/') + file.name;
+          }
+
+          const resumable = FileSystemLegacy.createDownloadResumable(
+            url,
+            downloadUri,
+            {},
+            (downloadProgress) => {
+              const currentFileDownloaded = downloadProgress.totalBytesWritten;
+              const totalDownloadedSoFar = aggregateDownloaded + currentFileDownloaded;
+              lastDownloadedRef.current = totalDownloadedSoFar;
+              setDownloadedBytes(totalDownloadedSoFar);
+              setDownloadProgress(totalDownloadedSoFar / total);
+              setTransferFiles((prev) =>
+                prev.map((f) =>
+                  f.index === file.index ? { ...f, progress: currentFileDownloaded / file.size } : f
+                )
+              );
+            }
+          );
+
+          currentDownloadRef.current = resumable;
+          const downloadRes = await resumable.downloadAsync();
+          currentDownloadRef.current = null;
+
+          if (downloadRes && (downloadRes.status === 200 || downloadRes.status === 201)) {
+            let finalUri = downloadRes.uri;
+            let fileSavedSuccessfully = false;
+
+            // For SAF destinations, always try to save to the selected SAF folder
+            // We'll attempt it for all files, but handle OOM errors gracefully for large files
+            if (isSAF) {
+              const mimeType = getMimeType(file.name);
+              let safFileUri: string | null = null;
+
+              try {
+                // Create SAF file first
+                safFileUri = await FileSystemLegacy.StorageAccessFramework.createFileAsync(
+                  saveToFolderPath!,
+                  file.name,
+                  mimeType
+                );
+
+                // Try to read and write file to SAF
+                // For large files, this might cause OOM, but we'll catch it
+                const base64Content = await FileSystemLegacy.readAsStringAsync(downloadRes.uri, {
+                  encoding: FileSystemLegacy.EncodingType.Base64,
+                });
+
+                await FileSystemLegacy.StorageAccessFramework.writeAsStringAsync(
+                  safFileUri,
+                  base64Content,
+                  { encoding: FileSystemLegacy.EncodingType.Base64 }
+                );
+
+                // Successfully saved to SAF folder - delete cache immediately
+                await FileSystemLegacy.deleteAsync(downloadRes.uri, { idempotent: true });
+                finalUri = safFileUri;
+                fileSavedSuccessfully = true;
+                console.log(
+                  `File ${file.name} (${formatFileSize(file.size)}) saved directly to SAF folder`
+                );
+              } catch (safErr: any) {
+                // SAF failed - could be OOM for large files or other error
+                const isOOM =
+                  safErr.message?.includes('OutOfMemoryError') ||
+                  safErr.message?.includes('OutOfMemory') ||
+                  safErr.toString().includes('OutOfMemory');
+
+                if (isOOM) {
+                  console.warn(
+                    `Large file ${file.name} (${formatFileSize(file.size)}) - OOM when saving to SAF, using alternative method`
+                  );
+                } else {
+                  console.warn(`SAF save failed for ${file.name}:`, safErr.message || safErr);
+                }
+
+                // Clean up SAF file if it was created but not written
+                if (safFileUri) {
+                  try {
+                    await FileSystemLegacy.deleteAsync(safFileUri, { idempotent: true });
+                  } catch {
+                    // Ignore cleanup errors
+                  }
+                }
+
+                // For large files that cause OOM, try to save to the selected folder using File API
+                // If that fails, save to internal storage as fallback
+                try {
+                  // First, try to use File.move() to move the file to SAF folder if possible
+                  // This avoids Base64 encoding and OOM
+                  try {
+                    // For SAF, we can't directly move, so we'll save to internal storage
+                    // but at least ensure the file is saved successfully
+                    const destPath = Paths.document.uri + '/' + file.name;
+
+                    // Check if file already exists and delete it
+                    try {
+                      const exists = await FileSystemLegacy.getInfoAsync(destPath);
+                      if (exists.exists) {
+                        await FileSystemLegacy.deleteAsync(destPath, { idempotent: true });
+                      }
+                    } catch {
+                      // File doesn't exist, continue
+                    }
+
+                    // Copy from cache to internal storage (direct save, no temp location)
+                    await FileSystemLegacy.copyAsync({
+                      from: downloadRes.uri,
+                      to: destPath,
+                    });
+
+                    // Verify the file was copied successfully
+                    const verifyExists = await FileSystemLegacy.getInfoAsync(destPath);
+                    if (!verifyExists.exists) {
+                      throw new Error('File copy verification failed');
+                    }
+
+                    // Immediately delete temporary cache file
+                    await FileSystemLegacy.deleteAsync(downloadRes.uri, { idempotent: true });
+                    finalUri = destPath;
+                    fileSavedSuccessfully = true;
+
+                    if (isOOM) {
+                      console.log(
+                        `Large file ${file.name} (${formatFileSize(file.size)}) saved to internal storage - SAF requires Base64 encoding which causes OOM for files this large`
+                      );
+                    } else {
+                      console.log(`File ${file.name} saved to internal storage (SAF failed)`);
+                    }
+                  } catch (moveErr) {
+                    // If move fails, try copy as fallback
+                    throw moveErr;
+                  }
+                } catch (fallbackErr: any) {
+                  console.error('Fallback save failed:', fallbackErr);
+                  // Try one more time with a simpler approach
+                  try {
+                    const destPath = Paths.document.uri + '/' + file.name;
+                    await FileSystemLegacy.copyAsync({
+                      from: downloadRes.uri,
+                      to: destPath,
+                    });
+                    await FileSystemLegacy.deleteAsync(downloadRes.uri, { idempotent: true });
+                    finalUri = destPath;
+                    console.log(`File ${file.name} saved to internal storage (fallback method)`);
+                  } catch (lastResortErr) {
+                    console.error('All save methods failed:', lastResortErr);
+                    // Keep file in cache as absolute last resort
+                    finalUri = downloadRes.uri;
+                    // Still mark as done so transfer completes
+                    console.warn(`File ${file.name} kept in cache due to save failures`);
+                  }
+                }
+              }
+            } else {
+              // For non-SAF, file is already in final location - just ensure it's there
+              finalUri = downloadRes.uri;
+              fileSavedSuccessfully = true;
+              console.log(`File ${file.name} saved directly to selected location`);
+            }
+
+            // Ensure file is marked as saved (download was successful)
+            if (!fileSavedSuccessfully) {
+              fileSavedSuccessfully = true; // Download succeeded, file exists at finalUri
+            }
+
+            // Gallery saving for media files (use finalUri, not downloadRes.uri which may be deleted)
+            if (shouldSaveToGallery && isMediaFile(file.name) && file.size < 50 * 1024 * 1024) {
+              try {
+                const { status } = await MediaLibrary.requestPermissionsAsync();
+                if (status === 'granted') {
+                  // Use finalUri which points to the actual saved file location
+                  await MediaLibrary.createAssetAsync(finalUri);
+                }
+              } catch (e) {
+                console.warn('Failed to save media to gallery:', e);
+              }
+            }
+
+            // Force a system-wide media scan for Android public folders
+            if (Platform.OS === 'android' && finalUri && !finalUri.startsWith('content://')) {
+              try {
+                await MediaLibrary.saveToLibraryAsync(finalUri);
+              } catch {}
+            }
+
+            // History Persistence
+            const { addHistoryItem } = useSettingsStore.getState();
+            addHistoryItem({
+              id: `${Date.now()}-${file.name}`,
+              name: file.name,
+              size: file.size,
+              timestamp: Date.now(),
+              from: pendingRequest?.name || 'Unknown Device',
+            });
+
+            aggregateDownloaded += file.size;
+            completedFiles++;
+            lastDownloadedRef.current = aggregateDownloaded;
+            setDownloadedBytes(aggregateDownloaded);
+            setDownloadProgress(Math.min(aggregateDownloaded / total, 1));
+            setTransferFiles((prev) =>
+              prev.map((f) =>
+                f.index === file.index
+                  ? { ...f, status: 'done', progress: 1, localUri: finalUri }
+                  : f
+              )
+            );
+          } else {
+            throw new Error(`Download failed with status ${downloadRes?.status}`);
+          }
+        } catch (e: any) {
+          currentDownloadRef.current = null;
+          if (e.message?.includes('cancel') || e.message?.includes('abort')) {
+            console.log('Download cancelled');
+            return;
+          } else {
+            console.error('Download error:', e);
+            failedFiles++;
+            setTransferFiles((prev) =>
+              prev.map((f) => (f.index === file.index ? { ...f, status: 'error' } : f))
+            );
+          }
+        }
+      }
+
+      // Stop speed calculation immediately
+      if (speedIntervalRef.current) {
+        clearInterval(speedIntervalRef.current);
+        speedIntervalRef.current = null;
+      }
+      setCurrentSpeed(0);
+      prevBytesRef.current = 0;
+
+      // Check if all files are processed
+      const totalProcessed = completedFiles + failedFiles;
+      const allDone = completedFiles === files.length;
+      const hasErrors = failedFiles > 0;
+
+      console.log(
+        `[Receive] Transfer status: ${completedFiles} completed, ${failedFiles} failed, ${totalProcessed}/${files.length} total processed`
+      );
+
+      // Ensure progress is exactly 1.0 when all files are done
+      if (allDone) {
+        // Update all state synchronously to ensure UI updates immediately
+        setDownloadProgress(1);
+        setDownloadedBytes(total);
+        lastDownloadedRef.current = total;
+        setTransferStatus('done');
+        setCurrentFilename(''); // Clear current filename
+        setCurrentSpeed(0); // Ensure speed is 0
+        console.log('[Receive] ✅ All files downloaded successfully - transfer complete');
+      } else if (hasErrors && totalProcessed === files.length) {
+        // All files processed but some had errors
+        setDownloadProgress(Math.min(aggregateDownloaded / total, 1));
+        setTransferStatus('error');
+        setCurrentFilename(''); // Clear current filename
+        setCurrentSpeed(0);
+        console.log('[Receive] ⚠️ Transfer completed with errors');
+      } else if (totalProcessed === files.length) {
+        // All files processed (fallback - should mark as done if we processed all)
+        setDownloadProgress(1);
+        setDownloadedBytes(total);
+        lastDownloadedRef.current = total;
+        setTransferStatus('done');
+        setCurrentFilename(''); // Clear current filename
+        setCurrentSpeed(0);
+        console.log('[Receive] ✅ All files processed - marking as done');
+      } else {
+        // Not all files processed (shouldn't happen, but handle it)
+        console.warn(
+          `[Receive] ⚠️ Transfer incomplete: ${totalProcessed}/${files.length} files processed`
+        );
+        // Still mark as done if we processed most files (might be a counting issue)
+        if (totalProcessed >= files.length * 0.9) {
+          setDownloadProgress(1);
+          setDownloadedBytes(total);
+          setTransferStatus('done');
+          setCurrentSpeed(0);
+          console.log('[Receive] ✅ Marking as done (processed most files)');
+        } else {
+          setTransferStatus('error');
+          setCurrentSpeed(0);
+        }
+        setCurrentFilename(''); // Clear current filename
+      }
+    },
+    [transferStatus, pendingRequest]
+  );
 
   // Poll for Transfer Manifest (Receiver Flow)
   useEffect(() => {
@@ -327,7 +720,7 @@ export default function ReceiveScreen() {
             polling = false;
           }
         }
-      } catch (e) {}
+      } catch {}
 
       if (polling && transferStatus === 'waiting-transfer') setTimeout(checkTransferStatus, 1000);
     };
@@ -338,403 +731,7 @@ export default function ReceiveScreen() {
     return () => {
       polling = false;
     };
-  }, [transferStatus, pendingRequest, serverRunning]);
-
-  // Core logic for processing a list of files and downloading them sequentially
-  const downloadFiles = async (files: any[], desktopIp: string, myId: string | null) => {
-    // Initial state setup for tracking collective progress
-    const total = files.reduce((acc, f) => acc + f.size, 0);
-    setTotalTransferSize(total);
-    setDownloadedBytes(0);
-    lastDownloadedRef.current = 0;
-    setTransferFiles(files.map((f) => ({ ...f, progress: 0, status: 'waiting' })));
-
-    // Extract persistence and storage settings from the unified shop store
-    const { saveToFolderPath, saveMediaToGallery } = useSettingsStore.getState();
-    const shouldSaveToGallery = saveMediaToGallery;
-
-    // Check if the current save path uses Android's Storage Access Framework
-    const isSAF = saveToFolderPath && saveToFolderPath.startsWith('content://');
-
-    // Helper validating if a file extension qualifies for automated gallery insertion
-    const isMediaFile = (name: string) => {
-      const ext = name.toLowerCase().split('.').pop();
-      return [
-        'jpg',
-        'jpeg',
-        'png',
-        'gif',
-        'bmp',
-        'webp',
-        'mp4',
-        'mov',
-        'avi',
-        'mkv',
-        'mp3',
-        'wav',
-        'm4a',
-      ].includes(ext || '');
-    };
-
-    let aggregateDownloaded = 0; // Total accumulation across all files
-    const destDir = saveToFolderPath || Paths.document.uri; // Default to App Documents if not configured
-    let completedFiles = 0;
-    let failedFiles = 0;
-
-    // Ensure the physical folder exists (required for non-SAF local paths)
-    if (!isSAF) {
-      try {
-        const dir = new Directory(destDir);
-        if (!dir.exists) {
-          await dir.create();
-          console.log('[Receive] Created destination folder:', destDir);
-        }
-      } catch (e) {
-        console.warn('[Receive] Failed to ensure destDir exists, might fail download:', e);
-      }
-    }
-
-    // Download files directly to destination (or cache for SAF)
-    for (const file of files) {
-      if (transferStatus === 'error' || !pendingRequest) break;
-      setCurrentFilename(file.name);
-      setTransferFiles((prev) =>
-        prev.map((f) => (f.index === file.index ? { ...f, status: 'downloading' } : f))
-      );
-
-      try {
-        const url = `http://${desktopIp}:3030/download/${myId}/${file.index}`;
-
-        // Determine download destination - always download directly to final location
-        // For SAF, Android requires cache first, but we'll move it immediately after
-        const destDir = saveToFolderPath || Paths.document.uri;
-        let downloadUri: string;
-
-        if (isSAF) {
-          // For SAF, we must use cache temporarily (Android limitation)
-          // But we'll move it to SAF immediately after download completes
-          downloadUri = (FileSystemLegacy.cacheDirectory || '') + file.name;
-        } else {
-          // Download directly to final destination (no temporary location)
-          downloadUri = destDir + (destDir.endsWith('/') ? '' : '/') + file.name;
-        }
-
-        const resumable = FileSystemLegacy.createDownloadResumable(
-          url,
-          downloadUri,
-          {},
-          (downloadProgress) => {
-            const currentFileDownloaded = downloadProgress.totalBytesWritten;
-            const totalDownloadedSoFar = aggregateDownloaded + currentFileDownloaded;
-            lastDownloadedRef.current = totalDownloadedSoFar;
-            setDownloadedBytes(totalDownloadedSoFar);
-            setDownloadProgress(totalDownloadedSoFar / total);
-            setTransferFiles((prev) =>
-              prev.map((f) =>
-                f.index === file.index ? { ...f, progress: currentFileDownloaded / file.size } : f
-              )
-            );
-          }
-        );
-
-        currentDownloadRef.current = resumable;
-        const downloadRes = await resumable.downloadAsync();
-        currentDownloadRef.current = null;
-
-        if (downloadRes && (downloadRes.status === 200 || downloadRes.status === 201)) {
-          let finalUri = downloadRes.uri;
-          let fileSavedSuccessfully = false;
-
-          // For SAF destinations, always try to save to the selected SAF folder
-          // We'll attempt it for all files, but handle OOM errors gracefully for large files
-          if (isSAF) {
-            const mimeType = getMimeType(file.name);
-            let safFileUri: string | null = null;
-
-            try {
-              // Create SAF file first
-              safFileUri = await FileSystemLegacy.StorageAccessFramework.createFileAsync(
-                saveToFolderPath!,
-                file.name,
-                mimeType
-              );
-
-              // Try to read and write file to SAF
-              // For large files, this might cause OOM, but we'll catch it
-              const base64Content = await FileSystemLegacy.readAsStringAsync(downloadRes.uri, {
-                encoding: FileSystemLegacy.EncodingType.Base64,
-              });
-
-              await FileSystemLegacy.StorageAccessFramework.writeAsStringAsync(
-                safFileUri,
-                base64Content,
-                { encoding: FileSystemLegacy.EncodingType.Base64 }
-              );
-
-              // Successfully saved to SAF folder - delete cache immediately
-              await FileSystemLegacy.deleteAsync(downloadRes.uri, { idempotent: true });
-              finalUri = safFileUri;
-              fileSavedSuccessfully = true;
-              console.log(
-                `File ${file.name} (${formatFileSize(file.size)}) saved directly to SAF folder`
-              );
-            } catch (safErr: any) {
-              // SAF failed - could be OOM for large files or other error
-              const isOOM =
-                safErr.message?.includes('OutOfMemoryError') ||
-                safErr.message?.includes('OutOfMemory') ||
-                safErr.toString().includes('OutOfMemory');
-
-              if (isOOM) {
-                console.warn(
-                  `Large file ${file.name} (${formatFileSize(file.size)}) - OOM when saving to SAF, using alternative method`
-                );
-              } else {
-                console.warn(`SAF save failed for ${file.name}:`, safErr.message || safErr);
-              }
-
-              // Clean up SAF file if it was created but not written
-              if (safFileUri) {
-                try {
-                  await FileSystemLegacy.deleteAsync(safFileUri, { idempotent: true });
-                } catch (cleanupErr) {
-                  // Ignore cleanup errors
-                }
-              }
-
-              // For large files that cause OOM, try to save to the selected folder using File API
-              // If that fails, save to internal storage as fallback
-              try {
-                // First, try to use File.move() to move the file to SAF folder if possible
-                // This avoids Base64 encoding and OOM
-                let movedToSAF = false;
-
-                try {
-                  // Try to get the SAF folder path and move file there using File API
-                  // Note: This might not work for SAF, but worth trying
-                  const tempFile = new File(downloadRes.uri);
-
-                  // For SAF, we can't directly move, so we'll save to internal storage
-                  // but at least ensure the file is saved successfully
-                  const destPath = Paths.document.uri + '/' + file.name;
-
-                  // Check if file already exists and delete it
-                  try {
-                    const exists = await FileSystemLegacy.getInfoAsync(destPath);
-                    if (exists.exists) {
-                      await FileSystemLegacy.deleteAsync(destPath, { idempotent: true });
-                    }
-                  } catch (checkErr) {
-                    // File doesn't exist, continue
-                  }
-
-                  // Copy from cache to internal storage (direct save, no temp location)
-                  await FileSystemLegacy.copyAsync({
-                    from: downloadRes.uri,
-                    to: destPath,
-                  });
-
-                  // Verify the file was copied successfully
-                  const verifyExists = await FileSystemLegacy.getInfoAsync(destPath);
-                  if (!verifyExists.exists) {
-                    throw new Error('File copy verification failed');
-                  }
-
-                  // Immediately delete temporary cache file
-                  await FileSystemLegacy.deleteAsync(downloadRes.uri, { idempotent: true });
-                  finalUri = destPath;
-                  fileSavedSuccessfully = true;
-
-                  if (isOOM) {
-                    console.log(
-                      `Large file ${file.name} (${formatFileSize(file.size)}) saved to internal storage - SAF requires Base64 encoding which causes OOM for files this large`
-                    );
-                  } else {
-                    console.log(`File ${file.name} saved to internal storage (SAF failed)`);
-                  }
-                } catch (moveErr) {
-                  // If move fails, try copy as fallback
-                  throw moveErr;
-                }
-              } catch (fallbackErr: any) {
-                console.error('Fallback save failed:', fallbackErr);
-                // Try one more time with a simpler approach
-                try {
-                  const destPath = Paths.document.uri + '/' + file.name;
-                  await FileSystemLegacy.copyAsync({
-                    from: downloadRes.uri,
-                    to: destPath,
-                  });
-                  await FileSystemLegacy.deleteAsync(downloadRes.uri, { idempotent: true });
-                  finalUri = destPath;
-                  console.log(`File ${file.name} saved to internal storage (fallback method)`);
-                } catch (lastResortErr) {
-                  console.error('All save methods failed:', lastResortErr);
-                  // Keep file in cache as absolute last resort
-                  finalUri = downloadRes.uri;
-                  // Still mark as done so transfer completes
-                  console.warn(`File ${file.name} kept in cache due to save failures`);
-                }
-              }
-            }
-          } else {
-            // For non-SAF, file is already in final location - just ensure it's there
-            finalUri = downloadRes.uri;
-            fileSavedSuccessfully = true;
-            console.log(`File ${file.name} saved directly to selected location`);
-          }
-
-          // Ensure file is marked as saved (download was successful)
-          if (!fileSavedSuccessfully) {
-            fileSavedSuccessfully = true; // Download succeeded, file exists at finalUri
-          }
-
-          // Gallery saving for media files (use finalUri, not downloadRes.uri which may be deleted)
-          if (shouldSaveToGallery && isMediaFile(file.name) && file.size < 50 * 1024 * 1024) {
-            try {
-              const { status } = await MediaLibrary.requestPermissionsAsync();
-              if (status === 'granted') {
-                // Use finalUri which points to the actual saved file location
-                await MediaLibrary.createAssetAsync(finalUri);
-              }
-            } catch (e) {
-              console.warn('Failed to save media to gallery:', e);
-            }
-          }
-
-          // Force a system-wide media scan for Android public folders
-          if (Platform.OS === 'android' && finalUri && !finalUri.startsWith('content://')) {
-            try {
-              await MediaLibrary.saveToLibraryAsync(finalUri);
-            } catch (scanErr) {}
-          }
-
-          // History Persistence
-          const { addHistoryItem } = useSettingsStore.getState();
-          addHistoryItem({
-            id: `${Date.now()}-${file.name}`,
-            name: file.name,
-            size: file.size,
-            timestamp: Date.now(),
-            from: pendingRequest?.name || 'Unknown Device',
-          });
-
-          aggregateDownloaded += file.size;
-          completedFiles++;
-          lastDownloadedRef.current = aggregateDownloaded;
-          setDownloadedBytes(aggregateDownloaded);
-          setDownloadProgress(Math.min(aggregateDownloaded / total, 1));
-          setTransferFiles((prev) =>
-            prev.map((f) =>
-              f.index === file.index ? { ...f, status: 'done', progress: 1, localUri: finalUri } : f
-            )
-          );
-        } else {
-          throw new Error(`Download failed with status ${downloadRes?.status}`);
-        }
-      } catch (e: any) {
-        currentDownloadRef.current = null;
-        if (e.message?.includes('cancel') || e.message?.includes('abort')) {
-          console.log('Download cancelled');
-          return;
-        } else {
-          console.error('Download error:', e);
-          failedFiles++;
-          setTransferFiles((prev) =>
-            prev.map((f) => (f.index === file.index ? { ...f, status: 'error' } : f))
-          );
-        }
-      }
-    }
-
-    // Stop speed calculation immediately
-    if (speedIntervalRef.current) {
-      clearInterval(speedIntervalRef.current);
-      speedIntervalRef.current = null;
-    }
-    setCurrentSpeed(0);
-    prevBytesRef.current = 0;
-
-    // Check if all files are processed
-    const totalProcessed = completedFiles + failedFiles;
-    const allDone = completedFiles === files.length;
-    const hasErrors = failedFiles > 0;
-
-    console.log(
-      `[Receive] Transfer status: ${completedFiles} completed, ${failedFiles} failed, ${totalProcessed}/${files.length} total processed`
-    );
-
-    // Ensure progress is exactly 1.0 when all files are done
-    if (allDone) {
-      // Update all state synchronously to ensure UI updates immediately
-      setDownloadProgress(1);
-      setDownloadedBytes(total);
-      lastDownloadedRef.current = total;
-      setTransferStatus('done');
-      setCurrentFilename(''); // Clear current filename
-      setCurrentSpeed(0); // Ensure speed is 0
-      console.log('[Receive] ✅ All files downloaded successfully - transfer complete');
-    } else if (hasErrors && totalProcessed === files.length) {
-      // All files processed but some had errors
-      setDownloadProgress(Math.min(aggregateDownloaded / total, 1));
-      setTransferStatus('error');
-      setCurrentFilename(''); // Clear current filename
-      setCurrentSpeed(0);
-      console.log('[Receive] ⚠️ Transfer completed with errors');
-    } else if (totalProcessed === files.length) {
-      // All files processed (fallback - should mark as done if we processed all)
-      setDownloadProgress(1);
-      setDownloadedBytes(total);
-      lastDownloadedRef.current = total;
-      setTransferStatus('done');
-      setCurrentFilename(''); // Clear current filename
-      setCurrentSpeed(0);
-      console.log('[Receive] ✅ All files processed - marking as done');
-    } else {
-      // Not all files processed (shouldn't happen, but handle it)
-      console.warn(
-        `[Receive] ⚠️ Transfer incomplete: ${totalProcessed}/${files.length} files processed`
-      );
-      // Still mark as done if we processed most files (might be a counting issue)
-      if (totalProcessed >= files.length * 0.9) {
-        setDownloadProgress(1);
-        setDownloadedBytes(total);
-        setTransferStatus('done');
-        setCurrentSpeed(0);
-        console.log('[Receive] ✅ Marking as done (processed most files)');
-      } else {
-        setTransferStatus('error');
-        setCurrentSpeed(0);
-      }
-      setCurrentFilename(''); // Clear current filename
-    }
-  };
-
-  const getMimeType = (filename: string) => {
-    const ext = filename.split('.').pop()?.toLowerCase();
-    const mimeMap: { [key: string]: string } = {
-      jpg: 'image/jpeg',
-      jpeg: 'image/jpeg',
-      png: 'image/png',
-      gif: 'image/gif',
-      webp: 'image/webp',
-      mp4: 'video/mp4',
-      mov: 'video/quicktime',
-      pdf: 'application/pdf',
-      txt: 'text/plain',
-      zip: 'application/zip',
-      apk: 'application/vnd.android.package-archive',
-      exe: 'application/x-msdownload',
-      msi: 'application/x-msdownload',
-      dmg: 'application/x-apple-diskimage',
-      pkg: 'application/x-newton-compatible-pkg',
-      deb: 'application/x-debian-package',
-      rpm: 'application/x-rpm',
-      bin: 'application/octet-stream',
-      app: 'application/octet-stream',
-    };
-    return mimeMap[ext || ''] || 'application/octet-stream';
-  };
+  }, [transferStatus, pendingRequest, serverRunning, deviceId, downloadFiles]);
 
   const respondToRequest = async (accepted: boolean) => {
     if (!pendingRequest) return;
@@ -749,7 +746,7 @@ export default function ReceiveScreen() {
           } else if ((currentDownloadRef.current as any).pauseAsync) {
             await (currentDownloadRef.current as any).pauseAsync();
           }
-        } catch (e) {}
+        } catch {}
         currentDownloadRef.current = null;
       }
 
@@ -768,7 +765,7 @@ export default function ReceiveScreen() {
           // Already transferring, call cancel-transfer
           await fetch(`http://${pendingRequest.desktopIp}:3030/cancel-transfer/${pollId}`);
         }
-      } catch (e) {}
+      } catch {}
 
       setPendingRequest(null);
       setTransferStatus('idle');
@@ -791,7 +788,7 @@ export default function ReceiveScreen() {
       } else {
         setPendingRequest(null); // Failed to respond
       }
-    } catch (e) {
+    } catch {
       setPendingRequest(null);
     }
   };

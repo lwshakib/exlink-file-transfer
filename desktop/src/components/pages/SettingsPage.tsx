@@ -44,17 +44,20 @@ export function SettingsPage() {
   // Preference Sync Worker: Hydrates the UI with persistent settings from the Main process
   useEffect(() => {
     // Identity Sync
-    window.ipcRenderer.invoke('get-server-info').then((info: any) => {
+    window.ipcRenderer.invoke('get-server-info').then((res) => {
+      const info = res as { name: string };
       setDeviceName(info?.name || '');
     });
 
     // Filesystem Sync: Where are we currently landing bytes?
-    window.ipcRenderer.invoke('get-upload-dir').then((dir: string) => {
+    window.ipcRenderer.invoke('get-upload-dir').then((res) => {
+      const dir = res as string;
       setSaveToFolder(dir);
     });
 
     // Network Sync: Verify if the background TCP listener is active
-    window.ipcRenderer.invoke('get-server-status').then((status: any) => {
+    window.ipcRenderer.invoke('get-server-status').then((res) => {
+      const status = res as { running: boolean };
       setServerRunning(status?.running ?? true);
     });
   }, []);
@@ -102,8 +105,8 @@ export function SettingsPage() {
       await window.ipcRenderer.invoke('stop-server');
       setServerRunning(false);
       toast.success('Server stopped');
-    } catch (e: any) {
-      toast.error('Failed to stop server: ' + e.message);
+    } catch (e) {
+      toast.error('Failed to stop server: ' + (e as Error).message);
     }
   };
 
@@ -113,8 +116,8 @@ export function SettingsPage() {
       setServerRunning(true);
       setNameChanged(false);
       toast.success('Server restarted');
-    } catch (e: any) {
-      toast.error('Failed to restart server: ' + e.message);
+    } catch (e) {
+      toast.error('Failed to restart server: ' + (e as Error).message);
     }
   };
 
@@ -122,20 +125,21 @@ export function SettingsPage() {
     try {
       await window.ipcRenderer.invoke('refresh-discovery');
       toast.success('Discovery refreshed');
-    } catch (e: any) {
-      toast.error('Failed to refresh: ' + e.message);
+    } catch (e) {
+      toast.error('Failed to refresh: ' + (e as Error).message);
     }
   };
 
   const handleSelectFolder = async () => {
     try {
-      const result = await window.ipcRenderer.invoke('select-save-folder');
+      const res = await window.ipcRenderer.invoke('select-save-folder');
+      const result = res as { path: string };
       if (result && result.path) {
         setSaveToFolder(result.path);
         toast.success('Save folder updated');
       }
-    } catch (e: any) {
-      toast.error('Failed to select folder: ' + e.message);
+    } catch (e) {
+      toast.error('Failed to select folder: ' + (e as Error).message);
     }
   };
 
@@ -152,7 +156,10 @@ export function SettingsPage() {
           <div className="space-y-1">
             <div className="flex items-center justify-between p-3 rounded-xl hover:bg-muted/50 transition-colors">
               <span className="text-sm font-medium">Theme</span>
-              <Select value={theme} onValueChange={(v) => setTheme(v as any)}>
+              <Select
+                value={theme}
+                onValueChange={(v) => setTheme(v as 'light' | 'dark' | 'system')}
+              >
                 <SelectTrigger className="w-[140px] bg-muted/50 border-none rounded-lg h-9">
                   <SelectValue placeholder="Select theme" />
                 </SelectTrigger>
@@ -166,7 +173,7 @@ export function SettingsPage() {
 
             <div className="flex items-center justify-between p-3 rounded-xl hover:bg-muted/50 transition-colors">
               <span className="text-sm font-medium">Color</span>
-              <Select value={colorTheme} onValueChange={(v) => setColorTheme(v as any)}>
+              <Select value={colorTheme} onValueChange={(v) => setColorTheme(v as string)}>
                 <SelectTrigger className="w-[140px] bg-muted/50 border-none rounded-lg h-9">
                   <SelectValue placeholder="Select color" />
                 </SelectTrigger>

@@ -69,14 +69,14 @@ export function SendPage() {
   // Discovery Worker: Syncs the UI with the background network scanner
   useEffect(() => {
     // Initial fetch of already known devices
-    window.ipcRenderer.invoke('get-nearby-nodes').then((nodes: NearbyNode[]) => {
-      setDevices(nodes);
+    window.ipcRenderer.invoke('get-nearby-nodes').then((nodes) => {
+      setDevices(nodes as NearbyNode[]);
     });
 
     // Event listener for real-time subnet updates from Electron main process
     const removeListener = window.ipcRenderer.on(
       'nearby-nodes-updated',
-      (_event: any, nodes: NearbyNode[]) => {
+      (_, nodes: NearbyNode[]) => {
         setDevices(nodes);
       }
     );
@@ -118,8 +118,11 @@ export function SendPage() {
   // Native File Picker Strategy: Triggers OS-native dialog via IPC for cross-platform support
   const handleFilePick = async () => {
     try {
-      const items: { path: string; name: string; size: number }[] =
-        await window.ipcRenderer.invoke('share-files');
+      const items = (await window.ipcRenderer.invoke('share-files')) as {
+        path: string;
+        name: string;
+        size: number;
+      }[];
       if (items && items.length > 0) {
         // Map native paths to internal Selection Schema
         const newItems: SelectedItem[] = items.map((item) => ({
@@ -140,8 +143,11 @@ export function SendPage() {
   // Folder Picker Integration: Allows selecting entire directories (handled recursively by backend)
   const handleFolderPick = async () => {
     try {
-      const items: { path: string; name: string; size: number }[] =
-        await window.ipcRenderer.invoke('share-folders');
+      const items = (await window.ipcRenderer.invoke('share-folders')) as {
+        path: string;
+        name: string;
+        size: number;
+      }[];
       if (items && items.length > 0) {
         const newItems: SelectedItem[] = items.map((item) => ({
           id: `${item.path}-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
@@ -174,7 +180,7 @@ export function SendPage() {
       } else {
         toast.error('Clipboard is empty or does not contain text');
       }
-    } catch (e) {
+    } catch {
       toast.error('Failed to read clipboard');
     }
   };
@@ -212,7 +218,7 @@ export function SendPage() {
         deviceIp: device.ip,
         items: selectedItems,
       });
-    } catch (e) {
+    } catch {
       toast.error('Failed to initiate pairing.', { id: 'pairing' });
     }
   };

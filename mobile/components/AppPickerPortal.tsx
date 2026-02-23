@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { StyleSheet, View, ScrollView, Platform } from 'react-native';
+import { StyleSheet, View, ScrollView } from 'react-native';
 import {
   Text,
   IconButton,
@@ -178,7 +178,7 @@ const AppPickerPortal = ({ visible, onDismiss, onSelectApps }: AppPickerPortalPr
                     />
                     <Text variant="bodySmall" style={styles.infoText}>
                       Tip: You can also share any installed app by long-pressing its icon on the
-                      home screen and choosing 'Share' {'→'} 'ExLink'.
+                      home screen and choosing {"'Share' → 'ExLink'."}
                     </Text>
                   </View>
                 </Card.Content>

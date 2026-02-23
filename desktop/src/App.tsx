@@ -27,39 +27,44 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 
 // Main entry point for the Desktop application, managing core application state, IPC communication, and layout
+// Main entry point for the Desktop application, managing core application state, IPC communication, and layout
+interface ConnectionRequest {
+  deviceId: string;
+  name: string;
+  platform: string;
+  brand?: string;
+  totalFiles?: number;
+  totalSize?: number;
+  files?: Array<{ name: string; size: number; type?: string }>;
+}
+
+interface DeviceInfo {
+  deviceId: string;
+  name: string;
+  platform: string;
+  os?: string;
+  brand?: string;
+  ip?: string;
+  status?: 'waiting' | 'declined' | 'error';
+}
+
 function App() {
   // Navigation State: Controls which main view is currently visible
   const [activeTab, setActiveTab] = useState<'receive' | 'send' | 'settings'>('receive');
-  const [pendingRequest, setPendingRequest] = useState<{
-    deviceId: string;
-    name: string;
-    platform: string;
-    brand?: string;
-    totalFiles?: number;
-    totalSize?: number;
-    files?: Array<{ name: string; size: number; type?: string }>;
-  } | null>(null);
+  const [pendingRequest, setPendingRequest] = useState<ConnectionRequest | null>(null);
   const [isOptionsOpen, setIsOptionsOpen] = useState(false);
-  const [waitingFor, setWaitingFor] = useState<{
-    deviceId: string;
-    name: string;
-    platform: string;
-    os?: string;
-    brand?: string;
-    ip?: string;
-    status?: 'waiting' | 'declined' | 'error';
-  } | null>(null);
+  const [waitingFor, setWaitingFor] = useState<DeviceInfo | null>(null);
   const [localInfo, setLocalInfo] = useState<{ name: string; id: string; os: string } | null>(null);
   const [isCancelConfirmOpen, setIsCancelConfirmOpen] = useState(false);
   const [savePath, setSavePath] = useState('');
   const [transferStartTime, setTransferStartTime] = useState<number | null>(null);
   const [transferDuration, setTransferDuration] = useState(0);
   useEffect(() => {
-    window.ipcRenderer.invoke('get-upload-dir').then(setSavePath);
+    window.ipcRenderer.invoke('get-upload-dir').then((dir) => setSavePath(dir as string));
   }, []);
 
   // Transfer Lifecycle State: Tracks sending/receiving progress, metrics, and terminal states
-  const [transferData, setTransferData] = useState<{
+  interface TransferData {
     type: 'sending' | 'receiving';
     status: 'transferring' | 'completed' | 'error';
     errorMsg?: string;
@@ -82,7 +87,9 @@ function App() {
       deviceId: string;
       ip?: string;
     };
-  } | null>(null);
+  }
+
+  const [transferData, setTransferData] = useState<TransferData | null>(null);
   const [currentSpeed, setCurrentSpeed] = useState(0);
   const currentSpeedRef = useRef(0);
   const [showAdvanced, setShowAdvanced] = useState(false);
@@ -90,7 +97,7 @@ function App() {
   const prevBytesRef = useRef(0);
   const completedFilesBytesRef = useRef(0); // Aggregate session bytes
   const completedFilesCountRef = useRef(0); // Aggregate session file count
-  const speedIntervalRef = useRef<any>(null);
+  const speedIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const speedsRef = useRef<number[]>([]);
 
   const { selectedItems, clearSelection } = useSelection();
@@ -105,79 +112,56 @@ function App() {
 
   // Performance Monitor Hook: Tracks transfer duration and calculates real-time throughput
   useEffect(() => {
-    let interval: any;
-    if (transferData && transferData.status === 'transferring') {
+    let durationInterval: ReturnType<typeof setInterval> | undefined;
+
+    if (transferData?.status === 'transferring') {
       // Mark start time if not already set to track total duration
+      const startTime = transferStartTime || Date.now();
       if (!transferStartTime) {
-        setTransferStartTime(Date.now());
+        setTransferStartTime(startTime);
       }
 
       // Secondary clock for UI duration display
-      interval = setInterval(() => {
-        if (transferStartTime) {
-          setTransferDuration(Math.floor((Date.now() - transferStartTime) / 1000));
-        }
+      durationInterval = setInterval(() => {
+        setTransferDuration(Math.floor((Date.now() - startTime) / 1000));
       }, 1000);
 
       // Speed calculation logic: derives B/s by sampling delta bytes every second
-      prevBytesRef.current = lastProcessedRef.current;
-      speedsRef.current = [];
-      speedIntervalRef.current = setInterval(() => {
-        const current = lastProcessedRef.current;
-        const diff = current - prevBytesRef.current;
-        const speed = Math.max(0, diff);
-
-        // Smoothing: Moving average of the last 3 samples to reduce jitter
-        speedsRef.current.push(speed);
-        if (speedsRef.current.length > 3) speedsRef.current.shift();
-
-        const avgSpeed = speedsRef.current.reduce((a, b) => a + b, 0) / speedsRef.current.length;
-        setCurrentSpeed(avgSpeed);
-        currentSpeedRef.current = avgSpeed; // Store in ref for immediate access in nested callbacks
-
-        prevBytesRef.current = current;
-      }, 1000);
-    } else if (transferData && transferData.status === 'completed') {
-      setCurrentSpeed(0);
-    } else {
-      // Cleanup states when idle or on error
-      setTransferStartTime(null);
-      setTransferDuration(0);
-      setCurrentSpeed(0);
-    }
-    return () => {
-      clearInterval(interval);
-    };
-  }, [transferData?.status, transferStartTime]);
-
-  useEffect(() => {
-    if (transferData && transferData.status === 'transferring') {
       if (!speedIntervalRef.current) {
         prevBytesRef.current = lastProcessedRef.current;
+        speedsRef.current = [];
         speedIntervalRef.current = setInterval(() => {
           const current = lastProcessedRef.current;
           const diff = current - prevBytesRef.current;
           const speed = Math.max(0, diff);
 
+          // Smoothing: Moving average of the last 3 samples to reduce jitter
           speedsRef.current.push(speed);
           if (speedsRef.current.length > 3) speedsRef.current.shift();
 
           const avgSpeed = speedsRef.current.reduce((a, b) => a + b, 0) / speedsRef.current.length;
           setCurrentSpeed(avgSpeed);
+          currentSpeedRef.current = avgSpeed; // Store in ref for immediate access in nested callbacks
 
           prevBytesRef.current = current;
         }, 1000);
       }
     } else {
+      // Cleanup states when idle or on error
       if (speedIntervalRef.current) {
         clearInterval(speedIntervalRef.current);
         speedIntervalRef.current = null;
       }
+      setTransferStartTime(null);
+      setTransferDuration(0);
       setCurrentSpeed(0);
+      currentSpeedRef.current = 0;
     }
+
     return () => {
-      // Don't clear here, let it run as long as status is transferring
+      if (durationInterval) clearInterval(durationInterval);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [transferData?.status]);
 
   const formatDuration = (seconds: number) => {
@@ -189,7 +173,8 @@ function App() {
   // IPC Communication Layer: Connects React frontend events to the Electron Main process backend
   useEffect(() => {
     // Initial identity fetch: populate local PC identifiers (Name, IP, OS)
-    window.ipcRenderer.invoke('get-server-info').then((info) => {
+    window.ipcRenderer.invoke('get-server-info').then((res) => {
+      const info = res as { name: string; id: string; os: string };
       setLocalInfo({
         name: info.name,
         id: info.id,
@@ -198,17 +183,14 @@ function App() {
     });
 
     // Listener for incoming pairing requests from mobile/other stations
-    const removeReqListener = window.ipcRenderer.on(
-      'connection-request',
-      (_event: any, req: any) => {
-        setPendingRequest(req);
-      }
-    );
+    const removeReqListener = window.ipcRenderer.on('connection-request', (_, req: unknown) => {
+      setPendingRequest(req as ConnectionRequest);
+    });
 
     // Flow for when a remote device answers our pairing attempt
     const removeResListener = window.ipcRenderer.on(
       'pairing-response',
-      (_event: any, { accepted }: { accepted: boolean }) => {
+      (_event, { accepted }: { accepted: boolean }) => {
         if (waitingFor && accepted) {
           // Handshake Successful -> Signal backend to start HTTP file pushing
           window.ipcRenderer.invoke('start-transfer', {
@@ -252,30 +234,44 @@ function App() {
     // Sync UI with backend initiation events (important for cross-window sync)
     const removeStartListener = window.ipcRenderer.on(
       'pairing-initiated-ui',
-      (_event: any, req: any) => {
-        setWaitingFor({ ...req, ip: req.deviceIp });
+      (_, req: { deviceIp: string; [key: string]: unknown }) => {
+        setWaitingFor({ ...req, ip: req.deviceIp } as unknown as DeviceInfo);
       }
     );
 
     // Real-time progress packets from the active HTTP upload stream (Sending Mode)
     const removeProgressListener = window.ipcRenderer.on(
       'transfer-progress',
-      (_event: any, data: any) => {
+      (_, data: { processedBytes: number; [key: string]: unknown }) => {
         lastProcessedRef.current = data.processedBytes;
-        setTransferData((prev) => ({
-          ...prev,
-          ...data,
-          speed: currentSpeedRef.current, // Sync with our independent duration worker
-          type: prev?.type || 'sending',
-          status: 'transferring',
-        }));
+        setTransferData((prev) =>
+          prev
+            ? {
+                ...prev,
+                ...(data as Partial<TransferData>),
+                speed: currentSpeedRef.current, // Sync with our independent duration worker
+                type: prev.type || 'sending',
+                status: 'transferring' as const,
+              }
+            : null
+        );
       }
     );
 
     // Real-time progress packets from the active HTTP download server (Receiving Mode)
     const removeIncomingListener = window.ipcRenderer.on(
       'upload-progress',
-      (_event: any, data: any) => {
+      (
+        _,
+        data: {
+          processedBytes: number;
+          id: string;
+          remoteIp?: string;
+          totalBytes: number;
+          progress: number;
+          currentFile?: string;
+        }
+      ) => {
         const totalSessionProcessed = completedFilesBytesRef.current + data.processedBytes;
         lastProcessedRef.current = totalSessionProcessed;
 
@@ -308,7 +304,7 @@ function App() {
 
     const removeErrorListener = window.ipcRenderer.on(
       'transfer-error',
-      (_event: any, data: any) => {
+      (_, data: { error?: string }) => {
         setTransferData((prev) =>
           prev
             ? {
@@ -328,7 +324,7 @@ function App() {
     // Milestone Event: One file in a batch successfully hit disk
     const removeUploadCompleteListener = window.ipcRenderer.on(
       'upload-complete',
-      (_event: any, data: any) => {
+      (_, data: { name: string; size: number; path: string }) => {
         completedFilesCountRef.current += 1;
         completedFilesBytesRef.current += data.size;
 
@@ -389,7 +385,14 @@ function App() {
       if (removeUploadCompleteListener) removeUploadCompleteListener();
       if (removeSessionCompleteListener) removeSessionCompleteListener();
     };
-  }, [waitingFor, selectedItems, clearSelection, pendingRequest, transferStartTime]);
+  }, [
+    waitingFor,
+    selectedItems,
+    clearSelection,
+    pendingRequest,
+    transferStartTime,
+    transferData?.remoteDevice?.name,
+  ]);
 
   const respondToConnection = (accepted: boolean) => {
     if (pendingRequest) {
@@ -406,9 +409,9 @@ function App() {
           speed: 0,
           currentFile: 'Waiting for files...',
           currentIndex: 0,
-          totalFiles: (pendingRequest as any).totalFiles || 0,
+          totalFiles: pendingRequest.totalFiles || 0,
           processedBytes: 0,
-          totalBytes: (pendingRequest as any).totalSize || 0,
+          totalBytes: pendingRequest.totalSize || 0,
           remoteDevice: {
             name: pendingRequest.name,
             platform: pendingRequest.platform,
@@ -454,7 +457,7 @@ function App() {
           {tabs.map((tab) => (
             <button
               key={tab.id}
-              onClick={() => setActiveTab(tab.id as any)}
+              onClick={() => setActiveTab(tab.id as 'receive' | 'send' | 'settings')}
               className={cn(
                 'flex items-center gap-2 px-6 py-1.5 text-xs font-semibold rounded-full transition-all duration-300',
                 activeTab === tab.id

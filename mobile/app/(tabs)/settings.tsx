@@ -9,12 +9,10 @@ import {
   Button,
   TextInput,
   Switch,
-  IconButton,
 } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTheme as useAppTheme, ColorTheme } from '@/hooks/useTheme';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { uniqueNamesGenerator, adjectives, animals } from 'unique-names-generator';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as DocumentPicker from 'expo-document-picker';
@@ -173,7 +171,7 @@ export default function SettingsScreen() {
       }
     };
     checkFirstRun();
-  }, []);
+  }, [saveToFolderPath]);
 
   const [themeMenuVisible, setThemeMenuVisible] = useState(false);
   const [colorMenuVisible, setColorMenuVisible] = useState(false);

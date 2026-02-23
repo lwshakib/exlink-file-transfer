@@ -101,13 +101,51 @@ function loadUploadDir() {
 }
 loadUploadDir();
 
+interface NearbyNode {
+  type: string;
+  id: string;
+  name: string;
+  ip: string;
+  port: number;
+  platform: string;
+  os: string;
+  lastSeen: number;
+  brand?: string;
+}
+
+interface PendingConnection {
+  res: Response;
+  name: string;
+  deviceId: string;
+  platform: string;
+  brand?: string;
+  totalFiles: number;
+  totalSize: number;
+  files: FileItem[];
+  timestamp: number;
+}
+
+interface OutgoingRequest {
+  deviceId: string;
+  deviceIp?: string;
+  timestamp: number;
+  files?: FileItem[];
+}
+
+interface FileItem {
+  name: string;
+  path: string;
+  size: number;
+  type?: string;
+}
+
 // State Management
 const activeRequests = new Map<string, Request>();
-const nearbyNodes = new Map<string, any>();
-const pendingConnections = new Map<string, any>();
-const outgoingRequests = new Map<string, any>();
-const activeTransfers = new Map<string, { controller: AbortController; files: any[] }>();
-const pendingDownloads = new Map<string, { files: any[]; timestamp: number }>();
+const nearbyNodes = new Map<string, NearbyNode>();
+const pendingConnections = new Map<string, PendingConnection>();
+const outgoingRequests = new Map<string, OutgoingRequest>();
+const activeTransfers = new Map<string, { controller: AbortController; files: FileItem[] }>();
+const pendingDownloads = new Map<string, { files: FileItem[]; timestamp: number }>();
 let serverRunning = true;
 let httpServer: http.Server | null = null;
 let udpBroadcastInterval: NodeJS.Timeout | null = null;
@@ -118,7 +156,7 @@ const udpSocket = dgram.createSocket('udp4');
 udpSocket.on('error', (err) => console.log(`UDP error:\n${err.stack}`));
 
 // Listener: Parses incoming identity packets and updates the Discovered Devices map
-udpSocket.on('message', (msg, _rinfo) => {
+udpSocket.on('message', (msg) => {
   try {
     const data = JSON.parse(msg.toString());
     // Filter: Ignore packets from ourselves
@@ -127,7 +165,9 @@ udpSocket.on('message', (msg, _rinfo) => {
       // Notify Renderer to update the "Nearby Devices" UI list
       win?.webContents.send('nearby-nodes-updated', Array.from(nearbyNodes.values()));
     }
-  } catch (e) {}
+  } catch (e) {
+    console.error('Failed to parse discovery packet:', e);
+  }
 });
 
 udpSocket.bind(DISCOVERY_PORT, () => {
@@ -194,7 +234,7 @@ serverApp.post('/upload', (req: Request, res: Response) => {
   const THROTTLE_MS = 100; // Limits IPC packet frequency to 10Hz to prevent UI lockup
 
   // Progress tracking via raw socket data events (more granular than busboy chunks)
-  req.on('data', (chunk) => {
+  req.on('data', (chunk: Buffer) => {
     receivedBytes += chunk.length;
     const now = Date.now();
     if (win && (now - lastUpdateTime > THROTTLE_MS || receivedBytes === totalSize)) {
@@ -248,7 +288,7 @@ serverApp.post('/upload', (req: Request, res: Response) => {
     if (!res.headersSent) res.json({ status: 'ok' });
   });
 
-  bb.on('error', (err: any) => {
+  bb.on('error', (err: Error) => {
     activeRequests.delete(transferId);
     if (win) win.webContents.send('upload-error', { id: transferId, error: err.message });
     if (!res.headersSent) res.status(500).json({ error: err.message });
@@ -401,7 +441,10 @@ serverApp.get('/cancel-pairing/:deviceId', (req, res) => {
     win?.webContents.send('pairing-cancelled', { deviceId });
     try {
       pending.res.status(499).json({ status: 'cancelled' });
-    } catch (e) {}
+    } catch (e) {
+      // Ignore errors if the response was already ended or closed
+      console.log('Error sending pairing cancellation response:', e);
+    }
     pendingConnections.delete(deviceId);
   }
 
@@ -679,7 +722,7 @@ ipcMain.handle('initiate-pairing', async (_event, { deviceId, deviceIp, items })
       clearTimeout(timeout);
 
       if (res.ok) {
-        const data: any = await res.json();
+        const data = (await res.json()) as { status: string };
         if (data.status === 'accepted') {
           win?.webContents.send('pairing-response', { deviceId, accepted: true });
         } else if (data.status === 'declined') {
@@ -727,7 +770,7 @@ ipcMain.handle('start-transfer', async (_event, { deviceId, deviceIp, platform, 
   }
 
   // Handle Desktop Target: Iterate through files and PUSH them via individual POST streams
-  const totalBytes = items.reduce((acc: number, item: any) => acc + (item.size || 0), 0);
+  const totalBytes = items.reduce((acc: number, item: FileItem) => acc + (item.size || 0), 0);
   let processedBytes = 0;
 
   try {
@@ -742,7 +785,11 @@ ipcMain.handle('start-transfer', async (_event, { deviceId, deviceIp, platform, 
 
       // Stream Transformer: Calculates progress for the UI while data flows from disk to network
       const progressTracker = new Transform({
-        transform(chunk: Buffer, _encoding: BufferEncoding, callback: any) {
+        transform(
+          chunk: Buffer,
+          _encoding: BufferEncoding,
+          callback: (error?: Error | null, data?: unknown) => void
+        ) {
           fileProcessed += chunk.length;
           const currentTotalProcessed = processedBytes + fileProcessed;
           const now = Date.now();
@@ -789,10 +836,10 @@ ipcMain.handle('start-transfer', async (_event, { deviceId, deviceIp, platform, 
           'x-transfer-id': deviceId,
           'Content-Type': `multipart/form-data; boundary=${boundary}`,
         },
-        body: combinedStream as any,
+        body: combinedStream as unknown as BodyInit,
         duplex: 'half',
         signal: controller.signal,
-      } as any);
+      } as unknown as RequestInit);
 
       if (!response.ok) throw new Error(`Failed to upload ${fileName}`);
       processedBytes += fileSize;
@@ -801,9 +848,10 @@ ipcMain.handle('start-transfer', async (_event, { deviceId, deviceIp, platform, 
     // Success: Notify UI that the entire batch is complete
     win?.webContents.send('transfer-complete', { deviceId });
     activeTransfers.delete(deviceId);
-  } catch (e: any) {
-    if (e.name !== 'AbortError') {
-      win?.webContents.send('transfer-error', { deviceId, error: e.message });
+  } catch (e) {
+    const error = e as Error;
+    if (error.name !== 'AbortError') {
+      win?.webContents.send('transfer-error', { deviceId, error: error.message });
     }
     activeTransfers.delete(deviceId);
   }

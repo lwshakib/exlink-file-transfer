@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useRef, useMemo, useEffect } from 'react';
-import { StyleSheet, View, ScrollView, Platform, Dimensions, Image as RNImage } from 'react-native';
+import { StyleSheet, View, ScrollView, Platform, Image as RNImage } from 'react-native';
 import {
   Text,
   IconButton,
@@ -13,11 +13,10 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
-import * as ImagePicker from 'expo-image-picker';
-import * as Clipboard from 'expo-clipboard';
-import * as Network from 'expo-network';
+import * as ExpoImagePicker from 'expo-image-picker';
+import * as ExpoClipboard from 'expo-clipboard';
 import { BottomSheetModal, BottomSheetView, BottomSheetBackdrop } from '@gorhom/bottom-sheet';
-import { useRouter } from 'expo-router';
+
 import { useSelection, SelectedItem } from '@/hooks/useSelection';
 import SelectionDetailsPortal from '@/components/SelectionDetailsPortal';
 import SendingPortal from '@/components/SendingPortal';
@@ -26,20 +25,17 @@ import * as FileSystem from 'expo-file-system/legacy';
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useDiscoveryStore, NearbyDevice } from '@/store/useDiscoveryStore';
-import { useSettingsStore } from '@/store/useSettingsStore';
 
 // Main interface for selecting documents, resolving targets, and initiating transfers
 export default function SendScreen() {
   // Global hooks integrating router and UI styling
   const theme = useTheme();
-  const router = useRouter();
 
   // Custom hook bringing out universal actions operating across the shared queue
   const { selectedItems, addItems, clearSelection, totalSize } = useSelection();
 
   // Settings Store
-  const deviceName = useSettingsStore((state) => state.deviceName);
-  const deviceId = useSettingsStore((state) => state.deviceId);
+  // Removed unused deviceName and deviceId
 
   // Discovery Store
   const nearbyDevices = useDiscoveryStore((state) => state.nearbyDevices);
@@ -78,7 +74,7 @@ export default function SendScreen() {
       if (stored) {
         setFavoriteIds(JSON.parse(stored));
       }
-    } catch (e) {}
+    } catch {}
   };
 
   const toggleFavorite = async (deviceId: string) => {
@@ -89,7 +85,7 @@ export default function SendScreen() {
 
       setFavoriteIds(nextFavorites);
       await AsyncStorage.setItem('favoriteDeviceIds', JSON.stringify(nextFavorites));
-    } catch (e) {}
+    } catch {}
   };
 
   const sortedDevices = useMemo(() => {
@@ -167,7 +163,7 @@ export default function SendScreen() {
 
   const handleMediaPick = async () => {
     try {
-      const result = await ImagePicker.launchImageLibraryAsync({
+      const result = await ExpoImagePicker.launchImageLibraryAsync({
         mediaTypes: ['images', 'videos'],
         allowsMultipleSelection: true,
       });
@@ -190,7 +186,7 @@ export default function SendScreen() {
   };
 
   const handlePaste = async () => {
-    const text = await Clipboard.getStringAsync();
+    const text = await ExpoClipboard.getStringAsync();
     if (text) {
       const newItem: SelectedItem = {
         id: `paste-${Date.now()}`,
