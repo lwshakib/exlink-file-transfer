@@ -19,7 +19,7 @@ export interface AppSettings {
   // File Transfer Settings
   saveToFolderPath: string | null;
   saveMediaToGallery: boolean;
-  
+
   // History
   transferHistory: HistoryItem[];
 
@@ -38,8 +38,10 @@ interface AppSettingsStore extends AppSettings {
   addHistoryItem: (item: HistoryItem) => void;
   clearHistory: () => void;
   setColorScheme: (scheme: 'system' | 'light' | 'dark') => void;
-  setSelectedColor: (color: 'ExLink' | 'Emerald' | 'Violet' | 'Blue' | 'Amber' | 'Rose' | 'Random') => void;
-  
+  setSelectedColor: (
+    color: 'ExLink' | 'Emerald' | 'Violet' | 'Blue' | 'Amber' | 'Rose' | 'Random'
+  ) => void;
+
   // Utility
   reset: () => void;
 }
@@ -65,13 +67,15 @@ export const useSettingsStore = create<AppSettingsStore>()(
       setServerRunning: (running: boolean) => set({ serverRunning: running }),
       setSaveToFolderPath: (path: string | null) => set({ saveToFolderPath: path }),
       setSaveMediaToGallery: (save: boolean) => set({ saveMediaToGallery: save }),
-      addHistoryItem: (item: HistoryItem) => set((state) => ({ 
-        transferHistory: [...state.transferHistory, item].slice(-100) // Keep last 100 items
-      })),
+      addHistoryItem: (item: HistoryItem) =>
+        set((state) => ({
+          transferHistory: [...state.transferHistory, item].slice(-100), // Keep last 100 items
+        })),
       clearHistory: () => set({ transferHistory: [] }),
       setColorScheme: (scheme: 'system' | 'light' | 'dark') => set({ colorScheme: scheme }),
-      setSelectedColor: (color: 'ExLink' | 'Emerald' | 'Violet' | 'Blue' | 'Amber' | 'Rose' | 'Random') => 
-        set({ selectedColor: color }),
+      setSelectedColor: (
+        color: 'ExLink' | 'Emerald' | 'Violet' | 'Blue' | 'Amber' | 'Rose' | 'Random'
+      ) => set({ selectedColor: color }),
 
       reset: () => set(initialSettings),
     }),

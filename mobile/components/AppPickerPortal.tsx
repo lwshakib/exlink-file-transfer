@@ -1,10 +1,21 @@
-import React, { useState, useMemo } from "react";
-import { StyleSheet, View, ScrollView, Platform } from "react-native";
-import { Text, IconButton, useTheme, Card, Button, Modal, Portal, Searchbar, List, Checkbox } from "react-native-paper";
-import { MaterialCommunityIcons } from "@expo/vector-icons";
-import * as DocumentPicker from "expo-document-picker";
-import { SelectedItem } from "@/hooks/useSelection";
-import { SafeAreaView } from "react-native-safe-area-context";
+import React, { useState, useMemo } from 'react';
+import { StyleSheet, View, ScrollView, Platform } from 'react-native';
+import {
+  Text,
+  IconButton,
+  useTheme,
+  Card,
+  Button,
+  Modal,
+  Portal,
+  Searchbar,
+  List,
+  Checkbox,
+} from 'react-native-paper';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+import * as DocumentPicker from 'expo-document-picker';
+import { SelectedItem } from '@/hooks/useSelection';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 interface AppPickerPortalProps {
   visible: boolean;
@@ -14,40 +25,39 @@ interface AppPickerPortalProps {
 
 // Mock data for demonstration when we can't get real apps
 const MOCK_APPS = [
-  { name: "Camera", packageName: "com.android.camera", icon: "camera" },
-  { name: "Settings", packageName: "com.android.settings", icon: "cog" },
-  { name: "Browser", packageName: "com.android.chrome", icon: "google-chrome" },
-  { name: "Photos", packageName: "com.google.android.apps.photos", icon: "image-multiple" },
+  { name: 'Camera', packageName: 'com.android.camera', icon: 'camera' },
+  { name: 'Settings', packageName: 'com.android.settings', icon: 'cog' },
+  { name: 'Browser', packageName: 'com.android.chrome', icon: 'google-chrome' },
+  { name: 'Photos', packageName: 'com.google.android.apps.photos', icon: 'image-multiple' },
 ];
 
 const AppPickerPortal = ({ visible, onDismiss, onSelectApps }: AppPickerPortalProps) => {
   const theme = useTheme();
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchQuery, setSearchQuery] = useState('');
   const [selectedPackages, setSelectedPackages] = useState<string[]>([]);
 
   const filteredApps = useMemo(() => {
-    return MOCK_APPS.filter(app => 
-      app.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-      app.packageName.toLowerCase().includes(searchQuery.toLowerCase())
+    return MOCK_APPS.filter(
+      (app) =>
+        app.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        app.packageName.toLowerCase().includes(searchQuery.toLowerCase())
     );
   }, [searchQuery]);
 
   const toggleAppSelection = (packageName: string) => {
-    setSelectedPackages(prev => 
-      prev.includes(packageName) 
-        ? prev.filter(p => p !== packageName) 
-        : [...prev, packageName]
+    setSelectedPackages((prev) =>
+      prev.includes(packageName) ? prev.filter((p) => p !== packageName) : [...prev, packageName]
     );
   };
 
   const handlePickAPK = async () => {
     try {
       const result = await DocumentPicker.getDocumentAsync({
-        type: ["application/vnd.android.package-archive"],
+        type: ['application/vnd.android.package-archive'],
         multiple: true,
       });
       if (!result.canceled) {
-        const newItems: SelectedItem[] = result.assets.map(asset => ({
+        const newItems: SelectedItem[] = result.assets.map((asset) => ({
           id: asset.uri,
           name: asset.name,
           size: asset.size || 0,
@@ -58,7 +68,7 @@ const AppPickerPortal = ({ visible, onDismiss, onSelectApps }: AppPickerPortalPr
         onDismiss();
       }
     } catch (err) {
-      console.error("Error picking app:", err);
+      console.error('Error picking app:', err);
     }
   };
 
@@ -66,7 +76,9 @@ const AppPickerPortal = ({ visible, onDismiss, onSelectApps }: AppPickerPortalPr
     // In a real app with a native module, we would get the APK path here.
     // For this demonstration, we'll inform the user.
     if (selectedPackages.length > 0) {
-        alert("Installed app sharing requires a native module (e.g., react-native-get-installed-apps). For now, please use 'Pick APK from Storage' or Share the app from your home screen.");
+      alert(
+        "Installed app sharing requires a native module (e.g., react-native-get-installed-apps). For now, please use 'Pick APK from Storage' or Share the app from your home screen."
+      );
     }
   };
 
@@ -77,20 +89,22 @@ const AppPickerPortal = ({ visible, onDismiss, onSelectApps }: AppPickerPortalPr
         onDismiss={onDismiss}
         contentContainerStyle={[
           styles.modalContainer,
-          { backgroundColor: theme.colors.background }
+          { backgroundColor: theme.colors.background },
         ]}
       >
         <SafeAreaView style={styles.safeArea} edges={['bottom']}>
           <View style={styles.container}>
             <View style={styles.header}>
               <IconButton icon="arrow-left" onPress={onDismiss} />
-              <Text variant="headlineSmall" style={styles.title}>Select Apps</Text>
+              <Text variant="headlineSmall" style={styles.title}>
+                Select Apps
+              </Text>
             </View>
 
             <View style={styles.topActions}>
-              <Button 
-                mode="contained" 
-                icon="folder-open" 
+              <Button
+                mode="contained"
+                icon="folder-open"
                 onPress={handlePickAPK}
                 style={styles.apkButton}
               >
@@ -106,14 +120,16 @@ const AppPickerPortal = ({ visible, onDismiss, onSelectApps }: AppPickerPortalPr
             />
 
             <ScrollView contentContainerStyle={styles.listContent}>
-              <Text variant="labelLarge" style={styles.sectionLabel}>Installed Apps (Simplified List)</Text>
+              <Text variant="labelLarge" style={styles.sectionLabel}>
+                Installed Apps (Simplified List)
+              </Text>
               {filteredApps.map((app) => (
                 <List.Item
                   key={app.packageName}
                   title={app.name}
                   description={app.packageName}
-                  left={props => <List.Icon {...props} icon={app.icon as any} />}
-                  right={props => (
+                  left={(props) => <List.Icon {...props} icon={app.icon as any} />}
+                  right={(props) => (
                     <Checkbox
                       status={selectedPackages.includes(app.packageName) ? 'checked' : 'unchecked'}
                       onPress={() => toggleAppSelection(app.packageName)}
@@ -122,13 +138,18 @@ const AppPickerPortal = ({ visible, onDismiss, onSelectApps }: AppPickerPortalPr
                   onPress={() => toggleAppSelection(app.packageName)}
                 />
               ))}
-              
+
               <Card style={styles.infoCard} mode="contained">
                 <Card.Content>
                   <View style={styles.infoRow}>
-                    <MaterialCommunityIcons name="information-outline" size={24} color={theme.colors.primary} />
+                    <MaterialCommunityIcons
+                      name="information-outline"
+                      size={24}
+                      color={theme.colors.primary}
+                    />
                     <Text variant="bodySmall" style={styles.infoText}>
-                      Tip: You can also share any installed app by long-pressing its icon on the home screen and choosing 'Share' {'→'} 'ExLink'.
+                      Tip: You can also share any installed app by long-pressing its icon on the
+                      home screen and choosing 'Share' {'→'} 'ExLink'.
                     </Text>
                   </View>
                 </Card.Content>
@@ -136,8 +157,8 @@ const AppPickerPortal = ({ visible, onDismiss, onSelectApps }: AppPickerPortalPr
             </ScrollView>
 
             <View style={styles.footer}>
-              <Button 
-                mode="contained" 
+              <Button
+                mode="contained"
                 onPress={handleConfirm}
                 disabled={selectedPackages.length === 0}
                 style={styles.confirmButton}
@@ -164,8 +185,8 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   header: {
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingTop: 8,
   },
   title: {
@@ -195,8 +216,8 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.05)',
   },
   infoRow: {
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   infoText: {
     marginLeft: 12,

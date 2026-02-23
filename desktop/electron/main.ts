@@ -1,52 +1,54 @@
-import { app, BrowserWindow, ipcMain, shell, dialog } from 'electron'
-import { fileURLToPath } from 'node:url'
-import path from 'node:path'
-import express, { Request, Response } from 'express'
-import cors from 'cors'
-import fs from 'node:fs'
-import os from 'node:os'
-import dgram from 'node:dgram'
-import http from 'node:http'
-import { uniqueNamesGenerator, adjectives, animals } from 'unique-names-generator'
-import { Transform, PassThrough } from 'node:stream'
+import { app, BrowserWindow, ipcMain, shell, dialog } from 'electron';
+import { fileURLToPath } from 'node:url';
+import path from 'node:path';
+import express, { Request, Response } from 'express';
+import cors from 'cors';
+import fs from 'node:fs';
+import os from 'node:os';
+import dgram from 'node:dgram';
+import http from 'node:http';
+import { uniqueNamesGenerator, adjectives, animals } from 'unique-names-generator';
+import { Transform, PassThrough } from 'node:stream';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url))
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // The built directory structure
-process.env.APP_ROOT = path.join(__dirname, '..')
+process.env.APP_ROOT = path.join(__dirname, '..');
 
-export const VITE_DEV_SERVER_URL = process.env['VITE_DEV_SERVER_URL']
-export const MAIN_DIST = path.join(process.env.APP_ROOT, 'dist-electron')
-export const RENDERER_DIST = path.join(process.env.APP_ROOT, 'dist')
+export const VITE_DEV_SERVER_URL = process.env['VITE_DEV_SERVER_URL'];
+export const MAIN_DIST = path.join(process.env.APP_ROOT, 'dist-electron');
+export const RENDERER_DIST = path.join(process.env.APP_ROOT, 'dist');
 
-process.env.VITE_PUBLIC = VITE_DEV_SERVER_URL ? path.join(process.env.APP_ROOT, 'public') : RENDERER_DIST
+process.env.VITE_PUBLIC = VITE_DEV_SERVER_URL
+  ? path.join(process.env.APP_ROOT, 'public')
+  : RENDERER_DIST;
 
-let win: BrowserWindow | null
-const HTTP_PORT = 3030
-const DISCOVERY_PORT = 41234
-const DISCOVERY_INTERVAL = 3000
+let win: BrowserWindow | null;
+const HTTP_PORT = 3030;
+const DISCOVERY_PORT = 41234;
+const DISCOVERY_INTERVAL = 3000;
 
 // Identity Persistence
-const configPath = path.join(app.getPath('userData'), 'server-config.json')
-let serverName = os.hostname()
+const configPath = path.join(app.getPath('userData'), 'server-config.json');
+let serverName = os.hostname();
 // Default to empty, will be populated from IP
-let serverId = "" 
+let serverId = '';
 
 function getServerIdFromIp() {
-  const ip = getLocalIPs()[0]
+  const ip = getLocalIPs()[0];
   if (ip && ip.includes('.')) {
-    const parts = ip.split('.')
-    return parts[parts.length - 1]
+    const parts = ip.split('.');
+    return parts[parts.length - 1];
   }
-  return "000"
+  return '000';
 }
 
 function loadConfig() {
   try {
     if (fs.existsSync(configPath)) {
-      const data = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
-      if (data.name) serverName = data.name
-      if (data.uploadDir) uploadDir = data.uploadDir
+      const data = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+      if (data.name) serverName = data.name;
+      if (data.uploadDir) uploadDir = data.uploadDir;
       // We don't persist serverId anymore as it depends on the current IP
     } else {
       // First run: generate friendly name
@@ -54,82 +56,82 @@ function loadConfig() {
         dictionaries: [adjectives, animals],
         length: 2,
         separator: ' ',
-        style: 'capital'
-      })
-      saveConfig()
+        style: 'capital',
+      });
+      saveConfig();
     }
     // Always calculate current ID from IP
-    serverId = getServerIdFromIp()
-    loadUploadDir()
+    serverId = getServerIdFromIp();
+    loadUploadDir();
   } catch (e) {
-    console.error('Failed to load config:', e)
+    console.error('Failed to load config:', e);
   }
 }
 
 function saveConfig() {
   try {
-    fs.writeFileSync(configPath, JSON.stringify({ name: serverName, id: serverId }))
+    fs.writeFileSync(configPath, JSON.stringify({ name: serverName, id: serverId }));
   } catch (e) {
-    console.error('Failed to save config:', e)
+    console.error('Failed to save config:', e);
   }
 }
 
 // Ensure identity is loaded immediately
 app.whenReady().then(() => {
-  loadConfig()
-})
+  loadConfig();
+});
 
 // File Storage Setup
-let uploadDir = path.join(os.homedir(), 'Downloads', 'ExLink')
+let uploadDir = path.join(os.homedir(), 'Downloads', 'ExLink');
 function loadUploadDir() {
   try {
     if (fs.existsSync(configPath)) {
-      const data = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+      const data = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
       if (data.uploadDir) {
-        uploadDir = data.uploadDir
+        uploadDir = data.uploadDir;
       }
     }
   } catch (e) {
-    console.error('Failed to load upload dir:', e)
+    console.error('Failed to load upload dir:', e);
   }
   if (!fs.existsSync(uploadDir)) {
-    fs.mkdirSync(uploadDir, { recursive: true })
+    fs.mkdirSync(uploadDir, { recursive: true });
   }
 }
-loadUploadDir()
+loadUploadDir();
 
 // State Management
-const activeRequests = new Map<string, Request>()
-const nearbyNodes = new Map<string, any>()
-const pendingConnections = new Map<string, any>()
-const outgoingRequests = new Map<string, any>()
-const activeTransfers = new Map<string, { controller: AbortController, files: any[] }>()
-const pendingDownloads = new Map<string, { files: any[], timestamp: number }>()
-let serverRunning = true
-let httpServer: http.Server | null = null
-let udpBroadcastInterval: NodeJS.Timeout | null = null
+const activeRequests = new Map<string, Request>();
+const nearbyNodes = new Map<string, any>();
+const pendingConnections = new Map<string, any>();
+const outgoingRequests = new Map<string, any>();
+const activeTransfers = new Map<string, { controller: AbortController; files: any[] }>();
+const pendingDownloads = new Map<string, { files: any[]; timestamp: number }>();
+let serverRunning = true;
+let httpServer: http.Server | null = null;
+let udpBroadcastInterval: NodeJS.Timeout | null = null;
 
 // --- Discovery Protocol (UDP) ---
-const udpSocket = dgram.createSocket('udp4')
-udpSocket.on('error', (err) => console.log(`UDP error:\n${err.stack}`))
+const udpSocket = dgram.createSocket('udp4');
+udpSocket.on('error', (err) => console.log(`UDP error:\n${err.stack}`));
 
 udpSocket.on('message', (msg, _rinfo) => {
   try {
-    const data = JSON.parse(msg.toString())
+    const data = JSON.parse(msg.toString());
     if (data.type === 'discovery' && data.ip !== getLocalIPs()[0]) {
-      nearbyNodes.set(data.id, { ...data, lastSeen: Date.now() })
-      win?.webContents.send('nearby-nodes-updated', Array.from(nearbyNodes.values()))
+      nearbyNodes.set(data.id, { ...data, lastSeen: Date.now() });
+      win?.webContents.send('nearby-nodes-updated', Array.from(nearbyNodes.values()));
     }
   } catch (e) {}
-})
+});
 
 udpSocket.bind(DISCOVERY_PORT, () => {
-  udpSocket.setBroadcast(true)
+  udpSocket.setBroadcast(true);
   const startBroadcast = () => {
-    if (udpBroadcastInterval) clearInterval(udpBroadcastInterval)
+    if (udpBroadcastInterval) clearInterval(udpBroadcastInterval);
     udpBroadcastInterval = setInterval(() => {
-      if (!serverRunning) return
-      const localIp = getLocalIPs()[0]
+      if (!serverRunning) return;
+      const localIp = getLocalIPs()[0];
       const message = JSON.stringify({
         type: 'discovery',
         id: serverId,
@@ -137,62 +139,64 @@ udpSocket.bind(DISCOVERY_PORT, () => {
         ip: localIp,
         port: HTTP_PORT,
         platform: 'desktop',
-        os: os.platform() === 'win32' ? 'Windows' : os.platform() === 'darwin' ? 'MacOS' : 'Linux'
-      })
-      udpSocket.send(message, 0, message.length, DISCOVERY_PORT, '255.255.255.255')
-      
+        os: os.platform() === 'win32' ? 'Windows' : os.platform() === 'darwin' ? 'MacOS' : 'Linux',
+      });
+      udpSocket.send(message, 0, message.length, DISCOVERY_PORT, '255.255.255.255');
+
       // Cleanup stale nodes
-      const now = Date.now()
-      let changed = false
+      const now = Date.now();
+      let changed = false;
       for (const [id, node] of nearbyNodes.entries()) {
         // Be more forgiving: 20s timeout (DISCOVERY_INTERVAL * 6.6)
         if (now - node.lastSeen > DISCOVERY_INTERVAL * 6.6) {
-          nearbyNodes.delete(id)
-          changed = true
+          nearbyNodes.delete(id);
+          changed = true;
         }
       }
-      if (changed) win?.webContents.send('nearby-nodes-updated', Array.from(nearbyNodes.values()))
-    }, DISCOVERY_INTERVAL)
-  }
-  startBroadcast()
-})
+      if (changed) win?.webContents.send('nearby-nodes-updated', Array.from(nearbyNodes.values()));
+    }, DISCOVERY_INTERVAL);
+  };
+  startBroadcast();
+});
 
 // --- HTTP Server (Express) ---
-const serverApp = express()
-serverApp.use(cors())
-serverApp.use(express.json())
+const serverApp = express();
+serverApp.use(cors());
+serverApp.use(express.json());
 
-import busboy from 'busboy'
+import busboy from 'busboy';
 
 // Endpoints
 serverApp.post('/upload', (req: Request, res: Response) => {
-  const transferId = Array.isArray(req.headers['x-transfer-id']) 
-    ? req.headers['x-transfer-id'][0] 
-    : (req.headers['x-transfer-id'] as string || Math.random().toString(36).substring(7))
+  const transferId = Array.isArray(req.headers['x-transfer-id'])
+    ? req.headers['x-transfer-id'][0]
+    : (req.headers['x-transfer-id'] as string) || Math.random().toString(36).substring(7);
 
-  console.log(`[Upload] New request starting: ${transferId}, content-length: ${req.headers['content-length']}`)
-  console.log(`[Upload] Content-Type: ${req.headers['content-type']}`)
-  activeRequests.set(transferId, req)
+  console.log(
+    `[Upload] New request starting: ${transferId}, content-length: ${req.headers['content-length']}`
+  );
+  console.log(`[Upload] Content-Type: ${req.headers['content-type']}`);
+  activeRequests.set(transferId, req);
 
   // Busboy requires Content-Type header. If expo-file-system doesn't set it, we'll add a default
-  const headers = { ...req.headers }
+  const headers = { ...req.headers };
   if (!headers['content-type']) {
-    console.log(`[Upload] ⚠️  Missing Content-Type, setting default multipart/form-data`)
-    headers['content-type'] = 'multipart/form-data'
+    console.log(`[Upload] ⚠️  Missing Content-Type, setting default multipart/form-data`);
+    headers['content-type'] = 'multipart/form-data';
   }
 
-  const bb = busboy({ headers })
-  const totalSize = parseInt(req.headers['content-length'] || '0')
-  let receivedBytes = 0
-  let lastUpdateTime = 0
-  const THROTTLE_MS = 100
+  const bb = busboy({ headers });
+  const totalSize = parseInt(req.headers['content-length'] || '0');
+  let receivedBytes = 0;
+  let lastUpdateTime = 0;
+  const THROTTLE_MS = 100;
 
   // Track raw request progress for smoother UI and less busboy interference
   req.on('data', (chunk) => {
-    receivedBytes += chunk.length
-    const now = Date.now()
+    receivedBytes += chunk.length;
+    const now = Date.now();
     if (win && (now - lastUpdateTime > THROTTLE_MS || receivedBytes === totalSize)) {
-      lastUpdateTime = now
+      lastUpdateTime = now;
       win.webContents.send('upload-progress', {
         id: transferId,
         remoteIp: req.socket.remoteAddress?.replace('::ffff:', ''),
@@ -201,130 +205,144 @@ serverApp.post('/upload', (req: Request, res: Response) => {
         totalBytes: totalSize,
         currentFile: 'Receiving file...',
         currentIndex: 1,
-        totalFiles: 1
-      })
+        totalFiles: 1,
+      });
     }
-  })
+  });
 
   bb.on('file', (_, file, info) => {
-    const { filename, mimeType } = info
-    console.log(`[Upload] Busboy found file: ${filename} (${mimeType})`)
-    
-    const saveTo = path.join(uploadDir, `${Date.now()}-${filename}`)
-    const fstream = fs.createWriteStream(saveTo)
-    
-    file.pipe(fstream)
+    const { filename, mimeType } = info;
+    console.log(`[Upload] Busboy found file: ${filename} (${mimeType})`);
+
+    const saveTo = path.join(uploadDir, `${Date.now()}-${filename}`);
+    const fstream = fs.createWriteStream(saveTo);
+
+    file.pipe(fstream);
 
     fstream.on('close', () => {
-      console.log(`[Upload] ✅ File SAVED to: ${saveTo}`)
+      console.log(`[Upload] ✅ File SAVED to: ${saveTo}`);
       if (win) {
         win.webContents.send('upload-complete', {
           id: transferId,
           remoteIp: req.socket.remoteAddress?.replace('::ffff:', ''),
           name: filename,
-          size: receivedBytes, 
+          size: receivedBytes,
           path: saveTo,
           time: new Date().toLocaleTimeString(),
           progress: 1,
           processedBytes: totalSize,
-          totalBytes: totalSize
-        })
+          totalBytes: totalSize,
+        });
       }
-    })
+    });
 
     fstream.on('open', () => {
-      console.log(`[Upload] 📂 fstream OPENED for: ${filename}`)
-    })
+      console.log(`[Upload] 📂 fstream OPENED for: ${filename}`);
+    });
 
     fstream.on('error', (err) => {
-      console.error(`[Upload] ❌ fstream ERROR for ${filename}:`, err)
-    })
-  })
+      console.error(`[Upload] ❌ fstream ERROR for ${filename}:`, err);
+    });
+  });
 
   bb.on('finish', () => {
-    console.log(`[Upload] 🏁 Busboy finished for: ${transferId}`)
-    activeRequests.delete(transferId)
-    if (!res.headersSent) res.json({ status: 'ok' })
-  })
+    console.log(`[Upload] 🏁 Busboy finished for: ${transferId}`);
+    activeRequests.delete(transferId);
+    if (!res.headersSent) res.json({ status: 'ok' });
+  });
 
   bb.on('error', (err: any) => {
-    console.error(`[Upload] ❌ Busboy parsing ERROR:`, err)
-    activeRequests.delete(transferId)
-    if (win) win.webContents.send('upload-error', { id: transferId, error: err.message })
-    if (!res.headersSent) res.status(500).json({ error: err.message })
-  })
+    console.error(`[Upload] ❌ Busboy parsing ERROR:`, err);
+    activeRequests.delete(transferId);
+    if (win) win.webContents.send('upload-error', { id: transferId, error: err.message });
+    if (!res.headersSent) res.status(500).json({ error: err.message });
+  });
 
-  req.pipe(bb)
-})
+  req.pipe(bb);
+});
 
 serverApp.post('/request-connect', (req, res) => {
-  const { deviceId, name, platform, brand, totalFiles, totalSize, files } = req.body
-  console.log(`Connection request from ${name} (${deviceId}) proposing ${totalFiles} files`)
-  
-  pendingConnections.set(deviceId, { 
-    res, name, deviceId, platform, brand, totalFiles, totalSize, files: files || [], timestamp: Date.now() 
-  })
-  win?.webContents.send('connection-request', { 
-    deviceId, name, platform, brand, totalFiles, totalSize, files: files || []
-  })
-})
+  const { deviceId, name, platform, brand, totalFiles, totalSize, files } = req.body;
+  console.log(`Connection request from ${name} (${deviceId}) proposing ${totalFiles} files`);
 
-ipcMain.handle('get-upload-dir', () => uploadDir)
+  pendingConnections.set(deviceId, {
+    res,
+    name,
+    deviceId,
+    platform,
+    brand,
+    totalFiles,
+    totalSize,
+    files: files || [],
+    timestamp: Date.now(),
+  });
+  win?.webContents.send('connection-request', {
+    deviceId,
+    name,
+    platform,
+    brand,
+    totalFiles,
+    totalSize,
+    files: files || [],
+  });
+});
+
+ipcMain.handle('get-upload-dir', () => uploadDir);
 
 ipcMain.handle('get-server-status', () => {
-  return { running: serverRunning && httpServer !== null }
-})
+  return { running: serverRunning && httpServer !== null };
+});
 
 ipcMain.handle('stop-server', () => {
-  serverRunning = false
-  stopServer()
-  return true
-})
+  serverRunning = false;
+  stopServer();
+  return true;
+});
 
 ipcMain.handle('restart-server', () => {
-  serverRunning = true
-  restartServer()
-  return true
-})
+  serverRunning = true;
+  restartServer();
+  return true;
+});
 
 ipcMain.handle('select-save-folder', async () => {
-  if (!win) return null
-  const { canceled, filePaths } = await dialog.showOpenDialog(win, { 
-    properties: ['openDirectory'] 
-  })
-  if (canceled || !filePaths[0]) return null
-  
-  const selectedPath = filePaths[0]
+  if (!win) return null;
+  const { canceled, filePaths } = await dialog.showOpenDialog(win, {
+    properties: ['openDirectory'],
+  });
+  if (canceled || !filePaths[0]) return null;
+
+  const selectedPath = filePaths[0];
   // Update uploadDir
   if (!fs.existsSync(selectedPath)) {
-    fs.mkdirSync(selectedPath, { recursive: true })
+    fs.mkdirSync(selectedPath, { recursive: true });
   }
   // Save to config
   try {
-    const configData = fs.existsSync(configPath) 
+    const configData = fs.existsSync(configPath)
       ? JSON.parse(fs.readFileSync(configPath, 'utf-8'))
-      : {}
-    configData.uploadDir = selectedPath
-    fs.writeFileSync(configPath, JSON.stringify(configData))
+      : {};
+    configData.uploadDir = selectedPath;
+    fs.writeFileSync(configPath, JSON.stringify(configData));
   } catch (e) {
-    console.error('Failed to save upload dir:', e)
+    console.error('Failed to save upload dir:', e);
   }
-  
-  return { path: selectedPath }
-})
+
+  return { path: selectedPath };
+});
 
 ipcMain.on('set-server-id', (_event, { id }) => {
-  serverId = id
-  saveConfig()
-})
+  serverId = id;
+  saveConfig();
+});
 
 ipcMain.handle('get-nearby-nodes', () => {
-  return Array.from(nearbyNodes.values())
-})
+  return Array.from(nearbyNodes.values());
+});
 
 ipcMain.handle('refresh-discovery', () => {
-  nearbyNodes.clear()
-  const localIp = getLocalIPs()[0]
+  nearbyNodes.clear();
+  const localIp = getLocalIPs()[0];
   const message = JSON.stringify({
     type: 'discovery',
     id: serverId,
@@ -332,12 +350,12 @@ ipcMain.handle('refresh-discovery', () => {
     ip: localIp,
     port: HTTP_PORT,
     platform: 'desktop',
-    os: os.platform() === 'win32' ? 'Windows' : os.platform() === 'darwin' ? 'MacOS' : 'Linux'
-  })
-  udpSocket.send(message, 0, message.length, DISCOVERY_PORT, '255.255.255.255')
-  win?.webContents.send('nearby-nodes-updated', [])
-  return true
-})
+    os: os.platform() === 'win32' ? 'Windows' : os.platform() === 'darwin' ? 'MacOS' : 'Linux',
+  });
+  udpSocket.send(message, 0, message.length, DISCOVERY_PORT, '255.255.255.255');
+  win?.webContents.send('nearby-nodes-updated', []);
+  return true;
+});
 
 serverApp.get('/get-server-info', (_req, res) => {
   res.json({
@@ -347,109 +365,109 @@ serverApp.get('/get-server-info', (_req, res) => {
     hostname: os.hostname(),
     id: serverId,
     platform: 'desktop',
-    os: os.platform() === 'win32' ? 'Windows' : os.platform() === 'darwin' ? 'MacOS' : 'Linux'
-  })
-})
+    os: os.platform() === 'win32' ? 'Windows' : os.platform() === 'darwin' ? 'MacOS' : 'Linux',
+  });
+});
 
 serverApp.post('/respond-to-connection', (req, res) => {
-  const { deviceId, accepted } = req.body
-  console.log(`Connection response from ${deviceId}: ${accepted}`)
-  
-  const outgoing = outgoingRequests.get(deviceId)
+  const { deviceId, accepted } = req.body;
+  console.log(`Connection response from ${deviceId}: ${accepted}`);
+
+  const outgoing = outgoingRequests.get(deviceId);
   if (outgoing) {
-    win?.webContents.send('pairing-response', { deviceId, accepted })
-    outgoingRequests.delete(deviceId)
-    return res.json({ status: 'ok' })
+    win?.webContents.send('pairing-response', { deviceId, accepted });
+    outgoingRequests.delete(deviceId);
+    return res.json({ status: 'ok' });
   }
 
   // Handle it as a response to an incoming request (legacy/direct)
-  const pending = pendingConnections.get(deviceId)
+  const pending = pendingConnections.get(deviceId);
   if (pending) {
-    pending.res.json({ status: accepted ? 'accepted' : 'declined' })
-    pendingConnections.delete(deviceId)
-    return res.json({ status: 'ok' })
+    pending.res.json({ status: accepted ? 'accepted' : 'declined' });
+    pendingConnections.delete(deviceId);
+    return res.json({ status: 'ok' });
   }
 
-  res.status(404).json({ error: 'Request not found' })
-})
+  res.status(404).json({ error: 'Request not found' });
+});
 
 serverApp.get('/cancel-pairing/:deviceId', (req, res) => {
-  const { deviceId } = req.params
-  console.log(`Pairing cancelled by remote device: ${deviceId}`)
-  
-  const pending = pendingConnections.get(deviceId)
+  const { deviceId } = req.params;
+  console.log(`Pairing cancelled by remote device: ${deviceId}`);
+
+  const pending = pendingConnections.get(deviceId);
   if (pending) {
-    win?.webContents.send('pairing-cancelled', { deviceId })
+    win?.webContents.send('pairing-cancelled', { deviceId });
     try {
-      pending.res.status(499).json({ status: 'cancelled' })
+      pending.res.status(499).json({ status: 'cancelled' });
     } catch (e) {}
-    pendingConnections.delete(deviceId)
+    pendingConnections.delete(deviceId);
   }
-  
-  res.json({ status: 'ok' })
-})
+
+  res.json({ status: 'ok' });
+});
 
 serverApp.get('/cancel-transfer/:deviceId', (req, res) => {
-  const { deviceId } = req.params
-  console.log(`Transfer cancelled by remote device: ${deviceId}`)
-  
+  const { deviceId } = req.params;
+  console.log(`Transfer cancelled by remote device: ${deviceId}`);
+
   // Check active uploads (Desktop as receiver)
-  const activeReq = activeRequests.get(deviceId)
+  const activeReq = activeRequests.get(deviceId);
   if (activeReq) {
-    activeReq.destroy()
-    activeRequests.delete(deviceId)
-    win?.webContents.send('transfer-error', { deviceId, error: 'Cancelled by remote device' })
+    activeReq.destroy();
+    activeRequests.delete(deviceId);
+    win?.webContents.send('transfer-error', { deviceId, error: 'Cancelled by remote device' });
   }
-  
+
   // Check active downloads (Desktop as sender)
-  const transfer = activeTransfers.get(deviceId)
+  const transfer = activeTransfers.get(deviceId);
   if (transfer) {
-    transfer.controller.abort()
-    activeTransfers.delete(deviceId)
-    win?.webContents.send('transfer-error', { deviceId, error: 'Cancelled by remote device' })
+    transfer.controller.abort();
+    activeTransfers.delete(deviceId);
+    win?.webContents.send('transfer-error', { deviceId, error: 'Cancelled by remote device' });
   }
-  
-  res.json({ status: 'ok' })
-})
+
+  res.json({ status: 'ok' });
+});
 
 serverApp.get('/transfer-finish/:deviceId', (req, res) => {
-  const { deviceId } = req.params
-  console.log(`[Upload] Transfer session finished for: ${deviceId}`)
+  const { deviceId } = req.params;
+  console.log(`[Upload] Transfer session finished for: ${deviceId}`);
   if (win) {
-    win.webContents.send('transfer-complete', { deviceId })
+    win.webContents.send('transfer-complete', { deviceId });
   }
-  res.json({ status: 'ok' })
-})
+  res.json({ status: 'ok' });
+});
 
 serverApp.post('/announce', (req, res) => {
-  const node = req.body
+  const node = req.body;
   if (node.id) {
-    nearbyNodes.set(node.id, { ...node, lastSeen: Date.now() })
-    win?.webContents.send('nearby-nodes-updated', Array.from(nearbyNodes.values()))
+    nearbyNodes.set(node.id, { ...node, lastSeen: Date.now() });
+    win?.webContents.send('nearby-nodes-updated', Array.from(nearbyNodes.values()));
   }
-  res.json({ status: 'ok' })
-})
+  res.json({ status: 'ok' });
+});
 
 // Cleanup stale nodes periodically (remove devices that haven't announced in 15 seconds)
 setInterval(() => {
-  const now = Date.now()
-  let changed = false
+  const now = Date.now();
+  let changed = false;
   for (const [id, node] of nearbyNodes.entries()) {
     // Remove nodes that haven't been seen in 15 seconds (mobile announces every 10s)
     if (now - node.lastSeen > 15000) {
-      nearbyNodes.delete(id)
-      changed = true
+      nearbyNodes.delete(id);
+      changed = true;
     }
   }
-  if (changed) win?.webContents.send('nearby-nodes-updated', Array.from(nearbyNodes.values()))
-}, 5000)
+  if (changed) win?.webContents.send('nearby-nodes-updated', Array.from(nearbyNodes.values()));
+}, 5000);
 
 serverApp.get('/check-pairing-requests/:deviceId', (req, res) => {
-  const { deviceId } = req.params
-  
+  const { deviceId } = req.params;
+
   // ONLY check outgoing requests (initiated by this desktop to the device)
   // This tells the mobile device: "Hey, I (the desktop) am trying to connect to you."
-  const outgoing = outgoingRequests.get(deviceId)
+  const outgoing = outgoingRequests.get(deviceId);
   if (outgoing) {
     return res.json({
       status: 'pending',
@@ -458,197 +476,201 @@ serverApp.get('/check-pairing-requests/:deviceId', (req, res) => {
         id: serverId,
         os: os.platform() === 'win32' ? 'Windows' : os.platform() === 'darwin' ? 'MacOS' : 'Linux',
         ip: getLocalIPs()[0],
-        files: outgoing.files || []
-      }
-    })
+        files: outgoing.files || [],
+      },
+    });
   }
 
-  // We do NOT return pending for incoming connections here, 
-  // because the mobile device is already waiting for the POST response 
-  // from /request-connect. Returning it here makes the mobile think 
+  // We do NOT return pending for incoming connections here,
+  // because the mobile device is already waiting for the POST response
+  // from /request-connect. Returning it here makes the mobile think
   // the desktop initiated a separate request.
 
-  res.json({ status: 'none' })
-})
+  res.json({ status: 'none' });
+});
 
 serverApp.get('/transfer-status/:deviceId', (req, res) => {
-  const { deviceId } = req.params
-  const download = pendingDownloads.get(deviceId)
-  
+  const { deviceId } = req.params;
+  const download = pendingDownloads.get(deviceId);
+
   if (download) {
     const files = download.files.map((f, i) => ({
       name: f.name,
       size: f.size,
       type: f.type,
-      index: i
-    }))
-    return res.json({ status: 'ready', files })
+      index: i,
+    }));
+    return res.json({ status: 'ready', files });
   }
-  
-  res.json({ status: 'none' })
-})
+
+  res.json({ status: 'none' });
+});
 
 serverApp.get('/download/:deviceId/:fileIndex', (req, res) => {
-  const { deviceId, fileIndex } = req.params
-  console.log(`Download request: device=${deviceId}, index=${fileIndex}`)
-  
-  const index = parseInt(fileIndex)
-  const download = pendingDownloads.get(deviceId)
-  
+  const { deviceId, fileIndex } = req.params;
+  console.log(`Download request: device=${deviceId}, index=${fileIndex}`);
+
+  const index = parseInt(fileIndex);
+  const download = pendingDownloads.get(deviceId);
+
   if (!download || !download.files[index]) {
-    console.error(`Download failed: No pending download for device ${deviceId} or index ${index}`)
-    return res.status(404).send('File not found')
+    console.error(`Download failed: No pending download for device ${deviceId} or index ${index}`);
+    return res.status(404).send('File not found');
   }
 
-  const file = download.files[index]
-  const filePath = file.path
-  const fileName = file.name
-  
+  const file = download.files[index];
+  const filePath = file.path;
+  const fileName = file.name;
+
   if (!fs.existsSync(filePath)) {
-    console.error(`Download failed: File missing on disk at ${filePath}`)
-    return res.status(404).send('File missing on server')
+    console.error(`Download failed: File missing on disk at ${filePath}`);
+    return res.status(404).send('File missing on server');
   }
 
-  const stats = fs.statSync(filePath)
-  const fileSize = stats.size
-  const totalBytes = download.files.reduce((acc, f) => acc + (f.size || 0), 0)
-  
+  const stats = fs.statSync(filePath);
+  const fileSize = stats.size;
+  const totalBytes = download.files.reduce((acc, f) => acc + (f.size || 0), 0);
+
   // Calculate previously processed bytes (all files before this one)
-  const previouslyProcessed = download.files.slice(0, index).reduce((acc, f) => acc + (f.size || 0), 0)
+  const previouslyProcessed = download.files
+    .slice(0, index)
+    .reduce((acc, f) => acc + (f.size || 0), 0);
 
   // Set explicit headers
-  res.setHeader('Access-Control-Allow-Origin', '*')
-  res.setHeader('Access-Control-Expose-Headers', 'Content-Length, Content-Disposition')
-  res.setHeader('Content-Type', 'application/octet-stream')
-  res.setHeader('Content-Length', fileSize)
-  res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`)
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Expose-Headers', 'Content-Length, Content-Disposition');
+  res.setHeader('Content-Type', 'application/octet-stream');
+  res.setHeader('Content-Length', fileSize);
+  res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
 
-  console.log(`Serving file: ${fileName} (${filePath})`)
+  console.log(`Serving file: ${fileName} (${filePath})`);
 
-  let fileProcessed = 0
-  let lastUpdateTime = 0
-  const THROTTLE_MS = 100
+  let fileProcessed = 0;
+  let lastUpdateTime = 0;
+  const THROTTLE_MS = 100;
 
-  const fileStream = fs.createReadStream(filePath)
-  
+  const fileStream = fs.createReadStream(filePath);
+
   const progressTracker = new Transform({
     transform(chunk, _encoding, callback) {
-      fileProcessed += chunk.length
-      const currentOverallProcessed = previouslyProcessed + fileProcessed
-      const now = Date.now()
-      
+      fileProcessed += chunk.length;
+      const currentOverallProcessed = previouslyProcessed + fileProcessed;
+      const now = Date.now();
+
       if (win && (now - lastUpdateTime > THROTTLE_MS || fileProcessed === fileSize)) {
-        lastUpdateTime = now
+        lastUpdateTime = now;
         win.webContents.send('transfer-progress', {
           deviceId,
           progress: currentOverallProcessed / totalBytes, // Overall progress
-          fileProgress: fileProcessed / fileSize,        // Per-file progress
+          fileProgress: fileProcessed / fileSize, // Per-file progress
           speed: 0, // Calculated in renderer
           currentFile: fileName,
           currentIndex: index + 1,
           totalFiles: download.files.length,
           processedBytes: currentOverallProcessed,
-          totalBytes
-        })
+          totalBytes,
+        });
       }
-      callback(null, chunk)
-    }
-  })
+      callback(null, chunk);
+    },
+  });
 
-  fileStream.pipe(progressTracker).pipe(res)
+  fileStream.pipe(progressTracker).pipe(res);
 
   fileStream.on('error', (err) => {
-    console.error(`Stream error for ${fileName}:`, err)
-    if (!res.headersSent) res.status(500).send(err.message)
-  })
+    console.error(`Stream error for ${fileName}:`, err);
+    if (!res.headersSent) res.status(500).send(err.message);
+  });
 
   res.on('finish', () => {
-    console.log(`Successfully finished serving ${fileName}`)
+    console.log(`Successfully finished serving ${fileName}`);
     if (index === download.files.length - 1) {
-      if (win) win.webContents.send('transfer-complete', { deviceId })
-      pendingDownloads.delete(deviceId)
+      if (win) win.webContents.send('transfer-complete', { deviceId });
+      pendingDownloads.delete(deviceId);
     }
-  })
-})
+  });
+});
 
 const startServer = () => {
   if (httpServer) {
-    console.log('Server already running')
-    return
+    console.log('Server already running');
+    return;
   }
   httpServer = serverApp.listen(HTTP_PORT, '0.0.0.0', () => {
-    console.log(`ExLink Server running at http://0.0.0.0:${HTTP_PORT}`)
-  })
-}
+    console.log(`ExLink Server running at http://0.0.0.0:${HTTP_PORT}`);
+  });
+};
 
 const stopServer = () => {
   if (httpServer) {
     httpServer.close(() => {
-      console.log('ExLink Server stopped')
-      httpServer = null
-    })
+      console.log('ExLink Server stopped');
+      httpServer = null;
+    });
   }
-}
+};
 
 const restartServer = () => {
-  stopServer()
+  stopServer();
   setTimeout(() => {
-    startServer()
-  }, 500)
-}
+    startServer();
+  }, 500);
+};
 
 // Start server on init
-startServer()
+startServer();
 
 // --- IPC Handlers ---
 ipcMain.handle('get-server-info', () => {
   // Freshly calculate ID in case IP changed
-  serverId = getServerIdFromIp()
+  serverId = getServerIdFromIp();
   return {
     ip: getLocalIPs()[0],
     port: HTTP_PORT,
     name: serverName,
     hostname: os.hostname(),
-    id: serverId
-  }
-})
+    id: serverId,
+  };
+});
 
 ipcMain.on('set-server-name', (_event, { name }) => {
-  serverName = name
-  saveConfig()
-})
+  serverName = name;
+  saveConfig();
+});
 
 ipcMain.handle('initiate-pairing', async (_event, { deviceId, deviceIp, items }) => {
-  const node = nearbyNodes.get(deviceId)
-  const isMobile = node?.platform === 'mobile' || !node // Default to polling if unknown/mobile-like
-  
-  console.log(`Initiating pairing with ${deviceId} (${node?.platform || 'unknown'}) at ${deviceIp}`)
-  
+  const node = nearbyNodes.get(deviceId);
+  const isMobile = node?.platform === 'mobile' || !node; // Default to polling if unknown/mobile-like
+
+  console.log(
+    `Initiating pairing with ${deviceId} (${node?.platform || 'unknown'}) at ${deviceIp}`
+  );
+
   // Notify UI immediately to show the "Waiting" overlay
   win?.webContents.send('pairing-initiated-ui', {
-     deviceId,
-     deviceIp,
-     name: node?.name || 'Device',
-     platform: node?.platform || 'mobile',
-     brand: node?.brand,
-     os: node?.os
-  })
+    deviceId,
+    deviceIp,
+    name: node?.name || 'Device',
+    platform: node?.platform || 'mobile',
+    brand: node?.brand,
+    os: node?.os,
+  });
 
   if (isMobile) {
     // Mobile devices poll us
-    outgoingRequests.set(deviceId, { 
-      deviceId, 
-      deviceIp, 
+    outgoingRequests.set(deviceId, {
+      deviceId,
+      deviceIp,
       timestamp: Date.now(),
-      files: items || [] 
-    })
-    return { status: 'waiting' }
+      files: items || [],
+    });
+    return { status: 'waiting' };
   } else {
     // Desktop devices have servers, we can POST directly
     try {
-      const controller = new AbortController()
-      const timeout = setTimeout(() => controller.abort(), 2000)
-      
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 2000);
+
       const res = await fetch(`http://${deviceIp}:${HTTP_PORT}/request-connect`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -656,90 +678,95 @@ ipcMain.handle('initiate-pairing', async (_event, { deviceId, deviceIp, items })
           deviceId: serverId,
           name: serverName,
           platform: 'desktop',
-          os: os.platform() === 'win32' ? 'Windows' : os.platform() === 'darwin' ? 'MacOS' : 'Linux'
+          os:
+            os.platform() === 'win32' ? 'Windows' : os.platform() === 'darwin' ? 'MacOS' : 'Linux',
         }),
-        signal: controller.signal
-      })
-      clearTimeout(timeout)
-      
+        signal: controller.signal,
+      });
+      clearTimeout(timeout);
+
       if (res.ok) {
-        const data: any = await res.json()
+        const data: any = await res.json();
         if (data.status === 'accepted') {
-           win?.webContents.send('pairing-response', { deviceId, accepted: true })
+          win?.webContents.send('pairing-response', { deviceId, accepted: true });
         } else if (data.status === 'declined') {
-           win?.webContents.send('pairing-response', { deviceId, accepted: false })
+          win?.webContents.send('pairing-response', { deviceId, accepted: false });
         }
-        return { status: 'sent' }
+        return { status: 'sent' };
       }
     } catch (e) {
-      console.error(`Failed to POST to desktop ${deviceId}:`, e)
+      console.error(`Failed to POST to desktop ${deviceId}:`, e);
       // Fallback: maybe it's actually acting like a mobile or firewall blocked us
-      outgoingRequests.set(deviceId, { deviceId, deviceIp, timestamp: Date.now() })
-      return { status: 'waiting' }
+      outgoingRequests.set(deviceId, { deviceId, deviceIp, timestamp: Date.now() });
+      return { status: 'waiting' };
     }
   }
-  return { status: 'error' }
-})
+  return { status: 'error' };
+});
 
 ipcMain.handle('respond-to-connection', (_event, { deviceId, accepted }) => {
-  const pending = pendingConnections.get(deviceId)
+  const pending = pendingConnections.get(deviceId);
   if (pending) {
-    pending.res.json({ status: accepted ? 'accepted' : 'declined' })
-    pendingConnections.delete(deviceId)
-    return true
+    pending.res.json({ status: accepted ? 'accepted' : 'declined' });
+    pendingConnections.delete(deviceId);
+    return true;
   }
 
   // If we are canceling an outgoing request we initiated
   if (!accepted) {
-    outgoingRequests.delete(deviceId)
+    outgoingRequests.delete(deviceId);
     // Optionally notify the other side if they are polling
   }
 
-  return false
-})
+  return false;
+});
 
 ipcMain.handle('start-transfer', async (_event, { deviceId, deviceIp, platform, items }) => {
-  console.log(`Starting transfer to ${deviceId} at ${deviceIp} with ${items.length} items`)
-  
-  const controller = new AbortController()
-  activeTransfers.set(deviceId, { controller, files: items })
-  
+  console.log(`Starting transfer to ${deviceId} at ${deviceIp} with ${items.length} items`);
+
+  const controller = new AbortController();
+  activeTransfers.set(deviceId, { controller, files: items });
+
   // If target is mobile, we queue for download instead of pushing
   if (platform === 'mobile') {
-     console.log(`Queueing files for mobile download: ${deviceId}`)
-     pendingDownloads.set(deviceId, { files: items, timestamp: Date.now() })
-     // Notify UI we are waiting/ready
-     return
+    console.log(`Queueing files for mobile download: ${deviceId}`);
+    pendingDownloads.set(deviceId, { files: items, timestamp: Date.now() });
+    // Notify UI we are waiting/ready
+    return;
   }
 
-  const totalBytes = items.reduce((acc: number, item: any) => acc + (item.size || 0), 0)
-  let processedBytes = 0
-  let startTime = Date.now()
+  const totalBytes = items.reduce((acc: number, item: any) => acc + (item.size || 0), 0);
+  let processedBytes = 0;
+  let startTime = Date.now();
 
   try {
     for (let i = 0; i < items.length; i++) {
-      const item = items[i]
-      if (item.type !== 'file') continue 
+      const item = items[i];
+      if (item.type !== 'file') continue;
 
-      const fileName = item.name
-      const filePath = item.path
-      const fileSize = item.size
+      const fileName = item.name;
+      const filePath = item.path;
+      const fileSize = item.size;
 
-      let fileProcessed = 0
-      let fileLastUpdateTime = 0
-      const THROTTLE_MS = 200
+      let fileProcessed = 0;
+      let fileLastUpdateTime = 0;
+      const THROTTLE_MS = 200;
 
       const progressTracker = new Transform({
-        transform(chunk: Buffer, _encoding: BufferEncoding, callback: (error?: Error | null, data?: any) => void) {
-          fileProcessed += chunk.length
-          const currentTotalProcessed = processedBytes + fileProcessed
-          const progress = currentTotalProcessed / totalBytes
-          const elapsed = (Date.now() - startTime) / 1000
-          const speed = currentTotalProcessed / elapsed
-          const now = Date.now()
+        transform(
+          chunk: Buffer,
+          _encoding: BufferEncoding,
+          callback: (error?: Error | null, data?: any) => void
+        ) {
+          fileProcessed += chunk.length;
+          const currentTotalProcessed = processedBytes + fileProcessed;
+          const progress = currentTotalProcessed / totalBytes;
+          const elapsed = (Date.now() - startTime) / 1000;
+          const speed = currentTotalProcessed / elapsed;
+          const now = Date.now();
 
           if (win && (now - fileLastUpdateTime > THROTTLE_MS || progress === 1)) {
-            fileLastUpdateTime = now
+            fileLastUpdateTime = now;
             win.webContents.send('transfer-progress', {
               deviceId,
               progress,
@@ -749,144 +776,147 @@ ipcMain.handle('start-transfer', async (_event, { deviceId, deviceIp, platform, 
               currentIndex: i + 1,
               totalFiles: items.length,
               processedBytes: currentTotalProcessed,
-              totalBytes
-            })
+              totalBytes,
+            });
           }
-          callback(null, chunk)
-        }
-      })
+          callback(null, chunk);
+        },
+      });
 
-      const fileStream = fs.createReadStream(filePath).pipe(progressTracker)
-      
+      const fileStream = fs.createReadStream(filePath).pipe(progressTracker);
+
       // We'll use a library-free boundary-based stream upload
-      const boundary = '----ExLinkBoundary' + Math.random().toString(36).substring(2)
-      const header = `--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="${fileName}"\r\nContent-Type: application/octet-stream\r\n\r\n`
-      const footer = `\r\n--${boundary}--\r\n`
-      
-      const combinedStream = new PassThrough()
-      combinedStream.write(Buffer.from(header))
-      fileStream.pipe(combinedStream, { end: false })
+      const boundary = '----ExLinkBoundary' + Math.random().toString(36).substring(2);
+      const header = `--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="${fileName}"\r\nContent-Type: application/octet-stream\r\n\r\n`;
+      const footer = `\r\n--${boundary}--\r\n`;
+
+      const combinedStream = new PassThrough();
+      combinedStream.write(Buffer.from(header));
+      fileStream.pipe(combinedStream, { end: false });
       fileStream.on('end', () => {
-        combinedStream.write(Buffer.from(footer))
-        combinedStream.end()
-      })
+        combinedStream.write(Buffer.from(footer));
+        combinedStream.end();
+      });
 
       const response = await fetch(`http://${deviceIp}:${HTTP_PORT}/upload`, {
         method: 'POST',
         headers: {
           'x-transfer-id': deviceId,
-          'Content-Type': `multipart/form-data; boundary=${boundary}`
+          'Content-Type': `multipart/form-data; boundary=${boundary}`,
         },
         body: combinedStream as any,
         duplex: 'half',
-        signal: controller.signal
-      } as any)
+        signal: controller.signal,
+      } as any);
 
-      if (!response.ok) throw new Error(`Failed to upload ${fileName}`)
-      
-      processedBytes += fileSize
+      if (!response.ok) throw new Error(`Failed to upload ${fileName}`);
+
+      processedBytes += fileSize;
     }
-    
-    win?.webContents.send('transfer-complete', { deviceId })
-    activeTransfers.delete(deviceId)
+
+    win?.webContents.send('transfer-complete', { deviceId });
+    activeTransfers.delete(deviceId);
   } catch (e: any) {
     if (e.name === 'AbortError') {
-      console.log('Transfer cancelled by user')
+      console.log('Transfer cancelled by user');
     } else {
-      console.error('Transfer error:', e)
-      win?.webContents.send('transfer-error', { deviceId, error: e.message })
+      console.error('Transfer error:', e);
+      win?.webContents.send('transfer-error', { deviceId, error: e.message });
     }
-    activeTransfers.delete(deviceId)
+    activeTransfers.delete(deviceId);
   }
-})
+});
 
 ipcMain.handle('cancel-transfer', (_event, { deviceId, targetIp }) => {
   // 1. Check active transfers (Desktop as sender)
-  const transfer = activeTransfers.get(deviceId)
+  const transfer = activeTransfers.get(deviceId);
   if (transfer) {
-    transfer.controller.abort()
-    activeTransfers.delete(deviceId)
+    transfer.controller.abort();
+    activeTransfers.delete(deviceId);
   }
 
   // 2. Check active requests (Desktop as receiver)
-  const activeReq = activeRequests.get(deviceId)
+  const activeReq = activeRequests.get(deviceId);
   if (activeReq) {
-    activeReq.destroy()
-    activeRequests.delete(deviceId)
+    activeReq.destroy();
+    activeRequests.delete(deviceId);
   }
 
   // 3. Notify remote device if possible
   if (targetIp) {
-    const notifyUrl = `http://${targetIp}:3030/cancel-transfer/${serverId}`
-    console.log(`Notifying remote device of cancellation: ${notifyUrl}`)
-    fetch(notifyUrl).catch(() => {})
+    const notifyUrl = `http://${targetIp}:3030/cancel-transfer/${serverId}`;
+    console.log(`Notifying remote device of cancellation: ${notifyUrl}`);
+    fetch(notifyUrl).catch(() => {});
   }
 
-  return true
-})
+  return true;
+});
 
-ipcMain.handle('open-folder', () => shell.openPath(uploadDir))
+ipcMain.handle('open-folder', () => shell.openPath(uploadDir));
 
 ipcMain.handle('open-file', (_event, filePath) => {
-  if (filePath && fs.existsSync(filePath)) shell.showItemInFolder(filePath)
-})
+  if (filePath && fs.existsSync(filePath)) shell.showItemInFolder(filePath);
+});
 
 ipcMain.handle('share-files', async () => {
-  if (!win) return
-  const { canceled, filePaths } = await dialog.showOpenDialog(win, { properties: ['openFile', 'multiSelections'] })
-  if (canceled) return
-  const sharedItems: { path: string, name: string, size: number }[] = []
+  if (!win) return;
+  const { canceled, filePaths } = await dialog.showOpenDialog(win, {
+    properties: ['openFile', 'multiSelections'],
+  });
+  if (canceled) return;
+  const sharedItems: { path: string; name: string; size: number }[] = [];
   for (const filePath of filePaths) {
-    const stats = fs.statSync(filePath)
+    const stats = fs.statSync(filePath);
     sharedItems.push({
       path: filePath,
       name: path.basename(filePath),
-      size: stats.size
-    })
+      size: stats.size,
+    });
   }
-  return sharedItems
-})
+  return sharedItems;
+});
 
 ipcMain.handle('share-folders', async () => {
-  if (!win) return
-  const { canceled, filePaths } = await dialog.showOpenDialog(win, { properties: ['openDirectory', 'multiSelections'] })
-  if (canceled) return
-  const sharedItems: { path: string, name: string, size: number }[] = []
+  if (!win) return;
+  const { canceled, filePaths } = await dialog.showOpenDialog(win, {
+    properties: ['openDirectory', 'multiSelections'],
+  });
+  if (canceled) return;
+  const sharedItems: { path: string; name: string; size: number }[] = [];
   for (const filePath of filePaths) {
     sharedItems.push({
       path: filePath,
       name: path.basename(filePath),
-      size: 0 // Folders don't have a simple size
-    })
+      size: 0, // Folders don't have a simple size
+    });
   }
-  return sharedItems
-})
+  return sharedItems;
+});
 
-ipcMain.on('window-minimize', () => win?.minimize())
+ipcMain.on('window-minimize', () => win?.minimize());
 ipcMain.on('window-maximize', () => {
-  if (win?.isMaximized()) win.unmaximize()
-  else win?.maximize()
-})
-ipcMain.on('window-close', () => win?.close())
+  if (win?.isMaximized()) win.unmaximize();
+  else win?.maximize();
+});
+ipcMain.on('window-close', () => win?.close());
 
 function getLocalIPs() {
-  const interfaces = os.networkInterfaces()
-  const ips: string[] = []
+  const interfaces = os.networkInterfaces();
+  const ips: string[] = [];
   for (const name of Object.keys(interfaces)) {
-    if (name.toLowerCase().includes('virtual') || name.toLowerCase().includes('docker')) continue
-    const iface = interfaces[name]
-    if (!iface) continue
+    if (name.toLowerCase().includes('virtual') || name.toLowerCase().includes('docker')) continue;
+    const iface = interfaces[name];
+    if (!iface) continue;
     for (const addr of iface) {
-      if (addr.family === 'IPv4' && !addr.internal) ips.push(addr.address)
+      if (addr.family === 'IPv4' && !addr.internal) ips.push(addr.address);
     }
   }
   ips.sort((a, b) => {
-    const score = (ip: string) => ip.startsWith('192.168.') ? 100 : (ip.startsWith('10.') ? 90 : 0)
-    return score(b) - score(a)
-  })
-  return ips.length > 0 ? [ips[0]] : ['127.0.0.1']
+    const score = (ip: string) => (ip.startsWith('192.168.') ? 100 : ip.startsWith('10.') ? 90 : 0);
+    return score(b) - score(a);
+  });
+  return ips.length > 0 ? [ips[0]] : ['127.0.0.1'];
 }
-
 
 // Platform-specific icon paths
 const getIconPath = (): string => {
@@ -894,20 +924,20 @@ const getIconPath = (): string => {
   const basePath = process.env.APP_ROOT;
 
   switch (platform) {
-    case "win32":
-      return path.join(basePath, "public", "icons", "win", "icon.ico");
-    case "darwin":
-      return path.join(basePath, "public", "icons", "mac", "icon.icns");
-    case "linux":
+    case 'win32':
+      return path.join(basePath, 'public', 'icons', 'win', 'icon.ico');
+    case 'darwin':
+      return path.join(basePath, 'public', 'icons', 'mac', 'icon.icns');
+    case 'linux':
     default:
-      return path.join(basePath, "public", "icons", "png", "256x256.png");
+      return path.join(basePath, 'public', 'icons', 'png', '256x256.png');
   }
 };
 
 const iconPath = getIconPath();
 
 process.env.VITE_PUBLIC = VITE_DEV_SERVER_URL
-  ? path.join(process.env.APP_ROOT, "public")
+  ? path.join(process.env.APP_ROOT, 'public')
   : RENDERER_DIST;
 
 function createWindow() {
@@ -923,25 +953,25 @@ function createWindow() {
       nodeIntegration: true,
       contextIsolation: true,
     },
-  })
+  });
 
   if (VITE_DEV_SERVER_URL) {
-    win.loadURL(VITE_DEV_SERVER_URL)
-    win.webContents.openDevTools()
+    win.loadURL(VITE_DEV_SERVER_URL);
+    win.webContents.openDevTools();
   } else {
-    win.loadFile(path.join(RENDERER_DIST, 'index.html'))
+    win.loadFile(path.join(RENDERER_DIST, 'index.html'));
   }
 }
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
-    app.quit()
-    win = null
+    app.quit();
+    win = null;
   }
-})
+});
 
 app.on('activate', () => {
-  if (BrowserWindow.getAllWindows().length === 0) createWindow()
-})
+  if (BrowserWindow.getAllWindows().length === 0) createWindow();
+});
 
-app.whenReady().then(createWindow)
+app.whenReady().then(createWindow);

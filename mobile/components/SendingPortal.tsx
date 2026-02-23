@@ -1,18 +1,27 @@
-import React, { useEffect, useState, useRef } from "react";
-import { StyleSheet, View, ScrollView, Platform } from "react-native";
-import { Text, useTheme, Card, IconButton, Button, ActivityIndicator, Modal, Portal } from "react-native-paper";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { MaterialCommunityIcons } from "@expo/vector-icons";
-import * as Device from "expo-device";
-import * as Network from "expo-network";
-import { useSettingsStore } from "@/store/useSettingsStore";
-import { useSelection } from "@/hooks/useSelection";
-import Animated, { 
-  useSharedValue, 
-  useAnimatedStyle, 
-  withTiming, 
-  withRepeat
-} from "react-native-reanimated";
+import React, { useEffect, useState, useRef } from 'react';
+import { StyleSheet, View, ScrollView, Platform } from 'react-native';
+import {
+  Text,
+  useTheme,
+  Card,
+  IconButton,
+  Button,
+  ActivityIndicator,
+  Modal,
+  Portal,
+} from 'react-native-paper';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+import * as Device from 'expo-device';
+import * as Network from 'expo-network';
+import { useSettingsStore } from '@/store/useSettingsStore';
+import { useSelection } from '@/hooks/useSelection';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withTiming,
+  withRepeat,
+} from 'react-native-reanimated';
 
 interface SendingPortalProps {
   visible: boolean;
@@ -30,10 +39,12 @@ interface SendingPortalProps {
 const SendingPortal = ({ visible, onDismiss, targetDevice }: SendingPortalProps) => {
   const theme = useTheme();
   const { selectedItems, clearSelection } = useSelection();
-  
-  const [status, setStatus] = useState<'waiting' | 'sending' | 'refused' | 'error' | 'done'>('waiting');
+
+  const [status, setStatus] = useState<'waiting' | 'sending' | 'refused' | 'error' | 'done'>(
+    'waiting'
+  );
   const [progress, setProgress] = useState(0);
-  const [currentFile, setCurrentFile] = useState("");
+  const [currentFile, setCurrentFile] = useState('');
   const abortController = useRef(new AbortController());
 
   const [transferStartTime, setTransferStartTime] = useState<number | null>(null);
@@ -44,7 +55,7 @@ const SendingPortal = ({ visible, onDismiss, targetDevice }: SendingPortalProps)
   const [currentSpeed, setCurrentSpeed] = useState(0);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [displayItems, setDisplayItems] = useState<any[]>([]);
-  
+
   const lastUploadedRef = useRef(0);
   const prevBytesRef = useRef(0);
   const speedIntervalRef = useRef<any>(null);
@@ -61,14 +72,14 @@ const SendingPortal = ({ visible, onDismiss, targetDevice }: SendingPortalProps)
       // Reset only when starting a new session
       setStatus('waiting');
       setProgress(0);
-      setCurrentFile("");
+      setCurrentFile('');
       setDownloadedBytes(0);
       setCurrentFileIndex(0);
       setTotalTransferSize(0);
       setCurrentSpeed(0);
       setTransferDuration(0);
       setTransferStartTime(null);
-      
+
       pulse.value = withRepeat(withTiming(1.1, { duration: 1000 }), -1, true);
       connectAndSend();
     } else if (!visible) {
@@ -78,7 +89,7 @@ const SendingPortal = ({ visible, onDismiss, targetDevice }: SendingPortalProps)
       abortController.current.abort();
       abortController.current = new AbortController();
     }
-    
+
     return () => {
       // We don't abort here because it might be a parent re-render
       // Only abort on actual unmount or visibility change (handled above)
@@ -87,7 +98,7 @@ const SendingPortal = ({ visible, onDismiss, targetDevice }: SendingPortalProps)
 
   const animatedPulse = useAnimatedStyle(() => ({
     transform: [{ scale: pulse.value }],
-    opacity: 1.2 - pulse.value
+    opacity: 1.2 - pulse.value,
   }));
 
   const formatFileSize = (bytes: number) => {
@@ -114,16 +125,15 @@ const SendingPortal = ({ visible, onDismiss, targetDevice }: SendingPortalProps)
         const current = lastUploadedRef.current;
         const diff = current - prevBytesRef.current;
         const speed = Math.max(0, diff);
-        
+
         speedsRef.current.push(speed);
         if (speedsRef.current.length > 3) speedsRef.current.shift();
-        
+
         const avgSpeed = speedsRef.current.reduce((a, b) => a + b, 0) / speedsRef.current.length;
         setCurrentSpeed(avgSpeed);
-        
+
         prevBytesRef.current = current;
       }, 1000);
-
     } else if (status === 'done') {
       setCurrentSpeed(0);
     } else {
@@ -149,7 +159,7 @@ const SendingPortal = ({ visible, onDismiss, targetDevice }: SendingPortalProps)
 
   const connectAndSend = async () => {
     if (!targetDevice || !visible) return;
-    
+
     // Abort any existing request before starting a new one
     abortController.current.abort();
     abortController.current = new AbortController();
@@ -157,24 +167,26 @@ const SendingPortal = ({ visible, onDismiss, targetDevice }: SendingPortalProps)
     const itemsToSend = [...selectedItems];
 
     try {
-      const brand = Device.brand || Device.modelName || "Mobile";
+      const brand = Device.brand || Device.modelName || 'Mobile';
       const { deviceName, deviceId } = useSettingsStore.getState();
-      const name = deviceName || Device.deviceName || "Mobile Device";
-      
+      const name = deviceName || Device.deviceName || 'Mobile Device';
+
       let pollId = deviceId;
       if (!pollId) {
         const myIp = await Network.getIpAddressAsync();
-        pollId = (myIp && myIp.includes('.')) ? myIp.split('.').pop()! : 'mobile';
+        pollId = myIp && myIp.includes('.') ? myIp.split('.').pop()! : 'mobile';
       }
-      
-      console.log(`[SendingPortal] Initiating request to http://${targetDevice.ip}:${targetDevice.port}/request-connect`);
+
+      console.log(
+        `[SendingPortal] Initiating request to http://${targetDevice.ip}:${targetDevice.port}/request-connect`
+      );
       setStatus('waiting');
 
       const res = await fetch(`http://${targetDevice.ip}:${targetDevice.port}/request-connect`, {
         method: 'POST',
-        headers: { 
+        headers: {
           'Content-Type': 'application/json',
-          'Accept': 'application/json'
+          Accept: 'application/json',
         },
         body: JSON.stringify({
           deviceId: pollId,
@@ -183,15 +195,15 @@ const SendingPortal = ({ visible, onDismiss, targetDevice }: SendingPortalProps)
           brand,
           totalFiles: itemsToSend.length,
           totalSize: itemsToSend.reduce((acc, item) => acc + (item.size || 0), 0),
-          files: itemsToSend.map(item => ({ name: item.name, size: item.size, type: item.type }))
+          files: itemsToSend.map((item) => ({ name: item.name, size: item.size, type: item.type })),
         }),
-        signal: signal
+        signal: signal,
       });
 
       if (!res.ok) {
         throw new Error(`Server responded with ${res.status}`);
       }
-      
+
       const data = await res.json();
       if (data.status === 'accepted') {
         setStatus('sending');
@@ -202,7 +214,6 @@ const SendingPortal = ({ visible, onDismiss, targetDevice }: SendingPortalProps)
       } else {
         setStatus('refused');
       }
-
     } catch (e: any) {
       if (e.name === 'AbortError') {
         console.log('[SendingPortal] Request aborted');
@@ -211,7 +222,9 @@ const SendingPortal = ({ visible, onDismiss, targetDevice }: SendingPortalProps)
         setStatus('error');
         // Only alert if we're still visible
         if (visible) {
-          alert("Could not connect to desktop. Please ensure both devices are on the same Wi-Fi and the desktop app is active.");
+          alert(
+            'Could not connect to desktop. Please ensure both devices are on the same Wi-Fi and the desktop app is active.'
+          );
         }
       }
     }
@@ -225,66 +238,67 @@ const SendingPortal = ({ visible, onDismiss, targetDevice }: SendingPortalProps)
     lastUploadedRef.current = 0;
 
     for (let i = 0; i < items.length; i++) {
-        const item = items[i];
-        setCurrentFile(item.name);
-        setCurrentFileIndex(i);
-        
-        try {
-            const formData = new FormData();
-            formData.append('file', {
-                uri: item.uri,
-                type: item.mimeType || 'application/octet-stream',
-                name: item.name,
-            } as any);
-            
-            const uploadPromise = new Promise<boolean>((resolve, reject) => {
-                const xhr = new XMLHttpRequest();
-                
-                xhr.upload.onprogress = (event) => {
-                    if (event.lengthComputable) {
-                        const currentFileUploaded = event.loaded;
-                        const totalUploadedSoFar = uploadedOverall + currentFileUploaded;
-                        lastUploadedRef.current = totalUploadedSoFar;
-                        setDownloadedBytes(totalUploadedSoFar);
-                        setProgress(totalUploadedSoFar / totalBytes);
-                    }
-                };
-                
-                xhr.onload = () => {
-                    if (xhr.status >= 200 && xhr.status < 300) {
-                        resolve(true);
-                    } else {
-                        reject(new Error(`Upload failed with status ${xhr.status}`));
-                    }
-                };
-                
-                xhr.onerror = () => reject(new Error('Network error'));
-                xhr.onabort = () => reject(new Error('Upload aborted'));
-                
-                xhr.open('POST', `http://${targetDevice.ip}:${targetDevice.port}/upload`);
-                xhr.setRequestHeader('x-transfer-id', myId);
-                xhr.send(formData);
-            });
-            
-            await uploadPromise;
-            
-            uploadedOverall += item.size || 0;
-            lastUploadedRef.current = uploadedOverall;
-            setDownloadedBytes(uploadedOverall);
-            setProgress(uploadedOverall / totalBytes);
+      const item = items[i];
+      setCurrentFile(item.name);
+      setCurrentFileIndex(i);
 
-        } catch (e: any) {
-             if (e.name !== 'AbortError' && e.message !== 'Upload aborted') {
-                setStatus('error');
-                return;
-             }
+      try {
+        const formData = new FormData();
+        formData.append('file', {
+          uri: item.uri,
+          type: item.mimeType || 'application/octet-stream',
+          name: item.name,
+        } as any);
+
+        const uploadPromise = new Promise<boolean>((resolve, reject) => {
+          const xhr = new XMLHttpRequest();
+
+          xhr.upload.onprogress = (event) => {
+            if (event.lengthComputable) {
+              const currentFileUploaded = event.loaded;
+              const totalUploadedSoFar = uploadedOverall + currentFileUploaded;
+              lastUploadedRef.current = totalUploadedSoFar;
+              setDownloadedBytes(totalUploadedSoFar);
+              setProgress(totalUploadedSoFar / totalBytes);
+            }
+          };
+
+          xhr.onload = () => {
+            if (xhr.status >= 200 && xhr.status < 300) {
+              resolve(true);
+            } else {
+              reject(new Error(`Upload failed with status ${xhr.status}`));
+            }
+          };
+
+          xhr.onerror = () => reject(new Error('Network error'));
+          xhr.onabort = () => reject(new Error('Upload aborted'));
+
+          xhr.open('POST', `http://${targetDevice.ip}:${targetDevice.port}/upload`);
+          xhr.setRequestHeader('x-transfer-id', myId);
+          xhr.send(formData);
+        });
+
+        await uploadPromise;
+
+        uploadedOverall += item.size || 0;
+        lastUploadedRef.current = uploadedOverall;
+        setDownloadedBytes(uploadedOverall);
+        setProgress(uploadedOverall / totalBytes);
+      } catch (e: any) {
+        if (e.name !== 'AbortError' && e.message !== 'Upload aborted') {
+          setStatus('error');
+          return;
         }
+      }
     }
-    
+
     try {
-        const myIp = await Network.getIpAddressAsync();
-        const pollId = (myIp && myIp.includes('.')) ? myIp.split('.').pop()! : 'mobile';
-        await fetch(`http://${targetDevice.ip}:${targetDevice.port}/transfer-finish/${pollId}`).catch(() => {});
+      const myIp = await Network.getIpAddressAsync();
+      const pollId = myIp && myIp.includes('.') ? myIp.split('.').pop()! : 'mobile';
+      await fetch(`http://${targetDevice.ip}:${targetDevice.port}/transfer-finish/${pollId}`).catch(
+        () => {}
+      );
     } catch (e) {}
 
     setStatus('done');
@@ -296,7 +310,7 @@ const SendingPortal = ({ visible, onDismiss, targetDevice }: SendingPortalProps)
 
   const handleCancel = async () => {
     abortController.current.abort();
-    
+
     // Clear selection if we finished successfully
     if (status === 'done') {
       clearSelection();
@@ -305,10 +319,14 @@ const SendingPortal = ({ visible, onDismiss, targetDevice }: SendingPortalProps)
     if (targetDevice) {
       try {
         const myIp = await Network.getIpAddressAsync();
-        const pollId = (myIp && myIp.includes('.')) ? myIp.split('.').pop() : '000';
+        const pollId = myIp && myIp.includes('.') ? myIp.split('.').pop() : '000';
         // Call both to ensure pairing or active transfer is cancelled
-        fetch(`http://${targetDevice.ip}:${targetDevice.port}/cancel-transfer/${pollId}`).catch(() => {});
-        fetch(`http://${targetDevice.ip}:${targetDevice.port}/cancel-pairing/${pollId}`).catch(() => {});
+        fetch(`http://${targetDevice.ip}:${targetDevice.port}/cancel-transfer/${pollId}`).catch(
+          () => {}
+        );
+        fetch(`http://${targetDevice.ip}:${targetDevice.port}/cancel-pairing/${pollId}`).catch(
+          () => {}
+        );
       } catch (e) {}
     }
     onDismiss();
@@ -319,59 +337,104 @@ const SendingPortal = ({ visible, onDismiss, targetDevice }: SendingPortalProps)
       <Modal
         visible={visible}
         onDismiss={handleCancel}
-        dismissable={status === 'done' || status === 'error' || status === 'refused' || status === 'waiting'}
+        dismissable={
+          status === 'done' || status === 'error' || status === 'refused' || status === 'waiting'
+        }
         contentContainerStyle={[
           styles.modalContainer,
-          { backgroundColor: theme.colors.background }
+          { backgroundColor: theme.colors.background },
         ]}
       >
         <SafeAreaView style={styles.safeArea} edges={['bottom']}>
           <View style={styles.container}>
-            { (status === 'waiting' || status === 'refused') ? (
+            {status === 'waiting' || status === 'refused' ? (
               <View style={styles.waitingContainer}>
-                 <View style={styles.pairingCircleContainer}>
-                    <Animated.View style={[styles.pulseCircle, animatedPulse]} />
-                    <View style={[styles.pairingCircle, { backgroundColor: theme.colors.surfaceVariant, borderColor: theme.colors.outlineVariant }]}>
-                       <MaterialCommunityIcons 
-                         name={targetDevice?.platform === 'desktop' ? "laptop" : "cellphone"} 
-                         size={60} 
-                         color={theme.colors.primary} 
-                       />
-                    </View>
-                 </View>
-                 
-                 <Text variant="headlineMedium" style={[styles.waitingTitle, { color: theme.colors.onSurface }]}>
-                   {targetDevice?.name || 'Device'}
-                 </Text>
-                 <View style={[styles.idBadgeSmall, { backgroundColor: theme.colors.surfaceVariant, borderColor: theme.colors.outlineVariant }]}>
-                    <Text style={[styles.idBadgeTextSmall, { color: theme.colors.onSurfaceVariant }]}>
-                      #{targetDevice?.id || '000'}
-                    </Text>
-                 </View>
-                 
-                 <Text style={[styles.waitingStatus, { color: theme.colors.onSurfaceVariant }]}>
-                   {status === 'waiting' ? 'Waiting for response...' : 'Connection refused'}
-                 </Text>
-                 
-                 <Button 
-                   mode="contained" 
-                   onPress={handleCancel} 
-                   style={styles.cancelRequestButton}
-                   buttonColor={theme.colors.surfaceVariant}
-                   textColor={theme.colors.onSurfaceVariant}
-                 >
-                   Cancel Request
-                 </Button>
+                <View style={styles.pairingCircleContainer}>
+                  <Animated.View style={[styles.pulseCircle, animatedPulse]} />
+                  <View
+                    style={[
+                      styles.pairingCircle,
+                      {
+                        backgroundColor: theme.colors.surfaceVariant,
+                        borderColor: theme.colors.outlineVariant,
+                      },
+                    ]}
+                  >
+                    <MaterialCommunityIcons
+                      name={targetDevice?.platform === 'desktop' ? 'laptop' : 'cellphone'}
+                      size={60}
+                      color={theme.colors.primary}
+                    />
+                  </View>
+                </View>
+
+                <Text
+                  variant="headlineMedium"
+                  style={[styles.waitingTitle, { color: theme.colors.onSurface }]}
+                >
+                  {targetDevice?.name || 'Device'}
+                </Text>
+                <View
+                  style={[
+                    styles.idBadgeSmall,
+                    {
+                      backgroundColor: theme.colors.surfaceVariant,
+                      borderColor: theme.colors.outlineVariant,
+                    },
+                  ]}
+                >
+                  <Text style={[styles.idBadgeTextSmall, { color: theme.colors.onSurfaceVariant }]}>
+                    #{targetDevice?.id || '000'}
+                  </Text>
+                </View>
+
+                <Text style={[styles.waitingStatus, { color: theme.colors.onSurfaceVariant }]}>
+                  {status === 'waiting' ? 'Waiting for response...' : 'Connection refused'}
+                </Text>
+
+                <Button
+                  mode="contained"
+                  onPress={handleCancel}
+                  style={styles.cancelRequestButton}
+                  buttonColor={theme.colors.surfaceVariant}
+                  textColor={theme.colors.onSurfaceVariant}
+                >
+                  Cancel Request
+                </Button>
               </View>
             ) : (
               <>
-                <View style={[styles.header, status === 'done' && { alignItems: 'center', paddingTop: 30 }]}>
+                <View
+                  style={[
+                    styles.header,
+                    status === 'done' && { alignItems: 'center', paddingTop: 30 },
+                  ]}
+                >
                   {status === 'done' ? (
                     <View style={{ alignItems: 'center', gap: 12 }}>
-                      <View style={{ backgroundColor: theme.colors.primaryContainer, width: 64, height: 64, borderRadius: 32, alignItems: 'center', justifyContent: 'center' }}>
-                        <MaterialCommunityIcons name="check" size={40} color={theme.colors.primary} />
+                      <View
+                        style={{
+                          backgroundColor: theme.colors.primaryContainer,
+                          width: 64,
+                          height: 64,
+                          borderRadius: 32,
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}
+                      >
+                        <MaterialCommunityIcons
+                          name="check"
+                          size={40}
+                          color={theme.colors.primary}
+                        />
                       </View>
-                      <Text variant="headlineSmall" style={[styles.headerTitle, { color: theme.colors.onSurface, fontWeight: '800' }]}>
+                      <Text
+                        variant="headlineSmall"
+                        style={[
+                          styles.headerTitle,
+                          { color: theme.colors.onSurface, fontWeight: '800' },
+                        ]}
+                      >
                         Sent successfully
                       </Text>
                       <Text style={{ color: theme.colors.onSurfaceVariant, marginTop: -4 }}>
@@ -379,7 +442,10 @@ const SendingPortal = ({ visible, onDismiss, targetDevice }: SendingPortalProps)
                       </Text>
                     </View>
                   ) : (
-                    <Text variant="headlineSmall" style={[styles.headerTitle, { color: theme.colors.onSurface }]}>
+                    <Text
+                      variant="headlineSmall"
+                      style={[styles.headerTitle, { color: theme.colors.onSurface }]}
+                    >
                       {status === 'sending' ? 'Sending files' : 'Preparing...'}
                     </Text>
                   )}
@@ -388,35 +454,84 @@ const SendingPortal = ({ visible, onDismiss, targetDevice }: SendingPortalProps)
                 <ScrollView style={styles.itemList} contentContainerStyle={styles.itemListContent}>
                   {displayItems.map((item, idx) => {
                     const isCurrent = status === 'sending' && idx === currentFileIndex;
-                    const isDone = status === 'done' || (status === 'sending' && idx < currentFileIndex);
-                    
+                    const isDone =
+                      status === 'done' || (status === 'sending' && idx < currentFileIndex);
+
                     let itemProgress = 0;
                     if (isDone) itemProgress = 100;
                     else if (isCurrent) {
                       const totalItems = selectedItems.length;
                       const progressPerItem = 1 / totalItems;
                       const completedItemsProgress = idx * progressPerItem;
-                      itemProgress = Math.min(100, Math.max(0, ((progress - completedItemsProgress) / progressPerItem) * 100));
+                      itemProgress = Math.min(
+                        100,
+                        Math.max(0, ((progress - completedItemsProgress) / progressPerItem) * 100)
+                      );
                     }
 
                     return (
-                      <View key={item.id} style={[styles.fileRow, !isCurrent && !isDone && status === 'sending' && { opacity: 0.4 }]}>
-                        <View style={[styles.fileIconContainer, { backgroundColor: theme.colors.surfaceVariant, borderColor: theme.colors.outlineVariant }]}>
-                          <MaterialCommunityIcons name="file-outline" size={24} color={theme.colors.onSurfaceVariant} opacity={0.8} />
+                      <View
+                        key={item.id}
+                        style={[
+                          styles.fileRow,
+                          !isCurrent && !isDone && status === 'sending' && { opacity: 0.4 },
+                        ]}
+                      >
+                        <View
+                          style={[
+                            styles.fileIconContainer,
+                            {
+                              backgroundColor: theme.colors.surfaceVariant,
+                              borderColor: theme.colors.outlineVariant,
+                            },
+                          ]}
+                        >
+                          <MaterialCommunityIcons
+                            name="file-outline"
+                            size={24}
+                            color={theme.colors.onSurfaceVariant}
+                            opacity={0.8}
+                          />
                         </View>
                         <View style={styles.fileDetails}>
-                           <Text style={[styles.fileName, { color: theme.colors.onSurface }]}>
-                             {item.name} ({ formatFileSize(item.size) })
-                           </Text>
-                           {isDone && (
-                             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: -4 }}>
-                               <MaterialCommunityIcons name="check-circle" size={14} color={theme.colors.primary} />
-                               <Text style={{ color: theme.colors.primary, fontSize: 12 }}>Done</Text>
-                             </View>
-                           )}
-                           <View style={[styles.itemProgressBarContainer, { backgroundColor: theme.colors.surfaceVariant }]}>
-                              <View style={[styles.itemProgressBar, { backgroundColor: theme.colors.primary, width: `${itemProgress}%` }]} />
-                           </View>
+                          <Text style={[styles.fileName, { color: theme.colors.onSurface }]}>
+                            {item.name} ({formatFileSize(item.size)})
+                          </Text>
+                          {isDone && (
+                            <View
+                              style={{
+                                flexDirection: 'row',
+                                alignItems: 'center',
+                                gap: 4,
+                                marginTop: -4,
+                              }}
+                            >
+                              <MaterialCommunityIcons
+                                name="check-circle"
+                                size={14}
+                                color={theme.colors.primary}
+                              />
+                              <Text style={{ color: theme.colors.primary, fontSize: 12 }}>
+                                Done
+                              </Text>
+                            </View>
+                          )}
+                          <View
+                            style={[
+                              styles.itemProgressBarContainer,
+                              { backgroundColor: theme.colors.surfaceVariant },
+                            ]}
+                          >
+                            <View
+                              style={[
+                                styles.itemProgressBar,
+                                {
+                                  backgroundColor: theme.colors.primary,
+                                  width: `${itemProgress}%`,
+                                },
+                              ]}
+                            />
+                          </View>
                         </View>
                       </View>
                     );
@@ -425,60 +540,110 @@ const SendingPortal = ({ visible, onDismiss, targetDevice }: SendingPortalProps)
 
                 <View style={styles.footer}>
                   <View style={styles.totalProgressSection}>
-                    <Text variant="titleMedium" style={[styles.totalProgressLabel, { color: theme.colors.onSurface }]}>
-                      {status === 'done' ? 'Finished' : `Total progress (${formatDuration(transferDuration)})`}
+                    <Text
+                      variant="titleMedium"
+                      style={[styles.totalProgressLabel, { color: theme.colors.onSurface }]}
+                    >
+                      {status === 'done'
+                        ? 'Finished'
+                        : `Total progress (${formatDuration(transferDuration)})`}
                     </Text>
-                    <View style={[styles.totalProgressBarContainer, { backgroundColor: theme.colors.surfaceVariant }]}>
-                      <View style={[styles.totalProgressBar, { backgroundColor: theme.colors.primary, width: `${progress * 100}%` }]} />
+                    <View
+                      style={[
+                        styles.totalProgressBarContainer,
+                        { backgroundColor: theme.colors.surfaceVariant },
+                      ]}
+                    >
+                      <View
+                        style={[
+                          styles.totalProgressBar,
+                          { backgroundColor: theme.colors.primary, width: `${progress * 100}%` },
+                        ]}
+                      />
                     </View>
                   </View>
 
                   {showAdvanced && (
-                     <View style={styles.advancedStats}>
-                       <Text style={[styles.advancedStatText, { color: theme.colors.onSurfaceVariant }]}>
-                         Files: {Math.floor(progress * selectedItems.length)} / {selectedItems.length}
-                       </Text>
-                       <Text style={[styles.advancedStatText, { color: theme.colors.onSurfaceVariant }]}>
-                         Size: {formatFileSize(downloadedBytes)} / {formatFileSize(totalTransferSize)}
-                       </Text>
-                       <Text style={[styles.advancedStatText, { color: theme.colors.onSurfaceVariant }]}>
-                         Speed: {formatFileSize(currentSpeed)}/s
-                       </Text>
-                     </View>
+                    <View style={styles.advancedStats}>
+                      <Text
+                        style={[styles.advancedStatText, { color: theme.colors.onSurfaceVariant }]}
+                      >
+                        Files: {Math.floor(progress * selectedItems.length)} /{' '}
+                        {selectedItems.length}
+                      </Text>
+                      <Text
+                        style={[styles.advancedStatText, { color: theme.colors.onSurfaceVariant }]}
+                      >
+                        Size: {formatFileSize(downloadedBytes)} /{' '}
+                        {formatFileSize(totalTransferSize)}
+                      </Text>
+                      <Text
+                        style={[styles.advancedStatText, { color: theme.colors.onSurfaceVariant }]}
+                      >
+                        Speed: {formatFileSize(currentSpeed)}/s
+                      </Text>
+                    </View>
                   )}
 
-                  <View style={[status === 'done' ? styles.actionRowDone : styles.actionRow, status === 'done' && { justifyContent: 'center' }]}>
-                     {status !== 'done' && (
-                       <Button 
-                        mode="text" 
-                        onPress={() => setShowAdvanced(!showAdvanced)} 
-                        textColor={theme.colors.primary} 
+                  <View
+                    style={[
+                      status === 'done' ? styles.actionRowDone : styles.actionRow,
+                      status === 'done' && { justifyContent: 'center' },
+                    ]}
+                  >
+                    {status !== 'done' && (
+                      <Button
+                        mode="text"
+                        onPress={() => setShowAdvanced(!showAdvanced)}
+                        textColor={theme.colors.primary}
                         labelStyle={styles.actionButtonLabel}
-                        icon={showAdvanced ? 'eye-off' : () => (
-                          <View style={[styles.advancedIcon, { borderColor: theme.colors.outlineVariant }]}>
-                             <Text style={[styles.advancedIconText, { color: theme.colors.primary }]}>i</Text>
-                          </View>
-                        )}
-                       >
-                         {showAdvanced ? 'Hide' : 'Advanced'}
-                       </Button>
-                     )}
-
-                      <Button 
-                       mode={status === 'done' ? "contained" : "text"} 
-                       onPress={handleCancel} 
-                       textColor={status === 'done' ? theme.colors.onPrimary : theme.colors.primary} 
-                       buttonColor={status === 'done' ? theme.colors.primary : undefined}
-                       labelStyle={[
-                         styles.actionButtonLabel,
-                         status === 'done' && { fontWeight: 'bold', paddingHorizontal: 24, fontSize: 16 }
-                       ]}
-                       style={status === 'done' ? { borderRadius: 28, width: 200 } : { borderRadius: 28 }}
-                       contentStyle={status === 'done' ? { height: 50 } : {}}
-                       icon={status === 'done' ? 'check-circle' : 'close'}
+                        icon={
+                          showAdvanced
+                            ? 'eye-off'
+                            : () => (
+                                <View
+                                  style={[
+                                    styles.advancedIcon,
+                                    { borderColor: theme.colors.outlineVariant },
+                                  ]}
+                                >
+                                  <Text
+                                    style={[
+                                      styles.advancedIconText,
+                                      { color: theme.colors.primary },
+                                    ]}
+                                  >
+                                    i
+                                  </Text>
+                                </View>
+                              )
+                        }
                       >
-                       {status === 'done' ? 'Done' : 'Cancel'}
+                        {showAdvanced ? 'Hide' : 'Advanced'}
                       </Button>
+                    )}
+
+                    <Button
+                      mode={status === 'done' ? 'contained' : 'text'}
+                      onPress={handleCancel}
+                      textColor={status === 'done' ? theme.colors.onPrimary : theme.colors.primary}
+                      buttonColor={status === 'done' ? theme.colors.primary : undefined}
+                      labelStyle={[
+                        styles.actionButtonLabel,
+                        status === 'done' && {
+                          fontWeight: 'bold',
+                          paddingHorizontal: 24,
+                          fontSize: 16,
+                        },
+                      ]}
+                      style={
+                        status === 'done' ? { borderRadius: 28, width: 200 } : { borderRadius: 28 }
+                      }
+                      contentStyle={status === 'done' ? { height: 50 } : {}}
+                      icon={status === 'done' ? 'check-circle' : 'close'}
+                    >
+                      {status === 'done' ? 'Done' : 'Cancel'}
+                    </Button>
                   </View>
                 </View>
               </>
@@ -555,8 +720,7 @@ const styles = StyleSheet.create({
   totalProgressSection: {
     gap: 12,
   },
-  totalProgressLabel: {
-  },
+  totalProgressLabel: {},
   totalProgressBarContainer: {
     height: 8,
     borderRadius: 4,

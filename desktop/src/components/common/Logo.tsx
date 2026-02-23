@@ -1,4 +1,4 @@
-import { cn } from "@/lib/utils";
+import { cn } from '@/lib/utils';
 
 export function LogoIcon({ className, size = 24 }: { className?: string; size?: number }) {
   return (
@@ -8,7 +8,7 @@ export function LogoIcon({ className, size = 24 }: { className?: string; size?: 
       height={size}
       viewBox="0 0 48 48"
       xmlns="http://www.w3.org/2000/svg"
-      className={cn("text-primary", className)}
+      className={cn('text-primary', className)}
     >
       <g fill="currentColor" transform="translate(3 0)">
         <path d="m14.1061 19.6565c5.499-2.6299 9.8025-7.0929 12.2731-12.67168-1.5939-1.67362-3.666-2.86907-5.8975-3.58634l-1.1954-.39848c-.0797.15939-.1594.39849-.1594.55788-1.9127 5.41936-5.8178 9.80262-11.07766 12.27322-3.66599 1.7533-6.37564 4.9412-7.650763 8.7666l-.398477 1.1955c.159391.0797.39848.1593.557871.1593 1.514209.5579 3.028419 1.2752 4.462939 2.1519 1.99238-3.5864 5.18019-6.6148 9.08529-8.4479z" />
@@ -27,7 +27,7 @@ export function LogoIcon({ className, size = 24 }: { className?: string; size?: 
 
 export function Logo({ className, iconSize = 24 }: { className?: string; iconSize?: number }) {
   return (
-    <div className={cn("flex items-center gap-2", className)}>
+    <div className={cn('flex items-center gap-2', className)}>
       <LogoIcon size={iconSize} />
       <span className="text-sm font-bold tracking-tight text-primary">EXLINK</span>
     </div>

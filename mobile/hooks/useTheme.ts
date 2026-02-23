@@ -1,4 +1,4 @@
-import { useAppTheme } from "../context/ThemeContext";
+import { useAppTheme } from '../context/ThemeContext';
 
 export { useAppTheme as useTheme };
-export type { ColorTheme } from "../context/ThemeContext";
+export type { ColorTheme } from '../context/ThemeContext';

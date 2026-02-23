@@ -1,9 +1,9 @@
-import React from "react";
-import { StyleSheet, View, ScrollView, Image as RNImage, Platform } from "react-native";
-import { Text, IconButton, useTheme, Card, Button, Modal, Portal } from "react-native-paper";
-import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { useSelection } from "@/hooks/useSelection";
-import { SafeAreaView } from "react-native-safe-area-context";
+import React from 'react';
+import { StyleSheet, View, ScrollView, Image as RNImage, Platform } from 'react-native';
+import { Text, IconButton, useTheme, Card, Button, Modal, Portal } from 'react-native-paper';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { useSelection } from '@/hooks/useSelection';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 interface SelectionDetailsPortalProps {
   visible: boolean;
@@ -15,20 +15,25 @@ const SelectionDetailsPortal = ({ visible, onDismiss }: SelectionDetailsPortalPr
   const { selectedItems, removeItem, clearSelection, totalSize } = useSelection();
 
   const formatSize = (bytes: number) => {
-    if (bytes === 0) return "0 B";
+    if (bytes === 0) return '0 B';
     const k = 1024;
-    const sizes = ["B", "KB", "MB", "GB", "TB"];
+    const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + " " + sizes[i];
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
   };
 
   const getIcon = (type: string) => {
     switch (type) {
-      case 'media': return 'image-outline';
-      case 'text': return 'text-short';
-      case 'app': return 'apps';
-      case 'folder': return 'folder-outline';
-      default: return 'file-outline';
+      case 'media':
+        return 'image-outline';
+      case 'text':
+        return 'text-short';
+      case 'app':
+        return 'apps';
+      case 'folder':
+        return 'folder-outline';
+      default:
+        return 'file-outline';
     }
   };
 
@@ -39,7 +44,7 @@ const SelectionDetailsPortal = ({ visible, onDismiss }: SelectionDetailsPortalPr
         onDismiss={onDismiss}
         contentContainerStyle={[
           styles.modalContainer,
-          { backgroundColor: theme.colors.background }
+          { backgroundColor: theme.colors.background },
         ]}
       >
         <SafeAreaView style={styles.safeArea} edges={['bottom']}>
@@ -52,7 +57,10 @@ const SelectionDetailsPortal = ({ visible, onDismiss }: SelectionDetailsPortalPr
                 onPress={onDismiss}
                 iconColor={theme.colors.onSurface}
               />
-              <Text variant="headlineSmall" style={[styles.title, { color: theme.colors.onSurface }]}>
+              <Text
+                variant="headlineSmall"
+                style={[styles.title, { color: theme.colors.onSurface }]}
+              >
                 Selection
               </Text>
             </View>
@@ -85,25 +93,53 @@ const SelectionDetailsPortal = ({ visible, onDismiss }: SelectionDetailsPortalPr
                       {item.type === 'media' && item.uri ? (
                         <RNImage source={{ uri: item.uri }} style={styles.thumbnail} />
                       ) : (
-                        <View style={[styles.iconPlaceholder, { backgroundColor: theme.colors.surfaceVariant }]}>
-                          <MaterialCommunityIcons name={getIcon(item.type) as any} size={28} color={theme.colors.primary} />
+                        <View
+                          style={[
+                            styles.iconPlaceholder,
+                            { backgroundColor: theme.colors.surfaceVariant },
+                          ]}
+                        >
+                          <MaterialCommunityIcons
+                            name={getIcon(item.type) as any}
+                            size={28}
+                            color={theme.colors.primary}
+                          />
                         </View>
                       )}
                     </View>
-                    
+
                     <View style={styles.itemInfo}>
-                      <Text variant="bodyLarge" numberOfLines={1} style={[styles.itemName, { color: theme.colors.onSurface }]}>{item.name}</Text>
-                      <Text variant="labelMedium" style={[styles.itemSize, { color: theme.colors.onSurfaceVariant }]}>{formatSize(item.size)}</Text>
+                      <Text
+                        variant="bodyLarge"
+                        numberOfLines={1}
+                        style={[styles.itemName, { color: theme.colors.onSurface }]}
+                      >
+                        {item.name}
+                      </Text>
+                      <Text
+                        variant="labelMedium"
+                        style={[styles.itemSize, { color: theme.colors.onSurfaceVariant }]}
+                      >
+                        {formatSize(item.size)}
+                      </Text>
                     </View>
 
-                    <IconButton icon="close" size={20} onPress={() => removeItem(item.id)} iconColor={theme.colors.onSurfaceVariant} />
+                    <IconButton
+                      icon="close"
+                      size={20}
+                      onPress={() => removeItem(item.id)}
+                      iconColor={theme.colors.onSurfaceVariant}
+                    />
                   </View>
                 </Card>
               ))}
-              
+
               {selectedItems.length === 0 && (
                 <View style={styles.emptyContainer}>
-                  <Text variant="headlineSmall" style={[styles.emptyText, { color: theme.colors.onSurfaceVariant }]}>
+                  <Text
+                    variant="headlineSmall"
+                    style={[styles.emptyText, { color: theme.colors.onSurfaceVariant }]}
+                  >
                     No items selected.
                   </Text>
                 </View>
@@ -111,10 +147,10 @@ const SelectionDetailsPortal = ({ visible, onDismiss }: SelectionDetailsPortalPr
             </ScrollView>
 
             <View style={styles.footer}>
-              <Button 
-                mode="contained" 
-                onPress={onDismiss} 
-                style={styles.confirmButton} 
+              <Button
+                mode="contained"
+                onPress={onDismiss}
+                style={styles.confirmButton}
                 contentStyle={{ height: 56 }}
                 labelStyle={{ fontSize: 16, fontWeight: '700' }}
               >
@@ -142,20 +178,20 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   appBar: {
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingHorizontal: 4,
     height: 44,
   },
   title: {
     marginLeft: 8,
-    fontWeight: "400",
+    fontWeight: '400',
   },
   buttonRow: {
-    flexDirection: "row",
+    flexDirection: 'row',
     paddingHorizontal: 16,
-    alignItems: "center",
-    justifyContent: "space-between",
+    alignItems: 'center',
+    justifyContent: 'space-between',
     marginVertical: 4,
   },
   statsInfo: {
@@ -184,12 +220,12 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.03)',
   },
   itemRow: {
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
     padding: 12,
   },
   thumbnailWrapper: {
-    shadowColor: "#000",
+    shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
@@ -204,15 +240,15 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 12,
-    justifyContent: "center",
-    alignItems: "center",
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   itemInfo: {
     flex: 1,
     marginLeft: 16,
   },
   itemName: {
-    fontWeight: "600",
+    fontWeight: '600',
   },
   itemSize: {
     opacity: 0.7,
@@ -221,12 +257,12 @@ const styles = StyleSheet.create({
   emptyContainer: {
     flex: 1,
     paddingVertical: 100,
-    justifyContent: "center",
-    alignItems: "center",
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   emptyText: {
     opacity: 0.7,
-    fontWeight: "400",
+    fontWeight: '400',
     textAlign: 'center',
   },
   footer: {

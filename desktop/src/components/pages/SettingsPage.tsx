@@ -1,42 +1,48 @@
-import { Card } from "@/components/ui/card";
+import { Card } from '@/components/ui/card';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
+} from '@/components/ui/select';
 
-import { useTheme } from "@/components/theme-provider";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
-import { useEffect, useState } from "react";
-import { toast } from "sonner";
-import { LogoIcon } from "../common/Logo";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Dices } from "lucide-react";
-import { uniqueNamesGenerator, adjectives, animals } from "unique-names-generator";
+import { useTheme } from '@/components/theme-provider';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import { Label } from '@/components/ui/label';
+import { useEffect, useState } from 'react';
+import { toast } from 'sonner';
+import { LogoIcon } from '../common/Logo';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog';
+import { Dices } from 'lucide-react';
+import { uniqueNamesGenerator, adjectives, animals } from 'unique-names-generator';
 
 export function SettingsPage() {
   const { theme, setTheme, colorTheme, setColorTheme } = useTheme();
-  const [deviceName, setDeviceName] = useState("");
-  const [deviceNameDraft, setDeviceNameDraft] = useState("");
+  const [deviceName, setDeviceName] = useState('');
+  const [deviceNameDraft, setDeviceNameDraft] = useState('');
   const [isSavingName, setIsSavingName] = useState(false);
   const [deviceNameDialogOpen, setDeviceNameDialogOpen] = useState(false);
   const [serverRunning, setServerRunning] = useState(true);
   const [nameChanged, setNameChanged] = useState(false);
-  const [saveToFolder, setSaveToFolder] = useState("");
+  const [saveToFolder, setSaveToFolder] = useState('');
   const [aboutDialogOpen, setAboutDialogOpen] = useState(false);
 
   useEffect(() => {
-    window.ipcRenderer.invoke("get-server-info").then((info: any) => {
-      setDeviceName(info?.name || "");
+    window.ipcRenderer.invoke('get-server-info').then((info: any) => {
+      setDeviceName(info?.name || '');
     });
-    window.ipcRenderer.invoke("get-upload-dir").then((dir: string) => {
+    window.ipcRenderer.invoke('get-upload-dir').then((dir: string) => {
       setSaveToFolder(dir);
     });
-    window.ipcRenderer.invoke("get-server-status").then((status: any) => {
+    window.ipcRenderer.invoke('get-server-status').then((status: any) => {
       setServerRunning(status?.running ?? true);
     });
   }, []);
@@ -46,7 +52,7 @@ export function SettingsPage() {
       dictionaries: [adjectives, animals],
       length: 2,
       separator: ' ',
-      style: 'capital'
+      style: 'capital',
     });
     setDeviceNameDraft(random);
   };
@@ -67,11 +73,11 @@ export function SettingsPage() {
     const changed = next !== deviceName;
     try {
       setIsSavingName(true);
-      window.ipcRenderer.send("set-server-name", { name: next });
+      window.ipcRenderer.send('set-server-name', { name: next });
       setDeviceName(next);
       setDeviceNameDialogOpen(false);
       setNameChanged(changed);
-      toast.success("Device name saved");
+      toast.success('Device name saved');
     } finally {
       setIsSavingName(false);
     }
@@ -79,43 +85,43 @@ export function SettingsPage() {
 
   const handleServerStop = async () => {
     try {
-      await window.ipcRenderer.invoke("stop-server");
+      await window.ipcRenderer.invoke('stop-server');
       setServerRunning(false);
-      toast.success("Server stopped");
+      toast.success('Server stopped');
     } catch (e: any) {
-      toast.error("Failed to stop server: " + e.message);
+      toast.error('Failed to stop server: ' + e.message);
     }
   };
 
   const handleServerRestart = async () => {
     try {
-      await window.ipcRenderer.invoke("restart-server");
+      await window.ipcRenderer.invoke('restart-server');
       setServerRunning(true);
       setNameChanged(false);
-      toast.success("Server restarted");
+      toast.success('Server restarted');
     } catch (e: any) {
-      toast.error("Failed to restart server: " + e.message);
+      toast.error('Failed to restart server: ' + e.message);
     }
   };
 
   const handleServerRefresh = async () => {
     try {
-      await window.ipcRenderer.invoke("refresh-discovery");
-      toast.success("Discovery refreshed");
+      await window.ipcRenderer.invoke('refresh-discovery');
+      toast.success('Discovery refreshed');
     } catch (e: any) {
-      toast.error("Failed to refresh: " + e.message);
+      toast.error('Failed to refresh: ' + e.message);
     }
   };
 
   const handleSelectFolder = async () => {
     try {
-      const result = await window.ipcRenderer.invoke("select-save-folder");
+      const result = await window.ipcRenderer.invoke('select-save-folder');
       if (result && result.path) {
         setSaveToFolder(result.path);
-        toast.success("Save folder updated");
+        toast.success('Save folder updated');
       }
     } catch (e: any) {
-      toast.error("Failed to select folder: " + e.message);
+      toast.error('Failed to select folder: ' + e.message);
     }
   };
 
@@ -125,8 +131,10 @@ export function SettingsPage() {
 
       <Card className="p-6 space-y-8 bg-muted/20 border-muted/50">
         <div className="space-y-4">
-          <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground px-1">General</h3>
-          
+          <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground px-1">
+            General
+          </h3>
+
           <div className="space-y-1">
             <div className="flex items-center justify-between p-3 rounded-xl hover:bg-muted/50 transition-colors">
               <span className="text-sm font-medium">Theme</span>
@@ -163,8 +171,10 @@ export function SettingsPage() {
         </div>
 
         <div className="space-y-4">
-          <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground px-1">Network</h3>
-          
+          <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground px-1">
+            Network
+          </h3>
+
           {nameChanged && (
             <div className="p-3 rounded-lg bg-destructive/10 border border-destructive/20 mb-2">
               <p className="text-xs text-destructive font-medium text-center">
@@ -176,31 +186,51 @@ export function SettingsPage() {
           <div className="flex items-center justify-between p-3 rounded-xl hover:bg-muted/50 transition-colors">
             <span className="text-sm font-medium">Server</span>
             <div className="flex items-center gap-2">
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={handleServerRefresh}
-                className="h-9 w-9"
-              >
+              <Button variant="ghost" size="icon" onClick={handleServerRefresh} className="h-9 w-9">
                 <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                  />
                 </svg>
               </Button>
               <Button
-                variant={serverRunning ? "destructive" : "default"}
+                variant={serverRunning ? 'destructive' : 'default'}
                 size="icon"
                 onClick={serverRunning ? handleServerStop : handleServerRestart}
                 className="h-9 w-9"
               >
                 {serverRunning ? (
                   <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z" />
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                    />
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z"
+                    />
                   </svg>
                 ) : (
                   <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"
+                    />
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                    />
                   </svg>
                 )}
               </Button>
@@ -210,41 +240,39 @@ export function SettingsPage() {
           <div className="flex items-center justify-between p-3 rounded-xl hover:bg-muted/50 transition-colors gap-4">
             <div className="flex flex-col gap-1">
               <Label className="text-sm font-medium">Device name</Label>
-              <span className="text-xs text-muted-foreground">Shown on the Receive screen and to nearby devices.</span>
+              <span className="text-xs text-muted-foreground">
+                Shown on the Receive screen and to nearby devices.
+              </span>
             </div>
             <div className="flex items-center gap-2 w-[360px] max-w-full">
-              <Button
-                variant="outline"
-                onClick={openDeviceNameDialog}
-                className="flex-1"
-              >
-                {deviceName || "Set name"}
+              <Button variant="outline" onClick={openDeviceNameDialog} className="flex-1">
+                {deviceName || 'Set name'}
               </Button>
             </div>
           </div>
         </div>
 
         <div className="space-y-4">
-          <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground px-1">Receive</h3>
-          
+          <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground px-1">
+            Receive
+          </h3>
+
           <div className="flex items-center justify-between p-3 rounded-xl hover:bg-muted/50 transition-colors gap-4">
             <div className="flex flex-col gap-1">
               <Label className="text-sm font-medium">Save to folder</Label>
               <span className="text-xs text-muted-foreground">Where received files are saved.</span>
             </div>
-            <Button
-              variant="outline"
-              onClick={handleSelectFolder}
-              className="flex-1 max-w-[200px]"
-            >
-              {saveToFolder ? saveToFolder.split(/[/\\]/).pop() : "Select folder"}
+            <Button variant="outline" onClick={handleSelectFolder} className="flex-1 max-w-[200px]">
+              {saveToFolder ? saveToFolder.split(/[/\\]/).pop() : 'Select folder'}
             </Button>
           </div>
         </div>
 
         <div className="space-y-4">
-          <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground px-1">Other</h3>
-          
+          <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground px-1">
+            Other
+          </h3>
+
           <div className="flex items-center justify-between p-3 rounded-xl hover:bg-muted/50 transition-colors">
             <span className="text-sm font-medium">About ExLink</span>
             <Button variant="outline" onClick={() => setAboutDialogOpen(true)}>
@@ -309,9 +337,7 @@ export function SettingsPage() {
               <p className="text-sm text-muted-foreground mt-4">
                 Seamless file transfer between desktop and mobile devices over local network.
               </p>
-              <p className="text-sm text-muted-foreground">
-                Created by LW Shakib
-              </p>
+              <p className="text-sm text-muted-foreground">Created by LW Shakib</p>
             </div>
           </div>
           <DialogFooter>

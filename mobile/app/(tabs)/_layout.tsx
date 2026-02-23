@@ -1,4 +1,4 @@
-import { Tabs } from "expo-router";
+import { Tabs } from 'expo-router';
 import { CommonActions } from '@react-navigation/native';
 import { BottomNavigation, useTheme } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -8,7 +8,7 @@ export default function TabLayout() {
   return (
     <Tabs
       screenOptions={{
-        headerShown: false
+        headerShown: false,
       }}
       tabBar={({ navigation, state, descriptors, insets }) => (
         <BottomNavigation.Bar
@@ -49,17 +49,18 @@ export default function TabLayout() {
               typeof options.tabBarLabel === 'string'
                 ? options.tabBarLabel
                 : typeof options.title === 'string'
-                ? options.title
-                : route.name;
+                  ? options.title
+                  : route.name;
 
             return label;
           }}
         />
-      )}>
+      )}
+    >
       <Tabs.Screen
         name="receive"
         options={{
-          title: "Receive",
+          title: 'Receive',
           tabBarIcon: ({ color, size }) => (
             <MaterialCommunityIcons name="download" color={color} size={size} />
           ),
@@ -68,7 +69,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="send"
         options={{
-          title: "Send",
+          title: 'Send',
           tabBarIcon: ({ color, size }) => (
             <MaterialCommunityIcons name="send" color={color} size={size} />
           ),
@@ -78,7 +79,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="settings"
         options={{
-          title: "Settings",
+          title: 'Settings',
           tabBarIcon: ({ color, size }) => (
             <MaterialCommunityIcons name="cog" color={color} size={size} />
           ),

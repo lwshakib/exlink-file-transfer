@@ -1,119 +1,107 @@
 // @see - https://www.electron.build/configuration/configuration
 {
-  "$schema": "https://raw.githubusercontent.com/electron-userland/electron-builder/master/packages/app-builder-lib/scheme.json",
-  "appId": "com.lwshakib.exlink",
-  "productName": "ExLink",
-  "executableName": "exlink",
-  "copyright": "Copyright © 2026 LW Shakib",
-  "asar": true,
-  "compression": "maximum",
-  "directories": {
-    "output": "release/${version}"
+  $schema: 'https://raw.githubusercontent.com/electron-userland/electron-builder/master/packages/app-builder-lib/scheme.json',
+  appId: 'com.lwshakib.exlink',
+  productName: 'ExLink',
+  executableName: 'exlink',
+  copyright: 'Copyright © 2026 LW Shakib',
+  asar: true,
+  compression: 'maximum',
+  directories: {
+    output: 'release/${version}',
   },
-  "files": [
-    "dist",
-    "dist-electron"
-  ],
-  "publish": [
+  files: ['dist', 'dist-electron'],
+  publish: [
     {
-      "provider": "github",
-      "owner": "lwshakib",
-      "repo": "exlink-file-transfer",
-      "releaseType": "draft"
-    }
-  ],
-  "extraMetadata": {
-    "version": "0.1.0",
-    "description": "Premium local file transfer solution for seamless cross-platform communication.",
-    "author": "LW Shakib",
-    "homepage": "https://github.com/lwshakib/exlink-file-transfer",
-    "license": "MIT"
-  },
-  "win": {
-    "icon": "public/icons/win/icon.ico",
-    "publisherName": "LW Shakib",
-    "target": [
-      {
-        "target": "nsis",
-        "arch": [
-          "x64",
-          "ia32"
-        ]
-      },
-      {
-        "target": "portable"
-      }
-    ],
-    "artifactName": "${productName}-Windows-${version}-Setup.${ext}",
-    "verifyUpdateCodeSignature": false
-  },
-  "nsis": {
-    "oneClick": false,
-    "perMachine": true,
-    "allowToChangeInstallationDirectory": true,
-    "deleteAppDataOnUninstall": false,
-    "allowElevation": true,
-    "createDesktopShortcut": "always",
-    "createStartMenuShortcut": true,
-    "shortcutName": "ExLink",
-    "installerIcon": "public/icons/win/icon.ico",
-    "uninstallerIcon": "public/icons/win/icon.ico",
-    "installerHeaderIcon": "public/icons/win/icon.ico",
-    "uninstallDisplayName": "ExLink File Transfer",
-    "runAfterFinish": true
-  },
-  "mac": {
-    "icon": "public/icons/mac/icon.icns",
-    "target": [
-      "dmg",
-      "zip"
-    ],
-    "hardenedRuntime": true,
-    "gatekeeperAssess": false,
-    "category": "public.app-category.utilities",
-    "artifactName": "${productName}-Mac-${version}.${ext}",
-    "extendInfo": {
-      "NSAppleEventsUsageDescription": "ExLink requires access to Apple Events for optimized cross-process communication.",
-      "CFBundleDisplayName": "ExLink",
-      "CFBundleName": "ExLink"
-    }
-  },
-  "dmg": {
-    "title": "${productName} ${version}",
-    "icon": "public/icons/mac/icon.icns",
-    "window": {
-      "width": 540,
-      "height": 380
+      provider: 'github',
+      owner: 'lwshakib',
+      repo: 'exlink-file-transfer',
+      releaseType: 'draft',
     },
-    "contents": [
+  ],
+  extraMetadata: {
+    version: '0.1.0',
+    description: 'Premium local file transfer solution for seamless cross-platform communication.',
+    author: 'LW Shakib',
+    homepage: 'https://github.com/lwshakib/exlink-file-transfer',
+    license: 'MIT',
+  },
+  win: {
+    icon: 'public/icons/win/icon.ico',
+    publisherName: 'LW Shakib',
+    target: [
       {
-        "x": 410,
-        "y": 180,
-        "type": "link",
-        "path": "/Applications"
+        target: 'nsis',
+        arch: ['x64', 'ia32'],
       },
       {
-        "x": 130,
-        "y": 180,
-        "type": "file"
-      }
-    ]
-  },
-  "linux": {
-    "icon": "public/icons/png",
-    "target": [
-      "AppImage",
-      "deb"
+        target: 'portable',
+      },
     ],
-    "category": "Utility",
-    "artifactName": "${productName}-Linux-${version}.${ext}",
-    "maintainer": "LW Shakib <lwshakib@github.com>",
-    "desktop": {
-      "StartupWMClass": "exlink",
-      "Name": "ExLink",
-      "GenericName": "File Transfer Tool",
-      "Comment": "Fast, localized file transfer across devices.",
-      "Keywords": "file;transfer;sharing;network;wifi;p2p;"
-    }
-  }
+    artifactName: '${productName}-Windows-${version}-Setup.${ext}',
+    verifyUpdateCodeSignature: false,
+  },
+  nsis: {
+    oneClick: false,
+    perMachine: true,
+    allowToChangeInstallationDirectory: true,
+    deleteAppDataOnUninstall: false,
+    allowElevation: true,
+    createDesktopShortcut: 'always',
+    createStartMenuShortcut: true,
+    shortcutName: 'ExLink',
+    installerIcon: 'public/icons/win/icon.ico',
+    uninstallerIcon: 'public/icons/win/icon.ico',
+    installerHeaderIcon: 'public/icons/win/icon.ico',
+    uninstallDisplayName: 'ExLink File Transfer',
+    runAfterFinish: true,
+  },
+  mac: {
+    icon: 'public/icons/mac/icon.icns',
+    target: ['dmg', 'zip'],
+    hardenedRuntime: true,
+    gatekeeperAssess: false,
+    category: 'public.app-category.utilities',
+    artifactName: '${productName}-Mac-${version}.${ext}',
+    extendInfo: {
+      NSAppleEventsUsageDescription: 'ExLink requires access to Apple Events for optimized cross-process communication.',
+      CFBundleDisplayName: 'ExLink',
+      CFBundleName: 'ExLink',
+    },
+  },
+  dmg: {
+    title: '${productName} ${version}',
+    icon: 'public/icons/mac/icon.icns',
+    window: {
+      width: 540,
+      height: 380,
+    },
+    contents: [
+      {
+        x: 410,
+        y: 180,
+        type: 'link',
+        path: '/Applications',
+      },
+      {
+        x: 130,
+        y: 180,
+        type: 'file',
+      },
+    ],
+  },
+  linux: {
+    icon: 'public/icons/png',
+    target: ['AppImage', 'deb'],
+    category: 'Utility',
+    artifactName: '${productName}-Linux-${version}.${ext}',
+    maintainer: 'LW Shakib <lwshakib@github.com>',
+    desktop: {
+      StartupWMClass: 'exlink',
+      Name: 'ExLink',
+      GenericName: 'File Transfer Tool',
+      Comment: 'Fast, localized file transfer across devices.',
+      Keywords: 'file;transfer;sharing;network;wifi;p2p;',
+    },
+  },
 }

@@ -1,14 +1,14 @@
-import React, { createContext, useContext, useState, useEffect, useMemo } from "react";
-import { useSettingsStore } from "../store/useSettingsStore";
-import { useColorScheme } from "react-native";
-import { ThemeVariations } from "../constants/Colors";
+import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
+import { useSettingsStore } from '../store/useSettingsStore';
+import { useColorScheme } from 'react-native';
+import { ThemeVariations } from '../constants/Colors';
 
-export type ColorTheme = "ExLink" | "Emerald" | "Violet" | "Blue" | "Amber" | "Rose" | "Random";
+export type ColorTheme = 'ExLink' | 'Emerald' | 'Violet' | 'Blue' | 'Amber' | 'Rose' | 'Random';
 
 interface ThemeContextType {
-  colorScheme: "light" | "dark";
+  colorScheme: 'light' | 'dark';
   selectedColor: ColorTheme;
-  setThemeScheme: (scheme: "light" | "dark" | "system") => Promise<void>;
+  setThemeScheme: (scheme: 'light' | 'dark' | 'system') => Promise<void>;
   setThemeColor: (color: ColorTheme) => Promise<void>;
   toggleTheme: () => void;
   isLoaded: boolean;
@@ -19,7 +19,7 @@ const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const systemColorScheme = useColorScheme();
-  
+
   // Zustand Store
   const colorSchemeSetting = useSettingsStore((state) => state.colorScheme);
   const selectedColor = useSettingsStore((state) => state.selectedColor);
@@ -48,12 +48,12 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (selectedColor === "Random") {
+    if (selectedColor === 'Random') {
       setRandomVariationIndex(Math.floor(Math.random() * ThemeVariations.length));
     }
   }, [selectedColor]);
 
-  const setThemeScheme = async (scheme: "light" | "dark" | "system") => {
+  const setThemeScheme = async (scheme: 'light' | 'dark' | 'system') => {
     setColorSchemeStore(scheme);
   };
 
@@ -62,16 +62,16 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   };
 
   const toggleTheme = () => {
-    const newScheme = colorScheme === "light" ? "dark" : "light";
+    const newScheme = colorScheme === 'light' ? 'dark' : 'light';
     setThemeScheme(newScheme);
   };
 
   const selectedVariation = useMemo(() => {
     if (!isLoaded) return ThemeVariations[0];
-    if (selectedColor === "Random") {
+    if (selectedColor === 'Random') {
       return ThemeVariations[randomVariationIndex];
     }
-    return ThemeVariations.find(v => v.name === selectedColor) || ThemeVariations[0];
+    return ThemeVariations.find((v) => v.name === selectedColor) || ThemeVariations[0];
   }, [selectedColor, randomVariationIndex, isLoaded]);
 
   return (
@@ -83,7 +83,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
         setThemeColor,
         toggleTheme,
         isLoaded,
-        selectedVariation
+        selectedVariation,
       }}
     >
       {children}
@@ -94,7 +94,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 export function useAppTheme() {
   const context = useContext(ThemeContext);
   if (context === undefined) {
-    throw new Error("useAppTheme must be used within a ThemeProvider");
+    throw new Error('useAppTheme must be used within a ThemeProvider');
   }
   return context;
 }

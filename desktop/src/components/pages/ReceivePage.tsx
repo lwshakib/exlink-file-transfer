@@ -1,8 +1,8 @@
-import { History, Info, X, Trash2, FolderOpen, FileText, Clock } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { LogoIcon } from "../common/Logo";
-import { useState, useEffect } from "react";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import { History, Info, X, Trash2, FolderOpen, FileText, Clock } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { LogoIcon } from '../common/Logo';
+import { useState, useEffect } from 'react';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 interface HistoryItem {
   id: string;
@@ -14,20 +14,20 @@ interface HistoryItem {
 }
 
 export function ReceivePage() {
-  const [deviceName, setDeviceName] = useState("");
-  const [deviceId, setDeviceId] = useState("");
+  const [deviceName, setDeviceName] = useState('');
+  const [deviceId, setDeviceId] = useState('');
   const [showHistory, setShowHistory] = useState(false);
   const [history, setHistory] = useState<HistoryItem[]>([]);
 
   useEffect(() => {
     // Get identity from main process (which handles persistence/generation)
-    window.ipcRenderer.invoke('get-server-info').then(info => {
+    window.ipcRenderer.invoke('get-server-info').then((info) => {
       setDeviceName(info.name);
       setDeviceId(info.id);
     });
 
     const loadHistory = () => {
-      const historyJson = localStorage.getItem("transfer-history");
+      const historyJson = localStorage.getItem('transfer-history');
       if (historyJson) {
         setHistory(JSON.parse(historyJson));
       }
@@ -41,7 +41,7 @@ export function ReceivePage() {
   }, []);
 
   const clearHistory = () => {
-    localStorage.removeItem("transfer-history");
+    localStorage.removeItem('transfer-history');
     setHistory([]);
   };
 
@@ -64,11 +64,11 @@ export function ReceivePage() {
   };
 
   const formatDate = (timestamp: number) => {
-    return new Date(timestamp).toLocaleDateString([], { 
-      month: 'short', 
-      day: 'numeric', 
-      hour: '2-digit', 
-      minute: '2-digit' 
+    return new Date(timestamp).toLocaleDateString([], {
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
     });
   };
 
@@ -78,29 +78,29 @@ export function ReceivePage() {
         {/* History Header */}
         <div className="flex items-center justify-between p-6 border-b shrink-0">
           <div className="flex items-center gap-3">
-             <Button 
-               variant="ghost" 
-               size="icon" 
-               className="rounded-full h-10 w-10 hover:bg-muted" 
-               onClick={() => setShowHistory(false)}
-             >
-               <X className="h-5 w-5" />
-             </Button>
-             <h2 className="text-2xl font-bold tracking-tight">Transfer History</h2>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="rounded-full h-10 w-10 hover:bg-muted"
+              onClick={() => setShowHistory(false)}
+            >
+              <X className="h-5 w-5" />
+            </Button>
+            <h2 className="text-2xl font-bold tracking-tight">Transfer History</h2>
           </div>
           <div className="flex gap-2">
-            <Button 
-              variant="outline" 
-              size="sm" 
+            <Button
+              variant="outline"
+              size="sm"
               className="rounded-full gap-2 px-4 h-9 font-semibold"
               onClick={openFolder}
             >
               <FolderOpen className="h-4 w-4" />
               Open Folder
             </Button>
-            <Button 
-              variant="outline" 
-              size="sm" 
+            <Button
+              variant="outline"
+              size="sm"
               className="rounded-full gap-2 px-4 h-9 font-semibold text-destructive hover:text-destructive hover:bg-destructive/10"
               onClick={clearHistory}
             >
@@ -116,8 +116,8 @@ export function ReceivePage() {
             <ScrollArea className="h-full px-6 py-4">
               <div className="max-w-5xl mx-auto space-y-3">
                 {[...history].reverse().map((item) => (
-                  <div 
-                    key={item.id} 
+                  <div
+                    key={item.id}
                     className="group bg-muted/30 hover:bg-muted/50 border border-transparent hover:border-border p-4 rounded-2xl flex items-center gap-4 transition-all duration-200 cursor-pointer"
                     onClick={() => openFile(item.path)}
                   >
@@ -133,9 +133,13 @@ export function ReceivePage() {
                         </p>
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className="text-[11px] font-bold text-muted-foreground/80">{formatFileSize(item.size)}</span>
+                        <span className="text-[11px] font-bold text-muted-foreground/80">
+                          {formatFileSize(item.size)}
+                        </span>
                         <span className="text-[11px] text-muted-foreground/40">•</span>
-                        <span className="text-[11px] font-bold text-primary/80">From: {item.from}</span>
+                        <span className="text-[11px] font-bold text-primary/80">
+                          From: {item.from}
+                        </span>
                       </div>
                     </div>
                   </div>
@@ -144,10 +148,10 @@ export function ReceivePage() {
             </ScrollArea>
           ) : (
             <div className="absolute inset-0 flex flex-col items-center justify-center space-y-4 opacity-40">
-               <div className="h-20 w-20 bg-muted rounded-full flex items-center justify-center">
-                 <History size={40} className="text-muted-foreground" />
-               </div>
-               <p className="text-lg font-bold tracking-tight">No transfers yet</p>
+              <div className="h-20 w-20 bg-muted rounded-full flex items-center justify-center">
+                <History size={40} className="text-muted-foreground" />
+              </div>
+              <p className="text-lg font-bold tracking-tight">No transfers yet</p>
             </div>
           )}
         </div>
@@ -159,9 +163,9 @@ export function ReceivePage() {
     <div className="flex-1 flex flex-col items-center justify-center relative p-8 animate-in fade-in duration-500">
       {/* Top Right Actions */}
       <div className="absolute top-4 right-4 flex gap-2">
-        <Button 
-          variant="ghost" 
-          size="icon" 
+        <Button
+          variant="ghost"
+          size="icon"
           className="h-9 w-9 rounded-full hover:bg-muted"
           onClick={() => setShowHistory(true)}
         >
@@ -174,13 +178,18 @@ export function ReceivePage() {
 
       {/* Central Icon Area */}
       <div className="mb-12 relative flex items-center justify-center">
-        <LogoIcon size={192} className="opacity-90 transition-transform hover:scale-105 duration-500" />
+        <LogoIcon
+          size={192}
+          className="opacity-90 transition-transform hover:scale-105 duration-500"
+        />
       </div>
 
       {/* Device Info */}
       <div className="text-center space-y-2 mb-12">
-        <h1 className="text-5xl font-black tracking-tighter">{deviceName || "Loading..."}</h1>
-        <p className="text-xl text-muted-foreground font-mono font-bold tracking-widest opacity-60">#{deviceId}</p>
+        <h1 className="text-5xl font-black tracking-tighter">{deviceName || 'Loading...'}</h1>
+        <p className="text-xl text-muted-foreground font-mono font-bold tracking-widest opacity-60">
+          #{deviceId}
+        </p>
       </div>
 
       {/* Quick Save Toggle */}

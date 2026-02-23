@@ -1,9 +1,9 @@
-import React from "react";
-import { IconButton, Text, Button, useTheme, Modal, Portal, Card } from "react-native-paper";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { FlatList, StyleSheet, View, Platform, Linking } from "react-native";
-import { useSettingsStore, HistoryItem } from "@/store/useSettingsStore";
-import { MaterialCommunityIcons } from "@expo/vector-icons";
+import React from 'react';
+import { IconButton, Text, Button, useTheme, Modal, Portal, Card } from 'react-native-paper';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { FlatList, StyleSheet, View, Platform, Linking } from 'react-native';
+import { useSettingsStore, HistoryItem } from '@/store/useSettingsStore';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 interface HistoryPortalProps {
   visible: boolean;
@@ -21,20 +21,20 @@ const HistoryPortal = ({ visible, onDismiss }: HistoryPortalProps) => {
   };
 
   const getDisplayPath = (uri: string | null) => {
-    if (!uri) return "Not set (Internal)";
-    if (uri.startsWith('content://')) return "Custom Folder (SAF)";
-    
+    if (!uri) return 'Not set (Internal)';
+    if (uri.startsWith('content://')) return 'Custom Folder (SAF)';
+
     // Android user-friendly path
     if (uri.includes('/storage/emulated/0/')) {
-      return uri.split('/storage/emulated/0/')[1] || "Phone Storage";
+      return uri.split('/storage/emulated/0/')[1] || 'Phone Storage';
     }
-    
+
     // iOS user-friendly path
     if (uri.includes('/Documents/')) {
       const parts = uri.split('/Documents/');
-      return parts[parts.length - 1] || "App Documents";
+      return parts[parts.length - 1] || 'App Documents';
     }
-    
+
     return uri.split('/').pop() || uri;
   };
 
@@ -49,9 +49,9 @@ const HistoryPortal = ({ visible, onDismiss }: HistoryPortalProps) => {
               await Linking.openURL(safUri);
               return;
             } catch (e) {
-               // Fallback to root
-               await Linking.openURL('content://com.android.externalstorage.documents/root/primary');
-               return;
+              // Fallback to root
+              await Linking.openURL('content://com.android.externalstorage.documents/root/primary');
+              return;
             }
           }
           await Linking.openURL(saveToFolderPath);
@@ -63,34 +63,45 @@ const HistoryPortal = ({ visible, onDismiss }: HistoryPortalProps) => {
         if (Platform.OS === 'android') {
           await Linking.openURL('content://com.android.externalstorage.documents/root/primary');
         } else {
-          alert("Default storage is App Documents. You can see it in the Files app.");
+          alert('Default storage is App Documents. You can see it in the Files app.');
         }
       }
     } catch (e) {
-      alert("Could not open folder directly. Please use your Files / File Manager app.");
+      alert('Could not open folder directly. Please use your Files / File Manager app.');
     }
   };
 
   const formatSize = (bytes: number) => {
-    if (bytes === 0) return "0 B";
+    if (bytes === 0) return '0 B';
     const k = 1024;
-    const sizes = ["B", "KB", "MB", "GB", "TB"];
+    const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + " " + sizes[i];
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
   };
 
   const formatDate = (timestamp: number) => {
-    return new Date(timestamp).toLocaleDateString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+    return new Date(timestamp).toLocaleDateString([], {
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
   };
 
   const renderItem = ({ item }: { item: HistoryItem }) => (
     <Card style={styles.historyCard} mode="contained">
       <View style={styles.cardContent}>
         <View style={[styles.iconBox, { backgroundColor: theme.colors.surfaceVariant }]}>
-          <MaterialCommunityIcons name="file-document-outline" size={24} color={theme.colors.primary} />
+          <MaterialCommunityIcons
+            name="file-document-outline"
+            size={24}
+            color={theme.colors.primary}
+          />
         </View>
         <View style={styles.itemInfo}>
-          <Text variant="titleSmall" numberOfLines={1}>{item.name}</Text>
+          <Text variant="titleSmall" numberOfLines={1}>
+            {item.name}
+          </Text>
           <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
             {formatSize(item.size)} • {formatDate(item.timestamp)}
           </Text>
@@ -111,7 +122,7 @@ const HistoryPortal = ({ visible, onDismiss }: HistoryPortalProps) => {
         onDismiss={onDismiss}
         contentContainerStyle={[
           styles.modalContainer,
-          { backgroundColor: theme.colors.background }
+          { backgroundColor: theme.colors.background },
         ]}
       >
         <SafeAreaView style={styles.safeArea} edges={['bottom']}>
@@ -124,7 +135,10 @@ const HistoryPortal = ({ visible, onDismiss }: HistoryPortalProps) => {
                 onPress={onDismiss}
                 iconColor={theme.colors.onSurface}
               />
-              <Text variant="headlineSmall" style={[styles.title, { color: theme.colors.onSurface }]}>
+              <Text
+                variant="headlineSmall"
+                style={[styles.title, { color: theme.colors.onSurface }]}
+              >
                 History
               </Text>
             </View>
@@ -157,9 +171,17 @@ const HistoryPortal = ({ visible, onDismiss }: HistoryPortalProps) => {
 
             {/* Storage Info */}
             <View style={styles.storageInfo}>
-              <MaterialCommunityIcons name="folder" size={16} color={theme.colors.onSurfaceVariant} />
-              <Text variant="labelMedium" style={[styles.storageText, { color: theme.colors.onSurfaceVariant }]}>
-                Saving to: <Text style={{ fontWeight: 'bold' }}>{getDisplayPath(saveToFolderPath)}</Text>
+              <MaterialCommunityIcons
+                name="folder"
+                size={16}
+                color={theme.colors.onSurfaceVariant}
+              />
+              <Text
+                variant="labelMedium"
+                style={[styles.storageText, { color: theme.colors.onSurfaceVariant }]}
+              >
+                Saving to:{' '}
+                <Text style={{ fontWeight: 'bold' }}>{getDisplayPath(saveToFolderPath)}</Text>
               </Text>
             </View>
 
@@ -175,8 +197,15 @@ const HistoryPortal = ({ visible, onDismiss }: HistoryPortalProps) => {
                 />
               ) : (
                 <View style={styles.emptyContainer}>
-                  <MaterialCommunityIcons name="history" size={64} color={theme.colors.onSurfaceDisabled} />
-                  <Text variant="headlineSmall" style={[styles.emptyText, { color: theme.colors.onSurfaceVariant }]}>
+                  <MaterialCommunityIcons
+                    name="history"
+                    size={64}
+                    color={theme.colors.onSurfaceDisabled}
+                  />
+                  <Text
+                    variant="headlineSmall"
+                    style={[styles.emptyText, { color: theme.colors.onSurfaceVariant }]}
+                  >
                     No transfers yet
                   </Text>
                 </View>
@@ -203,17 +232,17 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   appBar: {
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingHorizontal: 4,
     height: 44,
   },
   title: {
     marginLeft: 8,
-    fontWeight: "400",
+    fontWeight: '400',
   },
   buttonRow: {
-    flexDirection: "row",
+    flexDirection: 'row',
     paddingHorizontal: 16,
     gap: 12,
     marginTop: 0,
@@ -252,16 +281,16 @@ const styles = StyleSheet.create({
     borderRadius: 16,
   },
   cardContent: {
-    flexDirection: "row",
+    flexDirection: 'row',
     padding: 12,
-    alignItems: "center",
+    alignItems: 'center',
   },
   iconBox: {
     width: 48,
     height: 48,
     borderRadius: 12,
-    justifyContent: "center",
-    alignItems: "center",
+    justifyContent: 'center',
+    alignItems: 'center',
     marginRight: 12,
   },
   itemInfo: {
@@ -269,13 +298,13 @@ const styles = StyleSheet.create({
   },
   emptyContainer: {
     flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
+    justifyContent: 'center',
+    alignItems: 'center',
     paddingBottom: 80,
   },
   emptyText: {
     opacity: 0.7,
-    fontWeight: "600",
+    fontWeight: '600',
     marginTop: 16,
   },
 });
