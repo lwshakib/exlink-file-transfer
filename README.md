@@ -1,4 +1,4 @@
-# 🚀 ExLink File Transfer
+# <img src="desktop/public/logo.svg" width="36" vertical-align="middle" /> ExLink File Transfer
 
 <p align="center">
   <img src="assets/01.png" width="45%" style="border-radius: 12px; margin-right: 10px; box-shadow: 0 4px 20px rgba(0,0,0,0.3);" />
@@ -10,22 +10,40 @@
   Designed for speed, built for privacy, and crafted with a premium user experience.
 </p>
 
+<p align="center">
+  <img src="https://img.shields.io/badge/Version-1.0.0-blue?style=flat-square" alt="Version" />
+  <img src="https://img.shields.io/badge/License-MIT-green?style=flat-square" alt="License" />
+  <img src="https://img.shields.io/badge/Platform-Cross--Platform-orange?style=flat-square" alt="Platform" />
+</p>
+
 ---
 
 ## 🌟 Overview
 
-ExLink is a powerful, cross-platform file transfer utility that allows you to move files, folders, and text between **Desktop** and **Mobile** devices with zero configuration. By staying entirely within your local network, ExLink ensures your data is transferred at the maximum speed possible while keeping it off third-party servers.
+ExLink is a powerful, cross-platform file transfer utility that allows you to move files, folders, and text between **Desktop** and **Mobile** devices with zero configuration. By staying entirely within your local network (LAN), ExLink ensures your data is transferred at the maximum speed possible—often exceeding 50MB/s on modern Wi-Fi—while keeping it completely off third-party servers.
 
 ## ✨ Key Features
 
-- 🏎️ **Blazing Fast**: Leverages your local Wi-Fi or LAN to achieve transfer speeds far exceeding cloud-based solutions.
+- 🏎️ **Blazing Fast**: Uses optimized HTTP streaming and direct TCP sockets to maximize your local bandwidth. No cloud limits, no throttling.
 - 📱 **Universal Compatibility**: A unified experience across Windows, macOS, Linux, Android, and iOS.
-- 🛰️ **Zero Configuration Discovery**: Intelligent UDP broadcasting and subnet scanning ensure your devices find each other instantly.
+- 🛰️ **Zero Configuration Discovery**: Combines UDP broadcasting with intelligent subnet scanning to ensure devices find each other in milliseconds.
 - 🔒 **Peer-to-Peer Privacy**: No accounts, no internet required, and no data logs. Your files move directly from one device to another.
-- 🎨 **Premium Aesthetic**: A modern, clean UI with Glassmorphism elements, dark mode support, and smooth animations.
+- 🎨 **Premium Aesthetic**: A modern, clean UI with Glassmorphism elements, dark mode support, and smooth Framer Motion animations.
 - 📋 **Seamless Clipboard**: Share links, snippets, and passwords instantly with the Universal Clipboard feature.
-- 📦 **Bulk Transfers**: Select hundreds of files or entire directory trees and watch them transfer in a single batch.
-- 📡 **Real-time Feedback**: Detailed progress bars, speed metrics, and estimated time remaining for every transfer.
+- 📦 **Bulk Transfers**: Select hundreds of files or entire directory trees and watch them transfer in a single parallelized batch.
+- 📡 **Real-time Feedback**: Detailed progress bars, per-file speed metrics, and estimated time remaining (ETA) for every transfer.
+
+---
+
+## 🧐 Why ExLink?
+
+| Feature | ExLink | Cloud Storage | Traditional Bluetooth |
+| :--- | :---: | :---: | :---: |
+| **Speed** | 🚀 Ultra Fast (LAN) | 🐌 Slow (ISP limited) | 🐢 Very Slow |
+| **Privacy** | 🔒 100% Local | 🔓 Third-party access | 🔒 Local |
+| **File Size Limit** | ♾️ Unlimited | ⚠️ Limited | ⚠️ Limited |
+| **Internet Required**| ❌ No | ✅ Yes | ❌ No |
+| **Setup Time** | ⚡ Instant | ⏳ Login/App setup | 🛠️ Manual Pairing |
 
 ---
 
@@ -48,9 +66,34 @@ ExLink is a powerful, cross-platform file transfer utility that allows you to mo
 
 ---
 
-## 🏗️ Architecture & Tech Stack
+## 🏗️ Project Structure
 
-ExLink is built with a modern, high-performance stack to ensure reliability and speed:
+```mermaid
+graph TD
+    Root[ExLink Root]
+    Root --> Desktop[desktop/]
+    Root --> Mobile[mobile/]
+    Root --> Assets[assets/]
+    
+    subgraph Desktop Subsystem
+        Desktop --> Electron[Electron Main]
+        Desktop --> React[React Renderer]
+        Desktop --> Express[Express Server]
+    end
+    
+    subgraph Mobile Subsystem
+        Mobile --> RN[React Native]
+        Mobile --> Expo[Expo Router]
+        Mobile --> Store[Zustand Store]
+    end
+    
+    Express <-->|High-speed HTTP| RN
+    Electron <-->|UDP Discovery| RN
+```
+
+## 🛠️ Tech Stack
+
+ExLink is built with a modern, high-performance stack:
 
 | Layer | Technologies |
 | :--- | :--- |
@@ -95,7 +138,7 @@ ExLink is built with a modern, high-performance stack to ensure reliability and 
 
 ## 🔬 How It Works (The ExLink Protocol)
 
-ExLink uses a proprietary discovery and transfer handshake:
+ExLink uses a proprietary discovery and transfer handshake to ensure a seamless experience:
 
 1.  **UDP Pulse**: The Desktop app pulses discovery packets on UDP Port `41234`.
 2.  **Subnet Scan**: Mobile devices scan the local subnet and announce themselves to detected Desktops.

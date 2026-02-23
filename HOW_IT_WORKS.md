@@ -1,4 +1,4 @@
-# 📖 How ExLink Works
+# <img src="desktop/public/logo.svg" width="32" vertical-align="middle" /> How ExLink Works
 
 This document provides a deep dive into the **ExLink Protocol** and the architectural decisions that power our high-speed, localized file transfers.
 
@@ -7,6 +7,23 @@ This document provides a deep dive into the **ExLink Protocol** and the architec
 ## 🏗️ High-Level Architecture
 
 ExLink follows a **Node-based Client-Server model** within the local area network (LAN). The roles are dynamic depending on who is sending and who is receiving.
+
+```mermaid
+graph LR
+    Desktop[Desktop Hub] <-->|Discovery| Mobile[Mobile Node]
+    Desktop <-->|Data Stream| Mobile
+    
+    subgraph Desktop
+        A[Electron Main] <--> B[React UI]
+        A <--> C[Express Server]
+        A <--> D[UDP Pulse]
+    end
+    
+    subgraph Mobile
+        E[React Native] <--> F[Zustand Store]
+        E <--> G[Subnet Scanner]
+    end
+```
 
 - **Desktop Subsystem (`/desktop`)**:
   - Acts as the primary **Network Hub**.
@@ -57,7 +74,8 @@ sequenceDiagram
     participant D as Desktop Hub
     participant UI as Desktop User
     
-    M->>D: POST /request-connect { deviceName, filesCount, totalSize }
+    M->>D: POST /request-connect
+    Note over M,D: { deviceName, filesCount, totalSize }
     D->>UI: Show Pairing Request Modal
     UI->>D: User Clicks "Accept"
     D-->>M: HTTP 200 { status: "accepted", pairToken: "..." }
@@ -72,7 +90,9 @@ sequenceDiagram
     participant UI as Mobile User
     
     D->>D: Queue Outgoing Request
-    M->>D: GET /check-pairing-requests/:mobileId (Polling 1s)
+    loop Polling (1s Interval)
+        M->>D: GET /check-pairing-requests/:mobileId
+    end
     D-->>M: HTTP 200 { status: "pending", data: {...} }
     M->>UI: Show Accept/Decline UI
     UI->>D: POST /respond-to-connection { status: "accepted" }
@@ -93,6 +113,17 @@ Once paired, ExLink switches to a specialized streaming engine.
 - Desktop queues the files in an internal `pendingDownloads` map.
 - Mobile receives the file list and initiates multiple `GET /download/:deviceId/:fileIndex` requests.
 - This "Pull" model ensures high reliability on Mobile OSs (Android/iOS) which often kill background upload processes.
+
+### 🏁 API Endpoints (Desktop Server)
+
+| Endpoint | Method | Description |
+| :------- | :----- | :---------- |
+| `/get-server-info` | `GET` | Returns basic info for discovery verification. |
+| `/request-connect` | `POST` | Initiates a pairing handshake from mobile. |
+| `/check-pairing-requests/:id` | `GET` | Polled by mobile to see if desktop wants to send. |
+| `/respond-to-connection` | `POST` | Mobile's response to a desktop-initiated pairing. |
+| `/upload` | `POST` | Receives files via multipart stream. |
+| `/download/:devId/:idx` | `GET` | Serves a specific file to a mobile downloader. |
 
 ---
 
@@ -117,6 +148,15 @@ Once paired, ExLink switches to a specialized streaming engine.
 
 ---
 
+## ⚡ Performance Optimization
+
+ExLink employs several techniques to maximize throughput:
+- **Chunked Writes**: Data is written to disk in chunks rather than buffered entirely in RAM.
+- **Concurrent Downloads**: Mobile can download multiple files simultaneously (configurable).
+- **Socket Tuning**: Optimized TCP parameters for local high-speed transfers.
+
+---
+
 ## ⚠️ Limitations & Security
 
 1. **Local Trust**: Currently, ExLink assumes a trusted LAN. No end-to-end encryption (TLS) is implemented for the data stream.
@@ -125,5 +165,5 @@ Once paired, ExLink switches to a specialized streaming engine.
 
 ---
 
-*Last Updated: January 2026*
+*Last Updated: February 2026*
 
