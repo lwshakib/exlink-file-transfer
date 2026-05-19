@@ -13,7 +13,7 @@ import {
   File,
   AlignLeft,
 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { Button } from '@workspace/ui/components/button';
 import { Logo } from '@/components/common/Logo';
 import { useState, useEffect, useRef } from 'react';
 import { cn } from '@/lib/utils';
@@ -22,9 +22,9 @@ import { SendPage } from './components/pages/SendPage';
 import { SettingsPage } from './components/pages/SettingsPage';
 import { useSelection, SelectedItem } from './hooks/useSelection';
 import { motion, AnimatePresence } from 'motion/react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { Badge } from '@/components/ui/badge';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@workspace/ui/components/dialog';
+import { ScrollArea } from '@workspace/ui/components/scroll-area';
+import { Badge } from '@workspace/ui/components/badge';
 
 // Main entry point for the Desktop application, managing core application state, IPC communication, and layout
 // Main entry point for the Desktop application, managing core application state, IPC communication, and layout

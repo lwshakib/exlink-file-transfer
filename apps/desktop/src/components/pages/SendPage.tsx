@@ -17,9 +17,9 @@ import {
   FileText,
   Paperclip,
 } from 'lucide-react';
-import { Card } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
+import { Card } from '@workspace/ui/components/card';
+import { Button } from '@workspace/ui/components/button';
+import { Badge } from '@workspace/ui/components/badge';
 import { motion, AnimatePresence } from 'motion/react';
 import { useSelection, SelectedItem } from '../../hooks/useSelection';
 import { toast } from 'sonner';
@@ -29,8 +29,8 @@ import {
   DialogHeader,
   DialogTitle,
   DialogFooter,
-} from '@/components/ui/dialog';
-import { Textarea } from '@/components/ui/textarea';
+} from '@workspace/ui/components/dialog';
+import { Textarea } from '@workspace/ui/components/textarea';
 
 interface NearbyNode {
   id: string;
