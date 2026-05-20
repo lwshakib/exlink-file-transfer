@@ -25,6 +25,7 @@ import { Platform } from 'react-native';
 import { useSettingsStore } from '@/store/useSettingsStore';
 import { useDiscoveryStore } from '@/store/useDiscoveryStore';
 import { Paths, Directory } from 'expo-file-system';
+import { uniqueNamesGenerator, adjectives, animals } from 'unique-names-generator';
 
 // InnerLayout configures and manages the app's fundamental operations: theming, storage prep, and peer-to-peer device discovery
 function InnerLayout() {
@@ -119,8 +120,12 @@ function InnerLayout() {
 
       // 2. Ensure Name and ID states are instantiated properly on first load
       if (!deviceName || deviceName === '') {
-        // Fallback sequentially down Native device string properties
-        const name = Device.deviceName || 'Mobile Device';
+        const name = uniqueNamesGenerator({
+          dictionaries: [adjectives, animals],
+          length: 2,
+          separator: ' ',
+          style: 'capital',
+        });
         setDeviceName(name);
       }
 
