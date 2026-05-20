@@ -362,113 +362,97 @@ export default function SendScreen() {
           <RefreshControl refreshing={false} onRefresh={startScanning} colors={[theme.colors.primary]} />
         }
       >
-        {/* Compact selection preview bar */}
+        {/* Selection Summary Card: Dynamically mounted only if actual items exist in state */}
         {selectedItems.length > 0 && (
-          <View
-            style={[
-              styles.compactSummaryBar,
-              {
-                backgroundColor: theme.colors.surface,
-                borderWidth: 1,
-                borderColor: theme.colors.primary + '1F',
-                borderLeftWidth: 4,
-                borderLeftColor: theme.colors.primary,
-              },
-            ]}
-          >
-            <View style={styles.compactSummaryLeft}>
-              <View style={[styles.compactIconBox, { backgroundColor: theme.colors.primary + '14' }]}>
-                <MaterialCommunityIcons name="file-multiple" size={20} color={theme.colors.primary} />
-              </View>
-              <View style={styles.compactStats}>
-                <Text variant="titleSmall" style={[styles.compactTitle, { color: theme.colors.onSurface }]}>
-                  Selected Content
-                </Text>
-                <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
-                  {selectedItems.length} files • {formatSize(totalSize)}
-                </Text>
-              </View>
-            </View>
-
-            {/* Overlapping small avatar previews */}
-            <View style={styles.avatarOverlapContainer}>
-              {selectedItems.slice(0, 3).map((item, idx) => (
-                <View
-                  key={item.id}
-                  style={[
-                    styles.overlapAvatar,
-                    {
-                      zIndex: 3 - idx,
-                      marginLeft: idx === 0 ? 0 : -12,
-                      borderColor: theme.colors.surfaceVariant,
-                      backgroundColor: theme.colors.elevation.level3,
-                    },
-                  ]}
-                >
-                  {item.type === 'media' && item.uri ? (
-                    <RNImage source={{ uri: item.uri }} style={styles.overlapAvatarImage} />
-                  ) : (
-                    <MaterialCommunityIcons
-                      name={
-                        item.type === 'media'
-                          ? 'image'
-                          : item.type === 'text'
-                            ? 'text-short'
-                            : item.type === 'app'
-                              ? 'apps'
-                              : 'file-document-outline'
-                      }
-                      size={16}
-                      color={theme.colors.primary}
-                    />
-                  )}
-                </View>
-              ))}
-              {selectedItems.length > 3 && (
-                <View
-                  style={[
-                    styles.overlapAvatarCount,
-                    {
-                      zIndex: 0,
-                      marginLeft: -12,
-                      borderColor: theme.colors.surfaceVariant,
-                      backgroundColor: theme.colors.primaryContainer,
-                    },
-                  ]}
-                >
-                  <Text style={[styles.overlapAvatarCountText, { color: theme.colors.onPrimaryContainer }]}>
-                    +{selectedItems.length - 3}
+          <Card style={styles.summaryCard} mode="contained">
+            <Card.Content>
+              {/* Top grouping binding string labels safely pushing metrics */}
+              <View style={styles.summaryHeader}>
+                <View>
+                  <Text
+                    variant="titleLarge"
+                    style={[styles.summaryTitle, { color: theme.colors.primary }]}
+                  >
+                    Selection
+                  </Text>
+                  <Text
+                    variant="bodyMedium"
+                    style={[styles.summaryStats, { color: theme.colors.onSurfaceVariant }]}
+                  >
+                    Files: {selectedItems.length}
+                  </Text>
+                  <Text
+                    variant="bodyMedium"
+                    style={[styles.summaryStats, { color: theme.colors.onSurfaceVariant }]}
+                  >
+                    Size: {formatSize(totalSize)}
                   </Text>
                 </View>
-              )}
-            </View>
+                <IconButton
+                  icon="close"
+                  size={24}
+                  onPress={clearSelection}
+                  style={styles.closeButton}
+                  iconColor={theme.colors.onSurfaceVariant}
+                />
+              </View>
 
-            <View style={styles.compactSummaryRight}>
-              <TouchableOpacity
-                onPress={() => setSelectionSheetVisible(true)}
-                style={[styles.compactActionButton, { backgroundColor: theme.colors.primary }]}
-                activeOpacity={0.7}
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                style={styles.thumbnailList}
               >
-                <MaterialCommunityIcons name="pencil" size={16} color={theme.colors.onPrimary} />
-              </TouchableOpacity>
-              
-              <TouchableOpacity
-                onPress={() => bottomSheetModalRef.current?.present()}
-                style={[styles.compactActionButton, { backgroundColor: theme.colors.primaryContainer }]}
-                activeOpacity={0.7}
-              >
-                <MaterialCommunityIcons name="plus" size={16} color={theme.colors.onPrimaryContainer} />
-              </TouchableOpacity>
+                {selectedItems.map((item) => (
+                  <View key={item.id} style={styles.thumbnailContainer}>
+                    {item.type === 'media' && item.uri ? (
+                      <RNImage source={{ uri: item.uri }} style={styles.thumbnailImage} />
+                    ) : (
+                      <MaterialCommunityIcons
+                        name={
+                          item.type === 'media'
+                            ? 'image'
+                            : item.type === 'text'
+                              ? 'text'
+                              : 'file-document'
+                        }
+                        size={32}
+                        color={theme.colors.primary}
+                      />
+                    )}
+                    <Text
+                      variant="labelSmall"
+                      numberOfLines={1}
+                      style={[styles.thumbnailLabel, { color: theme.colors.onSurfaceVariant }]}
+                    >
+                      {item.name}
+                    </Text>
+                  </View>
+                ))}
+              </ScrollView>
 
-              <TouchableOpacity
-                onPress={clearSelection}
-                style={[styles.compactActionButton, { backgroundColor: theme.colors.errorContainer }]}
-                activeOpacity={0.7}
-              >
-                <MaterialCommunityIcons name="trash-can-outline" size={16} color={theme.colors.onErrorContainer} />
-              </TouchableOpacity>
-            </View>
-          </View>
+              <View style={styles.summaryActions}>
+                <Button
+                  mode="text"
+                  onPress={() => setSelectionSheetVisible(true)}
+                  textColor={theme.colors.primary}
+                  style={styles.editButton}
+                >
+                  Edit
+                </Button>
+                <View style={{ flex: 1 }} />
+                <Button
+                  mode="contained"
+                  onPress={() => bottomSheetModalRef.current?.present()}
+                  icon="plus"
+                  style={styles.addButton}
+                  buttonColor={theme.colors.primary}
+                  textColor={theme.colors.onPrimary}
+                >
+                  Add
+                </Button>
+              </View>
+            </Card.Content>
+          </Card>
         )}
 
         {/* Horizontal categories carousel (when empty) */}
@@ -879,83 +863,61 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
   },
-  compactSummaryBar: {
+  summaryCard: {
     marginHorizontal: 16,
-    marginTop: 8,
-    marginBottom: 16,
-    borderRadius: 20,
+    marginBottom: 24,
+    borderRadius: 24,
+    padding: 8,
+    backgroundColor: 'transparent',
+  },
+  summaryHeader: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
-    padding: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 3,
+    alignItems: 'flex-start',
   },
-  compactSummaryLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    flex: 1,
-    marginRight: 8,
-  },
-  compactIconBox: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  compactStats: {
-    justifyContent: 'center',
-  },
-  compactTitle: {
-    fontWeight: '700',
-    fontSize: 14,
-  },
-  avatarOverlapContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginRight: 10,
-  },
-  overlapAvatar: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    borderWidth: 1.5,
-    alignItems: 'center',
-    justifyContent: 'center',
-    overflow: 'hidden',
-  },
-  overlapAvatarImage: {
-    width: '100%',
-    height: '100%',
-  },
-  overlapAvatarCount: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    borderWidth: 1.5,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  overlapAvatarCountText: {
-    fontSize: 9,
+  summaryTitle: {
     fontWeight: 'bold',
   },
-  compactSummaryRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
+  summaryStats: {
+    opacity: 0.7,
+    marginTop: 2,
   },
-  compactActionButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+  closeButton: {
+    margin: 0,
+  },
+  thumbnailList: {
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  thumbnailContainer: {
     alignItems: 'center',
-    justifyContent: 'center',
+    width: 80,
+    marginRight: 12,
+  },
+  thumbnailImage: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+  },
+  thumbnailLabel: {
+    marginTop: 4,
+    width: '100%',
+    textAlign: 'center',
+    opacity: 0.7,
+  },
+  summaryActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+    marginTop: 8,
+    gap: 8,
+  },
+  editButton: {
+    marginRight: 8,
+  },
+  addButton: {
+    borderRadius: 20,
+    paddingHorizontal: 8,
   },
   carouselSection: {
     marginBottom: 20,

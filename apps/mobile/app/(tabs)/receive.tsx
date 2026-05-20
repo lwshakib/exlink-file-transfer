@@ -898,7 +898,7 @@ export default function ReceiveScreen() {
             )}
 
             {/* Central Circle Badge hosting the Svg Logo */}
-            <View style={[styles.centralLogoBadge, { backgroundColor: theme.colors.surfaceVariant }]}>
+            <View style={styles.centralLogoBadge}>
               {/* SVG Logo from user */}
               <Svg width="100" height="100" viewBox="0 0 48 48" fill="none">
                 <G fill={theme.colors.primary}>
@@ -1631,13 +1631,13 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingTop: 40,
-    paddingBottom: 100,
+    paddingTop: 80,
+    paddingBottom: 30,
   },
   centerSection: {
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 40,
+    marginTop: 80,
   },
   pulseRing: {
     position: 'absolute',
@@ -1660,14 +1660,8 @@ const styles = StyleSheet.create({
   centralLogoBadge: {
     width: 160,
     height: 160,
-    borderRadius: 80,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
   },
   statusBadge: {
     flexDirection: 'row',
