@@ -1,5 +1,5 @@
 import React from 'react';
-import { IconButton, Text, Button, useTheme, Card } from 'react-native-paper';
+import { IconButton, Text, Button, useTheme, Card } from '@/components/ui';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { FlatList, StyleSheet, View, Platform, Linking, Modal } from 'react-native';
 import { useSettingsStore, HistoryItem } from '@/store/useSettingsStore';
@@ -230,7 +230,7 @@ const HistoryPortal = ({ visible, onDismiss }: HistoryPortalProps) => {
                   <MaterialCommunityIcons
                     name="history"
                     size={64}
-                    color={theme.colors.onSurfaceDisabled}
+                    color={theme.colors.onSurfaceVariant}
                   />
                   <Text
                     variant="headlineSmall"

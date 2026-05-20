@@ -9,7 +9,7 @@ import {
   Searchbar,
   List,
   Checkbox,
-} from 'react-native-paper';
+} from '@/components/ui';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
 import { SelectedItem } from '@/hooks/useSelection';
@@ -150,8 +150,8 @@ const AppPickerPortal = ({ visible, onDismiss, onSelectApps }: AppPickerPortalPr
                   key={app.packageName}
                   title={app.name} // Large primary text
                   description={app.packageName} // Secondary smaller text
-                  left={(props) => <List.Icon {...props} icon={app.icon as any} />} // Display standard material icon
-                  right={(props) => (
+                  left={(props: any) => <List.Icon {...props} icon={app.icon as any} />} // Display standard material icon
+                  right={(props: any) => (
                     // React native paper Checkbox component tracking our selections array
                     <Checkbox
                       status={selectedPackages.includes(app.packageName) ? 'checked' : 'unchecked'}

@@ -6,12 +6,7 @@ import {
 } from '@react-navigation/native';
 import merge from 'deepmerge';
 import { Stack } from 'expo-router';
-import {
-  MD3DarkTheme,
-  MD3LightTheme,
-  PaperProvider,
-  adaptNavigationTheme,
-} from 'react-native-paper';
+
 
 import { ThemeProvider as AppThemeProvider, useAppTheme } from '@/context/ThemeContext';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -53,24 +48,26 @@ function InnerLayout() {
   // Mutable ref used to hold a persisting list of discovered peers without triggering React re-renders on updates
   const knownDesktopIps = useRef<Set<string>>(new Set());
 
-  // Memoize theme combinations between Material Design 3 and React Navigation configurations
-  const paperTheme = useMemo(() => {
-    // Generates navigation themes accurately mapped to React Native Paper colors
-    const { LightTheme, DarkTheme } = adaptNavigationTheme({
-      reactNavigationLight: NavigationDefaultTheme,
-      reactNavigationDark: NavigationDarkTheme,
-    });
-
-    // Merge standard configurations with our custom color palettes from Colors.ts
-    const customDarkTheme = { ...MD3DarkTheme, colors: { ...MD3DarkTheme.colors, ...selectedVariation.dark } };
-    const customLightTheme = { ...MD3LightTheme, colors: { ...MD3LightTheme.colors, ...selectedVariation.light } };
-
-    // Deep merge both library themes so UI components share one true color map universally
-    const CombinedDefaultTheme = merge(LightTheme, customLightTheme);
-    const CombinedDarkTheme = merge(DarkTheme, customDarkTheme);
-
-    // Swap strictly depending on user setting (light/dark/system mapped to actual literal strings before this stage)
-    return colorScheme === 'dark' ? CombinedDarkTheme : CombinedDefaultTheme;
+  // Map custom color palettes directly into React Navigation's required theme structure
+  const navigationTheme = useMemo(() => {
+    const activeColors = selectedVariation[colorScheme];
+    return {
+      dark: colorScheme === 'dark',
+      colors: {
+        primary: activeColors.primary,
+        background: activeColors.background,
+        card: activeColors.elevation?.level2 || activeColors.surface,
+        text: activeColors.onSurface,
+        border: activeColors.outline,
+        notification: activeColors.error,
+      },
+      fonts: {
+        regular: { fontFamily: '', fontWeight: 'normal' as const },
+        medium: { fontFamily: '', fontWeight: '500' as const },
+        bold: { fontFamily: '', fontWeight: 'bold' as const },
+        heavy: { fontFamily: '', fontWeight: '900' as const },
+      },
+    };
   }, [colorScheme, selectedVariation]);
 
   // Initialization Hook: Boots up core app states like storage locations and device names
@@ -242,7 +239,7 @@ function InnerLayout() {
 
   return (
     // Wrap entire DOM securely supporting fluid complex gesture logic implicitly
-    <GestureHandlerRootView style={{ flex: 1, backgroundColor: paperTheme.colors.background }}>
+    <GestureHandlerRootView style={{ flex: 1, backgroundColor: navigationTheme.colors.background }}>
       {/* SafeArea wrapper to dynamically measure and account for hardware notches padding components */}
       <SafeAreaProvider>
         {/* Syncs actual phone indicator time/battery styles to opposite of background contrast automatically */}
@@ -250,15 +247,13 @@ function InnerLayout() {
         {/* Core Provider wrappers defining context scopes spanning whole DOM generically */}
         <SelectionProvider>
           <BottomSheetModalProvider>
-            <PaperProvider theme={paperTheme}>
-              {/* Fallback legacy navigation theming hook directly linked ensuring universal consistency abstractly */}
-              <ThemeProvider value={paperTheme}>
-                {/* Mount internal Expo Router explicitly hooking '(tabs)' directly */}
-                <Stack screenOptions={{ headerShown: false }}>
-                  <Stack.Screen name="(tabs)" />
-                </Stack>
-              </ThemeProvider>
-            </PaperProvider>
+            {/* Native navigation theming hook directly linked ensuring universal consistency abstractly */}
+            <ThemeProvider value={navigationTheme}>
+              {/* Mount internal Expo Router explicitly hooking '(tabs)' directly */}
+              <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: navigationTheme.colors.background } }}>
+                <Stack.Screen name="(tabs)" />
+              </Stack>
+            </ThemeProvider>
           </BottomSheetModalProvider>
         </SelectionProvider>
       </SafeAreaProvider>

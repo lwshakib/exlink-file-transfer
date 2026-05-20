@@ -9,7 +9,7 @@ import {
   Portal,
   Dialog,
   TextInput,
-} from 'react-native-paper';
+} from '@/components/ui';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
@@ -622,7 +622,7 @@ export default function SendScreen() {
                   icon={isFavorite ? 'heart' : 'heart-outline'}
                   size={24}
                   iconColor={isFavorite ? theme.colors.primary : theme.colors.onSurfaceVariant}
-                  onPress={(e) => {
+                  onPress={(e: any) => {
                     e.stopPropagation();
                     toggleFavorite(device.id);
                   }}
@@ -639,11 +639,11 @@ export default function SendScreen() {
                 <MaterialCommunityIcons
                   name="devices"
                   size={48}
-                  color={theme.colors.onSurfaceDisabled}
+                  color={theme.colors.onSurfaceVariant}
                 />
                 <Text
                   variant="bodyMedium"
-                  style={{ color: theme.colors.onSurfaceDisabled, marginTop: 12 }}
+                  style={{ color: theme.colors.onSurfaceVariant, marginTop: 12 }}
                 >
                   No nearby devices found.
                 </Text>
@@ -653,11 +653,11 @@ export default function SendScreen() {
                 <MaterialCommunityIcons
                   name="radar"
                   size={48}
-                  color={theme.colors.onSurfaceDisabled}
+                  color={theme.colors.onSurfaceVariant}
                 />
                 <Text
                   variant="bodyMedium"
-                  style={{ color: theme.colors.onSurfaceDisabled, marginTop: 12 }}
+                  style={{ color: theme.colors.onSurfaceVariant, marginTop: 12 }}
                 >
                   Scanning for nearby stations...
                 </Text>

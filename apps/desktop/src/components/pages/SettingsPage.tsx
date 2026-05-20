@@ -178,7 +178,7 @@ export function SettingsPage() {
                   <SelectValue placeholder="Select color" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="zinc">ExLink</SelectItem>
+                  <SelectItem value="zinc">Default</SelectItem>
                   <SelectItem value="emerald">Emerald</SelectItem>
                   <SelectItem value="violet">Violet</SelectItem>
                   <SelectItem value="blue">Blue</SelectItem>

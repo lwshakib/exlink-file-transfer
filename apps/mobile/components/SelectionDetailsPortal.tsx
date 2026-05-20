@@ -1,6 +1,6 @@
 import React from 'react';
 import { StyleSheet, View, ScrollView, Image as RNImage, Platform, Modal } from 'react-native';
-import { Text, IconButton, useTheme, Card, Button } from 'react-native-paper';
+import { Text, IconButton, useTheme, Card, Button } from '@/components/ui';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSelection } from '@/hooks/useSelection';
 import { SafeAreaView } from 'react-native-safe-area-context';

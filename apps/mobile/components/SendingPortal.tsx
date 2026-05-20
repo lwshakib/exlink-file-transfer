@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { StyleSheet, View, ScrollView, Platform, Modal } from 'react-native';
-import { Text, useTheme, Button } from 'react-native-paper';
+import { Text, useTheme, Button, IconButton } from '@/components/ui';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Device from 'expo-device';

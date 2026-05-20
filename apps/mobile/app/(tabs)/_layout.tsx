@@ -1,13 +1,14 @@
 import { Tabs } from 'expo-router';
 import { CommonActions } from '@react-navigation/native';
-import { useTheme, Text } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { View, TouchableOpacity, StyleSheet, Animated, Dimensions, Platform } from 'react-native';
+import { View, TouchableOpacity, StyleSheet, Animated, Dimensions, Platform, Text } from 'react-native';
 import React, { useEffect, useRef } from 'react';
+import { useAppTheme } from '@/context/ThemeContext';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 
 function CustomTabBar({ state, descriptors, navigation, insets }: BottomTabBarProps) {
-  const theme = useTheme();
+  const { selectedVariation, colorScheme } = useAppTheme();
+  const themeColors = selectedVariation[colorScheme];
   const { width: windowWidth } = Dimensions.get('window');
   
   // Tab Bar Width and Padding
@@ -34,9 +35,9 @@ function CustomTabBar({ state, descriptors, navigation, insets }: BottomTabBarPr
         styles.tabBarContainer,
         {
           bottom: insets.bottom > 0 ? insets.bottom : 12,
-          backgroundColor: theme.colors.elevation.level2,
+          backgroundColor: themeColors.elevation?.level2 || themeColors.surface,
           shadowColor: '#000',
-          shadowOpacity: theme.dark ? 0.35 : 0.08,
+          shadowOpacity: colorScheme === 'dark' ? 0.35 : 0.08,
         },
       ]}
     >
@@ -47,7 +48,7 @@ function CustomTabBar({ state, descriptors, navigation, insets }: BottomTabBarPr
           {
             width: tabWidth - 12, // margin inside the tab slot
             transform: [{ translateX: slideAnim }],
-            backgroundColor: theme.colors.primaryContainer,
+            backgroundColor: themeColors.primaryContainer,
           },
         ]}
       />
@@ -124,13 +125,13 @@ function CustomTabBar({ state, descriptors, navigation, insets }: BottomTabBarPr
               <MaterialCommunityIcons
                 name={iconName as any}
                 size={22}
-                color={isFocused ? theme.colors.onPrimaryContainer : theme.colors.onSurfaceVariant}
+                color={isFocused ? themeColors.onPrimaryContainer : themeColors.onSurfaceVariant}
               />
               <Text
                 style={[
                   styles.tabLabel,
                   {
-                    color: isFocused ? theme.colors.onPrimaryContainer : theme.colors.onSurfaceVariant,
+                    color: isFocused ? themeColors.onPrimaryContainer : themeColors.onSurfaceVariant,
                     fontWeight: isFocused ? '700' : '500',
                   },
                 ]}

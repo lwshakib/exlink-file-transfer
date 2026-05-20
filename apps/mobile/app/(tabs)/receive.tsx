@@ -10,7 +10,7 @@ import {
   Card,
   ActivityIndicator,
   Divider,
-} from 'react-native-paper';
+} from '@/components/ui';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import Svg, { G, Path } from 'react-native-svg';
@@ -1581,7 +1581,7 @@ export default function ReceiveScreen() {
                   <MaterialCommunityIcons
                     name="file-question-outline"
                     size={48}
-                    color={theme.colors.onSurfaceDisabled}
+                    color={theme.colors.onSurfaceVariant}
                   />
                 </View>
                 <Text
@@ -1621,8 +1621,11 @@ const styles = StyleSheet.create({
   },
   header: {
     flexDirection: 'row',
-    justifyContent: 'flex-end',
+    justifyContent: 'space-between',
     paddingHorizontal: 8,
+    paddingTop: 8,
+    zIndex: 10,
+    elevation: 10,
   },
   content: {
     flex: 1,
