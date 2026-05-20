@@ -395,7 +395,7 @@ const SendingPortal = ({ visible, onDismiss, targetDevice }: SendingPortalProps)
                   buttonColor={theme.colors.surfaceVariant}
                   textColor={theme.colors.onSurfaceVariant}
                 >
-                  Cancel Request
+                  {status === 'waiting' ? 'Cancel Request' : 'Close'}
                 </Button>
               </View>
             ) : (

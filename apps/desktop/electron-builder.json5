@@ -9,6 +9,7 @@
   compression: 'maximum',
   directories: {
     output: 'release/${version}',
+    buildResources: 'public',
   },
   files: ['dist', 'dist-electron'],
   publish: [
@@ -16,7 +17,7 @@
       provider: 'github',
       owner: 'lwshakib',
       repo: 'exlink-file-transfer',
-      releaseType: 'draft',
+      releaseType: 'release',
     },
   ],
   extraMetadata: {
@@ -28,11 +29,11 @@
   },
   win: {
     icon: 'public/icons/win/icon.ico',
-    publisherName: 'LW Shakib',
+    publisherName: 'Shakib Khan',
     target: [
       {
         target: 'nsis',
-        arch: ['x64', 'ia32'],
+        arch: ['x64'],
       },
       {
         target: 'portable',
@@ -43,11 +44,11 @@
   },
   nsis: {
     oneClick: false,
-    perMachine: true,
+    perMachine: false,
     allowToChangeInstallationDirectory: true,
     deleteAppDataOnUninstall: false,
     allowElevation: true,
-    createDesktopShortcut: 'always',
+    createDesktopShortcut: true,
     createStartMenuShortcut: true,
     shortcutName: 'ExLink',
     installerIcon: 'public/icons/win/icon.ico',

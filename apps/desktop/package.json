@@ -63,15 +63,16 @@
     "tailwindcss": "^4.1.18",
     "unique-names-generator": "^4.7.1",
     "vaul": "^1.1.2",
-    "zod": "^4.3.5"
+    "zod": "^4.3.5",
+    "electron-updater": "^6.3.9"
   },
   "devDependencies": {
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
     "@types/multer": "^2.0.0",
     "@types/node": "^25.0.9",
-    "@types/react": "^18.2.64",
-    "@types/react-dom": "^18.2.21",
+    "@types/react": "^19.2.15",
+    "@types/react-dom": "^19.2.3",
     "@typescript-eslint/eslint-plugin": "^8.56.0",
     "@typescript-eslint/parser": "^8.56.0",
     "@vitejs/plugin-react": "^5.1.4",

@@ -11,6 +11,7 @@ import { useTheme, ColorTheme } from '@/components/theme-provider';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { LogoIcon } from '../common/Logo';
@@ -21,7 +22,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog';
-import { Dices } from 'lucide-react';
+import { Dices, Sliders, Globe, Download, Info, Shield, Heart, RefreshCw, Edit2, FolderOpen } from 'lucide-react';
 import { uniqueNamesGenerator, adjectives, animals } from 'unique-names-generator';
 
 // SettingsPage manages user preferences for appearance, identity, and background server behavior
@@ -144,23 +145,26 @@ export function SettingsPage() {
   };
 
   return (
-    <div className="flex-1 flex flex-col p-12 max-w-2xl mx-auto w-full space-y-8">
-      <h1 className="text-3xl font-bold text-center mb-4">Settings</h1>
+    <div className="flex-1 flex flex-col p-8 max-w-3xl mx-auto w-full space-y-6">
+      {/* Redesigned settings sections using separate cards with icons and premium feel */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* General Card */}
+        <Card className="p-6 bg-muted/20 border-muted/40 rounded-2xl flex flex-col space-y-4 shadow-sm">
+          <div className="flex items-center gap-2 pb-2 border-b border-muted/30">
+            <Sliders className="h-4 w-4 text-primary/80" />
+            <h3 className="text-sm font-bold tracking-wide text-foreground">
+              General
+            </h3>
+          </div>
 
-      <Card className="p-6 space-y-8 bg-muted/20 border-muted/50">
-        <div className="space-y-4">
-          <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground px-1">
-            General
-          </h3>
-
-          <div className="space-y-1">
-            <div className="flex items-center justify-between p-3 rounded-xl hover:bg-muted/50 transition-colors">
-              <span className="text-sm font-medium">Theme</span>
+          <div className="space-y-3">
+            <div className="flex items-center justify-between p-2">
+              <span className="text-xs font-medium">Theme</span>
               <Select
                 value={theme}
                 onValueChange={(v) => setTheme(v as 'light' | 'dark' | 'system')}
               >
-                <SelectTrigger className="w-[140px] bg-muted/50 border-none rounded-lg h-9">
+                <SelectTrigger className="w-[120px] bg-muted/50 border-none rounded-lg h-8 text-xs cursor-pointer">
                   <SelectValue placeholder="Select theme" />
                 </SelectTrigger>
                 <SelectContent>
@@ -171,10 +175,10 @@ export function SettingsPage() {
               </Select>
             </div>
 
-            <div className="flex items-center justify-between p-3 rounded-xl hover:bg-muted/50 transition-colors">
-              <span className="text-sm font-medium">Color</span>
+            <div className="flex items-center justify-between p-2">
+              <span className="text-xs font-medium">Color Accent</span>
               <Select value={colorTheme} onValueChange={(v) => setColorTheme(v as ColorTheme)}>
-                <SelectTrigger className="w-[140px] bg-muted/50 border-none rounded-lg h-9">
+                <SelectTrigger className="w-[120px] bg-muted/50 border-none rounded-lg h-8 text-xs cursor-pointer">
                   <SelectValue placeholder="Select color" />
                 </SelectTrigger>
                 <SelectContent>
@@ -189,127 +193,141 @@ export function SettingsPage() {
               </Select>
             </div>
           </div>
-        </div>
+        </Card>
 
-        <div className="space-y-4">
-          <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground px-1">
-            Network
-          </h3>
+        {/* Network Card */}
+        <Card className="p-6 bg-muted/20 border-muted/40 rounded-2xl flex flex-col space-y-4 shadow-sm">
+          <div className="flex items-center gap-2 pb-2 border-b border-muted/30">
+            <Globe className="h-4 w-4 text-primary/80" />
+            <h3 className="text-sm font-bold tracking-wide text-foreground">
+              Network
+            </h3>
+          </div>
 
-          {nameChanged && (
-            <div className="p-3 rounded-lg bg-destructive/10 border border-destructive/20 mb-2">
-              <p className="text-xs text-destructive font-medium text-center">
-                Restart the server to apply this setting
-              </p>
+          <div className="space-y-3">
+            {nameChanged && (
+              <div className="p-2 rounded-lg bg-destructive/10 border border-destructive/20 mb-1">
+                <p className="text-[10px] text-destructive font-medium text-center">
+                  Restart the server to apply this setting
+                </p>
+              </div>
+            )}
+
+            <div className="flex items-center justify-between p-2">
+              <div className="flex flex-col gap-0.5 min-w-0 flex-1">
+                <span className="text-xs font-medium text-foreground">Server</span>
+                <span className={`inline-flex items-center gap-1.5 text-[10px] font-semibold ${serverRunning ? 'text-emerald-500' : 'text-destructive'}`}>
+                  <span className={`h-1.5 w-1.5 rounded-full ${serverRunning ? 'bg-emerald-500 animate-pulse' : 'bg-destructive'}`} />
+                  {serverRunning ? 'Running' : 'Stopped'}
+                </span>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <Button variant="ghost" size="icon" onClick={handleServerRefresh} className="h-8 w-8 rounded-lg hover:bg-muted/80" title="Refresh discovery">
+                  <RefreshCw className="h-3.5 w-3.5 text-muted-foreground" />
+                </Button>
+                <Switch
+                  checked={serverRunning}
+                  onCheckedChange={(checked) => {
+                    if (checked) {
+                      handleServerRestart();
+                    } else {
+                      handleServerStop();
+                    }
+                  }}
+                  className="cursor-pointer"
+                />
+              </div>
             </div>
-          )}
 
-          <div className="flex items-center justify-between p-3 rounded-xl hover:bg-muted/50 transition-colors">
-            <span className="text-sm font-medium">Server</span>
-            <div className="flex items-center gap-2">
-              <Button variant="ghost" size="icon" onClick={handleServerRefresh} className="h-9 w-9">
-                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                  />
-                </svg>
-              </Button>
-              <Button
-                variant={serverRunning ? 'destructive' : 'default'}
-                size="icon"
-                onClick={serverRunning ? handleServerStop : handleServerRestart}
-                className="h-9 w-9"
-              >
-                {serverRunning ? (
-                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                    />
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z"
-                    />
-                  </svg>
-                ) : (
-                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"
-                    />
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                    />
-                  </svg>
-                )}
+            <div className="flex items-center justify-between p-2 gap-3">
+              <div className="flex flex-col gap-1 min-w-0 flex-1">
+                <Label className="text-xs font-semibold text-foreground">Device name</Label>
+                <span className="text-[10px] text-muted-foreground leading-tight">
+                  Visible to other devices.
+                </span>
+                <span className="text-xs font-medium text-foreground truncate px-3 py-2 bg-muted/30 border border-muted/30 rounded-xl max-w-full block">
+                  {deviceName || 'Not set'}
+                </span>
+              </div>
+              <Button variant="outline" size="icon" onClick={openDeviceNameDialog} className="h-9 w-9 rounded-xl shrink-0 hover:bg-muted self-end" title="Edit device name">
+                <Edit2 className="h-4 w-4 text-muted-foreground" />
               </Button>
             </div>
           </div>
+        </Card>
 
-          <div className="flex items-center justify-between p-3 rounded-xl hover:bg-muted/50 transition-colors gap-4">
-            <div className="flex flex-col gap-1">
-              <Label className="text-sm font-medium">Device name</Label>
-              <span className="text-xs text-muted-foreground">
-                Shown on the Receive screen and to nearby devices.
+        {/* Receive Card */}
+        <Card className="p-6 bg-muted/20 border-muted/40 rounded-2xl flex flex-col space-y-4 shadow-sm">
+          <div className="flex items-center gap-2 pb-2 border-b border-muted/30">
+            <Download className="h-4 w-4 text-primary/80" />
+            <h3 className="text-sm font-bold tracking-wide text-foreground">
+              Receive
+            </h3>
+          </div>
+
+          <div className="space-y-3">
+            <div className="flex flex-col gap-2 p-2">
+              <div className="flex justify-between items-start gap-3">
+                <div className="flex flex-col gap-1 min-w-0">
+                  <Label className="text-xs font-semibold text-foreground">Save to folder</Label>
+                  <span className="text-[10px] text-muted-foreground leading-tight">
+                    Where received files are saved.
+                  </span>
+                </div>
+                <Button variant="outline" size="sm" onClick={handleSelectFolder} className="h-8 px-3 rounded-lg text-xs font-medium shrink-0 hover:bg-muted">
+                  <FolderOpen className="h-3.5 w-3.5 mr-1.5 text-muted-foreground" />
+                  Change
+                </Button>
+              </div>
+              {saveToFolder && (
+                <div className="px-3 py-2 bg-muted/30 border border-muted/30 rounded-xl text-[10px] text-muted-foreground font-mono truncate max-w-full">
+                  {saveToFolder}
+                </div>
+              )}
+            </div>
+          </div>
+        </Card>
+
+        {/* Other / Information Card */}
+        <Card className="p-6 bg-muted/20 border-muted/40 rounded-2xl flex flex-col space-y-4 shadow-sm">
+          <div className="flex items-center gap-2 pb-2 border-b border-muted/30">
+            <Info className="h-4 w-4 text-primary/80" />
+            <h3 className="text-sm font-bold tracking-wide text-foreground">
+              About & Support
+            </h3>
+          </div>
+
+          <div className="space-y-2">
+            <div className="flex items-center justify-between p-2">
+              <span className="text-xs font-medium flex items-center gap-2">
+                <Info className="h-3.5 w-3.5 text-muted-foreground" />
+                About ExLink
               </span>
+              <Button variant="ghost" size="sm" onClick={() => setAboutDialogOpen(true)} className="h-8 text-xs font-medium rounded-lg hover:bg-muted">
+                Open
+              </Button>
             </div>
-            <div className="flex items-center gap-2 w-[360px] max-w-full">
-              <Button variant="outline" onClick={openDeviceNameDialog} className="flex-1">
-                {deviceName || 'Set name'}
+            <div className="flex items-center justify-between p-2">
+              <span className="text-xs font-medium flex items-center gap-2">
+                <Heart className="h-3.5 w-3.5 text-muted-foreground" />
+                Support ExLink
+              </span>
+              <Button variant="ghost" size="sm" className="h-8 text-xs font-medium rounded-lg hover:bg-muted">
+                Donate
+              </Button>
+            </div>
+            <div className="flex items-center justify-between p-2">
+              <span className="text-xs font-medium flex items-center gap-2">
+                <Shield className="h-3.5 w-3.5 text-muted-foreground" />
+                Privacy Policy
+              </span>
+              <Button variant="ghost" size="sm" className="h-8 text-xs font-medium rounded-lg hover:bg-muted">
+                Open
               </Button>
             </div>
           </div>
-        </div>
-
-        <div className="space-y-4">
-          <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground px-1">
-            Receive
-          </h3>
-
-          <div className="flex items-center justify-between p-3 rounded-xl hover:bg-muted/50 transition-colors gap-4">
-            <div className="flex flex-col gap-1">
-              <Label className="text-sm font-medium">Save to folder</Label>
-              <span className="text-xs text-muted-foreground">Where received files are saved.</span>
-            </div>
-            <Button variant="outline" onClick={handleSelectFolder} className="flex-1 max-w-[200px]">
-              {saveToFolder ? saveToFolder.split(/[/\\]/).pop() : 'Select folder'}
-            </Button>
-          </div>
-        </div>
-
-        <div className="space-y-4">
-          <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground px-1">
-            Other
-          </h3>
-
-          <div className="flex items-center justify-between p-3 rounded-xl hover:bg-muted/50 transition-colors">
-            <span className="text-sm font-medium">About ExLink</span>
-            <Button variant="outline" onClick={() => setAboutDialogOpen(true)}>
-              Open
-            </Button>
-          </div>
-          <div className="flex items-center justify-between p-3 rounded-xl hover:bg-muted/50 transition-colors">
-            <span className="text-sm font-medium">Support ExLink</span>
-            <Button variant="outline">Donate</Button>
-          </div>
-          <div className="flex items-center justify-between p-3 rounded-xl hover:bg-muted/50 transition-colors">
-            <span className="text-sm font-medium">Privacy Policy</span>
-            <Button variant="outline">Open</Button>
-          </div>
-        </div>
-      </Card>
+        </Card>
+      </div>
 
       {/* Device Name Dialog */}
       <Dialog open={deviceNameDialogOpen} onOpenChange={setDeviceNameDialogOpen}>

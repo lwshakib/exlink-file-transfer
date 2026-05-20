@@ -1,4 +1,4 @@
-import { History, Info, X, Trash2, FolderOpen, FileText, Clock } from 'lucide-react';
+import { History, Info, X, Trash2, FolderOpen, FileText, Clock, Wifi } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { LogoIcon } from '../common/Logo';
 import { useState, useEffect } from 'react';
@@ -18,6 +18,8 @@ export function ReceivePage() {
   // --- Persona States ---
   const [deviceName, setDeviceName] = useState('');
   const [deviceId, setDeviceId] = useState('');
+  const [deviceIp, setDeviceIp] = useState('');
+  const [devicePort, setDevicePort] = useState<number | null>(null);
 
   // --- History & UI Navigation States ---
   const [showHistory, setShowHistory] = useState(false);
@@ -27,9 +29,11 @@ export function ReceivePage() {
   useEffect(() => {
     // Strategy: Fetch unique station identifiers once on component mount
     window.ipcRenderer.invoke('get-server-info').then((res) => {
-      const info = res as { name: string; id: string };
+      const info = res as { name: string; id: string; ip: string; port: number };
       setDeviceName(info.name);
       setDeviceId(info.id);
+      setDeviceIp(info.ip);
+      setDevicePort(info.port);
     });
 
     // Strategy: Decrypt and load persistent transfer logs from browser's LocalStorage
@@ -135,7 +139,7 @@ export function ReceivePage() {
                     <div className="flex-1 min-w-0 space-y-1">
                       <div className="flex justify-between items-start">
                         <p className="text-sm font-bold truncate tracking-tight">{item.name}</p>
-                        <p className="text-[10px] font-bold text-muted-foreground/60 uppercase tracking-widest flex items-center gap-1">
+                        <p className="text-[10px] font-bold text-muted-foreground/60 tracking-wider flex items-center gap-1">
                           <Clock className="h-3 w-3" />
                           {formatDate(item.timestamp)}
                         </p>
@@ -192,12 +196,33 @@ export function ReceivePage() {
         />
       </div>
 
-      {/* Device Info */}
-      <div className="text-center space-y-2 mb-12">
-        <h1 className="text-5xl font-black tracking-tighter">{deviceName || 'Loading...'}</h1>
-        <p className="text-xl text-muted-foreground font-mono font-bold tracking-widest opacity-60">
-          #{deviceId}
-        </p>
+      {/* Device Info Card */}
+      <div className="w-full max-w-sm bg-card/30 backdrop-blur-md border border-border/50 rounded-2xl p-6 shadow-lg space-y-4 mb-12 select-none hover:border-primary/30 transition-all duration-300">
+        <div className="flex items-center gap-4">
+          <div className="h-12 w-12 rounded-full bg-primary flex items-center justify-center text-primary-foreground font-extrabold text-lg shadow-inner shadow-black/10">
+            {(deviceName || 'D')[0].toUpperCase()}
+          </div>
+          <div className="flex-1 min-w-0 text-left">
+            <h2 className="text-xl font-bold tracking-tight truncate">{deviceName || 'Loading...'}</h2>
+            <p className="text-xs font-semibold text-muted-foreground tracking-wider font-mono opacity-80">
+              ID: #{deviceId}
+            </p>
+          </div>
+        </div>
+        
+        <div className="h-px bg-border/50" />
+        
+        <div className="flex items-center gap-3 text-muted-foreground">
+          <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
+            <Wifi className="h-4 w-4" />
+          </div>
+          <div className="flex-1 text-left">
+            <p className="text-[10px] uppercase tracking-wider font-bold opacity-60">IP Address</p>
+            <p className="text-sm font-bold text-foreground font-mono">
+              {deviceIp ? `${deviceIp}${devicePort ? `:${devicePort}` : ''}` : 'Not connected'}
+            </p>
+          </div>
+        </div>
       </div>
 
       {/* Quick Save Toggle */}

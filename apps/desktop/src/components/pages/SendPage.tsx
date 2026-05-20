@@ -23,6 +23,7 @@ import { Badge } from '@/components/ui/badge';
 import { motion, AnimatePresence } from 'motion/react';
 import { useSelection, SelectedItem } from '../../hooks/useSelection';
 import { toast } from 'sonner';
+import { cn } from '@/lib/utils';
 import {
   Dialog,
   DialogContent,
@@ -46,6 +47,7 @@ interface NearbyNode {
 export function SendPage() {
   // Discovery State: List of active ExLink stations found on the LAN
   const [devices, setDevices] = useState<NearbyNode[]>([]);
+  const [isRefreshingDevices, setIsRefreshingDevices] = useState(false);
 
   // Centralized Selection Hook: Tracks files, folders, and text objects ready for transfer
   const { selectedItems, addItems, clearSelection, hasSelection, removeItem } = useSelection();
@@ -84,7 +86,7 @@ export function SendPage() {
     return () => {
       if (removeListener) removeListener();
     };
-  }, [devices]);
+  }, []);
 
   useEffect(() => {
     const stored = localStorage.getItem('favoriteDeviceIds');
@@ -231,8 +233,14 @@ export function SendPage() {
   ];
 
   const handleRefresh = async () => {
+    setIsRefreshingDevices(true);
     toast.loading('Refreshing devices...', { id: 'refresh', duration: 1000 });
-    await window.ipcRenderer.invoke('refresh-discovery');
+    try {
+      await window.ipcRenderer.invoke('refresh-discovery');
+    } finally {
+      // Keep a short visible spinner so users can perceive refresh feedback.
+      setTimeout(() => setIsRefreshingDevices(false), 500);
+    }
   };
 
   const getDeviceIcon = (device: NearbyNode) => {
@@ -415,9 +423,13 @@ export function SendPage() {
               variant="ghost"
               size="icon"
               onClick={handleRefresh}
+              disabled={isRefreshingDevices}
               className="h-6 w-6 rounded-full text-muted-foreground/60 hover:text-foreground hover:bg-muted transition-all"
             >
-              <RotateCcw className="h-3 w-3" strokeWidth={1.5} />
+              <RotateCcw
+                className={cn('h-3 w-3', isRefreshingDevices && 'animate-spin text-primary')}
+                strokeWidth={1.5}
+              />
             </Button>
           </div>
         </motion.div>
@@ -452,13 +464,13 @@ export function SendPage() {
                         <div className="flex gap-1">
                           <Badge
                             variant="secondary"
-                            className="bg-muted/50 text-muted-foreground font-mono text-[8px] px-1.5 py-0 border-none rounded uppercase font-bold tracking-tighter"
+                            className="bg-muted/50 text-muted-foreground font-mono text-[8px] px-1.5 py-0 border-none rounded font-bold tracking-tighter"
                           >
                             #{device.id.slice(-3)}
                           </Badge>
                           <Badge
                             variant="secondary"
-                            className="bg-muted/50 text-muted-foreground font-mono text-[8px] px-1.5 py-0 border-none rounded uppercase font-bold tracking-tighter"
+                            className="bg-muted/50 text-muted-foreground font-mono text-[8px] px-1.5 py-0 border-none rounded font-bold tracking-tighter"
                           >
                             {device.os || device.brand?.slice(0, 6) || 'Other'}
                           </Badge>
@@ -487,11 +499,15 @@ export function SendPage() {
           {devices.length === 0 && (
             <motion.div
               initial={{ opacity: 0 }}
-              animate={{ opacity: 0.2 }}
-              className="py-12 flex flex-col items-center justify-center gap-3 text-muted-foreground/40"
+              animate={{ opacity: 1 }}
+              className="py-12 flex flex-col items-center justify-center gap-3 text-muted-foreground"
             >
-              <Target className="h-8 w-8 animate-pulse" />
-              <p className="text-[9px] font-semibold uppercase tracking-widest">Searching...</p>
+              <div className="h-12 w-12 rounded-full bg-muted/60 border border-border flex items-center justify-center">
+                <Target className="h-5 w-5 animate-pulse text-primary/80" />
+              </div>
+              <p className="text-[10px] font-semibold tracking-widest text-muted-foreground/80">
+                Searching...
+              </p>
             </motion.div>
           )}
         </div>
@@ -506,7 +522,7 @@ export function SendPage() {
       >
         <Button
           variant="link"
-          className="text-primary/80 hover:text-primary hover:no-underline font-semibold text-[9px] tracking-widest h-auto p-0 transition-all uppercase"
+          className="text-primary/80 hover:text-primary hover:no-underline font-semibold text-[9px] tracking-widest h-auto p-0 transition-all"
         >
           Troubleshoot
         </Button>
@@ -536,7 +552,7 @@ export function SendPage() {
                   className="flex flex-col items-center justify-center gap-2 p-3 bg-card border border-border hover:bg-muted rounded-xl transition-all group aspect-square"
                 >
                   <item.icon className="h-5 w-5 text-primary/80 group-hover:scale-105 transition-transform" />
-                  <span className="text-[9px] font-bold text-primary uppercase tracking-tighter">
+                  <span className="text-[9px] font-bold text-primary tracking-tighter">
                     {item.label}
                   </span>
                 </button>
@@ -547,7 +563,7 @@ export function SendPage() {
             <Button
               variant="ghost"
               onClick={() => setIsAddMenuOpen(false)}
-              className="text-muted-foreground hover:text-foreground hover:bg-transparent font-bold uppercase tracking-widest text-[8px] h-6 px-0"
+              className="text-muted-foreground hover:text-foreground hover:bg-transparent font-bold tracking-widest text-[8px] h-6 px-0"
             >
               Cancel
             </Button>

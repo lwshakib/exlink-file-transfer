@@ -35,6 +35,15 @@ const getOSIcon = (os?: string) => {
   return 'responsive';
 };
 
+const getPortLabel = (id: string) => {
+  if (!id) return '';
+  if (id.includes('.')) {
+    const parts = id.split('.');
+    return `#${parts[parts.length - 1]}`;
+  }
+  return `#${id.slice(-3)}`;
+};
+
 // Main interface for selecting documents, resolving targets, and initiating transfers
 export default function SendScreen() {
   // Global hooks integrating router and UI styling
@@ -168,15 +177,6 @@ export default function SendScreen() {
 
     setSelectedDevice(device);
     setSendingPortalVisible(true);
-  };
-
-  const getPortLabel = (id: string) => {
-    if (!id) return '';
-    if (id.includes('.')) {
-      const parts = id.split('.');
-      return `#${parts[parts.length - 1]}`;
-    }
-    return `#${id.slice(-3)}`;
   };
 
   const formatSize = (bytes: number) => {
@@ -359,7 +359,13 @@ export default function SendScreen() {
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         refreshControl={
-          <RefreshControl refreshing={false} onRefresh={startScanning} colors={[theme.colors.primary]} />
+          <RefreshControl
+            refreshing={false}
+            onRefresh={startScanning}
+            colors={[theme.colors.primary]}
+            tintColor={theme.colors.primary}
+            progressBackgroundColor={theme.colors.surface}
+          />
         }
       >
         {/* Selection Summary Card: Dynamically mounted only if actual items exist in state */}

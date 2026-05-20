@@ -582,7 +582,7 @@ function App() {
                                 {item.name} ({formatFileSize(item.size || 0)})
                               </span>
                               {isDone && (
-                                <span className="text-[11px] text-[var(--accent-primary)] font-semibold uppercase tracking-wider">
+                                <span className="text-[11px] text-[var(--accent-primary)] font-semibold tracking-wide">
                                   Done
                                 </span>
                               )}
@@ -609,7 +609,7 @@ function App() {
                             {formatFileSize(transferData.totalBytes || 0)})
                           </span>
                           {transferData.status === 'completed' && (
-                            <span className="text-[11px] text-[var(--accent-primary)] font-semibold uppercase tracking-wider">
+                            <span className="text-[11px] text-[var(--accent-primary)] font-semibold tracking-wide">
                               Done
                             </span>
                           )}
@@ -655,7 +655,7 @@ function App() {
                             exit={{ opacity: 0, height: 0 }}
                             className="overflow-hidden"
                           >
-                            <div className="flex justify-between items-center text-[10px] font-medium text-muted-foreground/60 uppercase tracking-widest pt-2">
+                            <div className="flex justify-between items-center text-[10px] font-medium text-muted-foreground/60 tracking-wider pt-2">
                               <div className="flex flex-col gap-1">
                                 <span>
                                   Files: {transferData.currentIndex} / {transferData.totalFiles}
@@ -811,7 +811,7 @@ function App() {
                       </Badge>
                       <Badge
                         variant="secondary"
-                        className="text-[10px] py-0 h-5 bg-muted text-muted-foreground border-none uppercase"
+                        className="text-[10px] py-0 h-5 bg-muted text-muted-foreground border-none"
                       >
                         {localInfo?.os}
                       </Badge>
@@ -844,14 +844,14 @@ function App() {
                       </Badge>
                       <Badge
                         variant="secondary"
-                        className="text-[10px] py-0 h-5 bg-muted text-muted-foreground border-none uppercase"
+                        className="text-[10px] py-0 h-5 bg-muted text-muted-foreground border-none"
                       >
                         {waitingFor.os || waitingFor.brand || 'Mobile'}
                       </Badge>
                       {waitingFor.status === 'declined' && (
                         <Badge
                           variant="destructive"
-                          className="text-[10px] py-0 h-5 uppercase transition-all animate-in fade-in zoom-in"
+                          className="text-[10px] py-0 h-5 transition-all animate-in fade-in zoom-in"
                         >
                           Declined
                         </Badge>
@@ -863,7 +863,7 @@ function App() {
                 <div className="pt-20 flex flex-col items-center gap-8">
                   <span
                     className={cn(
-                      'font-bold text-[11px] uppercase tracking-[0.2em]',
+                      'font-bold text-[11px] tracking-wide',
                       waitingFor.status === 'declined'
                         ? 'text-destructive'
                         : 'text-muted-foreground animate-pulse'
@@ -891,11 +891,9 @@ function App() {
                         : 'bg-white/5 hover:bg-white/10 text-white'
                     )}
                   >
-                    {waitingFor.status === 'declined' ? (
-                      <>
-                        <X size={18} /> Close
-                      </>
-                    ) : (
+                      {waitingFor.status === 'declined' ? (
+                        'Close'
+                      ) : (
                       <>
                         <X size={18} /> Cancel Request
                       </>
@@ -915,34 +913,34 @@ function App() {
               exit={{ opacity: 0 }}
               className="absolute inset-0 bg-background flex flex-col items-center justify-center p-0 z-[45]"
             >
-              <div className="flex flex-col items-center max-w-2xl w-full px-8 text-center space-y-12">
+              <div className="flex flex-col items-center max-w-xl w-full px-8 text-center space-y-7">
                 <div className="relative">
-                  <div className="absolute inset-0 bg-primary/20 blur-3xl rounded-full" />
-                  <div className="h-40 w-40 rounded-full bg-muted flex items-center justify-center border border-border relative z-10 shadow-2xl">
+                  <div className="absolute inset-0 bg-primary/10 blur-2xl rounded-full" />
+                  <div className="h-28 w-28 rounded-full bg-muted flex items-center justify-center border border-border relative z-10 shadow-xl">
                     {pendingRequest.platform === 'mobile' ? (
-                      <Smartphone size={80} strokeWidth={1.2} className="text-primary" />
+                      <Smartphone size={52} strokeWidth={1.4} className="text-primary" />
                     ) : (
-                      <Laptop size={80} strokeWidth={1.2} className="text-primary" />
+                      <Laptop size={52} strokeWidth={1.4} className="text-primary" />
                     )}
                   </div>
                 </div>
 
-                <div className="space-y-4">
-                  <h2 className="text-6xl font-black tracking-tighter text-foreground m-0">
+                <div className="space-y-3">
+                  <h2 className="text-4xl font-extrabold tracking-tight text-foreground m-0">
                     {pendingRequest.name}
                   </h2>
 
                   <div className="flex gap-2 justify-center">
                     <Badge
                       variant="secondary"
-                      className="px-4 py-1.5 bg-muted/50 text-muted-foreground font-mono uppercase text-[9px] tracking-widest rounded-full border border-border"
+                      className="px-4 py-1.5 bg-muted/50 text-muted-foreground font-mono text-[9px] tracking-wide rounded-full border border-border"
                     >
                       #{pendingRequest.deviceId?.slice(-3)}
                     </Badge>
                     {pendingRequest.brand && (
                       <Badge
                         variant="secondary"
-                        className="px-4 py-1.5 bg-muted/50 text-muted-foreground font-mono uppercase text-[9px] tracking-widest rounded-full border border-border"
+                        className="px-4 py-1.5 bg-muted/50 text-muted-foreground font-mono text-[9px] tracking-wide rounded-full border border-border"
                       >
                         {pendingRequest.brand}
                       </Badge>
@@ -950,37 +948,37 @@ function App() {
                   </div>
                 </div>
 
-                <p className="text-2xl text-muted-foreground font-medium tracking-tight">
+                <p className="text-lg text-muted-foreground font-medium tracking-tight">
                   Wants to share files with you
                 </p>
 
                 {pendingRequest.totalFiles !== undefined && (
-                  <p className="text-sm text-muted-foreground">
+                  <p className="text-xs text-muted-foreground">
                     {pendingRequest.totalFiles} file{pendingRequest.totalFiles !== 1 ? 's' : ''} •{' '}
                     {formatFileSize(pendingRequest.totalSize || 0)}
                   </p>
                 )}
 
-                <div className="flex flex-col gap-6 w-full max-w-sm pt-8">
+                <div className="flex flex-col gap-4 w-full max-w-sm pt-3">
                   <Button
                     variant="secondary"
                     onClick={() => setIsOptionsOpen(true)}
-                    className="w-auto self-center rounded-full px-6 h-10 font-bold text-xs uppercase tracking-widest flex gap-2 border shadow-sm hover:bg-muted"
+                    className="w-auto self-center rounded-full px-5 h-9 font-semibold text-[11px] tracking-wide flex gap-2 border shadow-sm hover:bg-muted"
                   >
-                    <AlignLeft size={16} /> View Files
+                    <AlignLeft size={14} /> View Files
                   </Button>
 
                   <div className="flex gap-4 w-full">
                     <Button
                       variant="destructive"
                       onClick={() => respondToConnection(false)}
-                      className="flex-1 h-12 rounded-full font-bold text-sm shadow-lg shadow-destructive/10"
+                      className="flex-1 h-10 rounded-full font-semibold text-xs shadow-lg shadow-destructive/10"
                     >
                       Decline
                     </Button>
                     <Button
                       onClick={() => respondToConnection(true)}
-                      className="flex-1 h-12 rounded-full bg-primary hover:bg-primary/90 text-primary-foreground font-bold text-sm shadow-xl shadow-primary/20"
+                      className="flex-1 h-10 rounded-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold text-xs shadow-xl shadow-primary/20"
                     >
                       Accept
                     </Button>
@@ -1019,7 +1017,7 @@ function App() {
                           <p className="text-sm font-semibold truncate text-foreground/90">
                             {file.name}
                           </p>
-                          <p className="text-[10px] text-muted-foreground font-mono uppercase font-bold tracking-tighter">
+                          <p className="text-[10px] text-muted-foreground font-mono font-bold tracking-tighter">
                             {formatFileSize(file.size)}
                           </p>
                         </div>

@@ -863,6 +863,14 @@ export default function ReceiveScreen() {
     setTransferFiles([]);
   };
 
+  const openIncomingFilesSheet = () => {
+    // Avoid z-index stacking issues: hide full-screen modal first, then present sheet.
+    setIsMinimized(true);
+    setTimeout(() => {
+      optionsSheetRef.current?.present();
+    }, 40);
+  };
+
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
       {/* Top Header Icons */}
@@ -1024,6 +1032,7 @@ export default function ReceiveScreen() {
             styles.modalContainer,
             { backgroundColor: theme.colors.background },
           ]}
+          style={styles.fullscreenModal}
           dismissable={
             transferStatus === 'idle' || transferStatus === 'done' || transferStatus === 'error'
           }
@@ -1094,7 +1103,7 @@ export default function ReceiveScreen() {
                   <View style={styles.modalFooter}>
                     <Button
                       mode="contained-tonal"
-                      onPress={() => optionsSheetRef.current?.present()}
+                      onPress={openIncomingFilesSheet}
                       icon="format-list-bulleted"
                       textColor={theme.colors.primary}
                       style={styles.optionsButtonCompact}
@@ -1499,6 +1508,11 @@ export default function ReceiveScreen() {
         ref={optionsSheetRef}
         index={0}
         snapPoints={snapPoints}
+        onDismiss={() => {
+          if (pendingRequest && transferStatus === 'idle') {
+            setIsMinimized(false);
+          }
+        }}
         backdropComponent={(props) => (
           <BottomSheetBackdrop {...props} disappearsOnIndex={-1} appearsOnIndex={0} />
         )}
@@ -1506,7 +1520,7 @@ export default function ReceiveScreen() {
         handleIndicatorStyle={{ backgroundColor: theme.colors.onSurfaceVariant }}
       >
         <BottomSheetView style={{ flex: 1, paddingBottom: 16 }}>
-          <View style={{ paddingHorizontal: 24, paddingTop: 8, paddingBottom: 16 }}>
+          <View style={{ paddingHorizontal: 16, paddingTop: 8, paddingBottom: 16 }}>
             <Text variant="titleLarge" style={{ fontWeight: '800', letterSpacing: -0.5 }}>
               Incoming Files
             </Text>
@@ -1593,7 +1607,7 @@ export default function ReceiveScreen() {
               </View>
             )}
           </BottomSheetScrollView>
-          <View style={{ paddingHorizontal: 24, paddingVertical: 16 }}>
+          <View style={{ paddingHorizontal: 16, paddingVertical: 16 }}>
             <Button
               mode="contained"
               onPress={() => optionsSheetRef.current?.dismiss()}
@@ -1763,7 +1777,11 @@ const styles = StyleSheet.create({
   modalContainer: {
     flex: 1,
     margin: 0,
-    justifyContent: 'flex-end',
+    width: '100%',
+    height: '100%',
+  },
+  fullscreenModal: {
+    margin: 0,
   },
   modalContent: {
     flex: 1,
@@ -1899,7 +1917,7 @@ const styles = StyleSheet.create({
     textTransform: 'none',
   },
   modalHeaderList: {
-    paddingHorizontal: 24,
+    paddingHorizontal: 16,
     paddingTop: 8,
     paddingBottom: 16,
     gap: 2,
@@ -1913,7 +1931,7 @@ const styles = StyleSheet.create({
   },
   modalItemList: {
     flex: 1,
-    paddingHorizontal: 24,
+    paddingHorizontal: 16,
   },
   modalFileRow: {
     flexDirection: 'row',
@@ -1945,7 +1963,8 @@ const styles = StyleSheet.create({
     height: '100%',
   },
   modalFooterList: {
-    padding: 24,
+    paddingHorizontal: 16,
+    paddingVertical: 24,
     gap: 32,
   },
   modalTotalProgressSection: {

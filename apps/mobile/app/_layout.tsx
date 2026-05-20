@@ -73,43 +73,16 @@ function InnerLayout() {
   // Initialization Hook: Boots up core app states like storage locations and device names
   useEffect(() => {
     const initializeSettings = async () => {
-      // 1. Initialize Default File Folder path mapped to 'EXLink'
-      if (!saveToFolderPath) {
+      // 1. Initialize Default File Folder path mapped to 'EXLink' and migrate legacy emulated storage paths that cause EPERM
+      const safeDefaultDir = Paths.document.uri + '/EXLink';
+      if (!saveToFolderPath || saveToFolderPath === 'file:///storage/emulated/0/EXLink') {
         try {
-          let defaultDir: string;
-          // Setup primary path behavior depending on iOS or Android filesystem abstractions
-          if (Platform.OS === 'android') {
-            // Attempt to use the root of internal storage (shared storage accessible to file managers natively)
-            defaultDir = 'file:///storage/emulated/0/EXLink';
-          } else {
-            // Document directory scope is forced on iOS environments
-            defaultDir = Paths.document.uri + '/EXLink';
+          const dir = new Directory(safeDefaultDir);
+          if (!dir.exists) {
+            await dir.create();
+            console.log('[Layout] Created default folder:', safeDefaultDir);
           }
-
-          // Use expo-file-system abstraction targeting this URL
-          const dir = new Directory(defaultDir);
-          try {
-            if (!dir.exists) {
-              await dir.create(); // Create physical OS folder if lacking
-              console.log('[Layout] Created default folder:', defaultDir);
-            }
-            // Bind default to Zustand if successful
-            setSaveToFolderPath(defaultDir);
-          } catch (createErr) {
-            console.error(
-              '[Layout] Failed to access/create preferred folder:',
-              defaultDir,
-              createErr
-            );
-            // Fallback exclusively for Android if root scoped storage is heavily restricted dynamically by OS
-            if (Platform.OS === 'android' && defaultDir !== Paths.document.uri + '/EXLink') {
-              const fallbackDir = Paths.document.uri + '/EXLink';
-              const fDir = new Directory(fallbackDir);
-              if (!fDir.exists) await fDir.create();
-              setSaveToFolderPath(fallbackDir);
-              console.log('[Layout] Falling back to internal storage:', fallbackDir);
-            }
-          }
+          setSaveToFolderPath(safeDefaultDir);
         } catch (e) {
           console.error('[Layout] Critical folder initialization error:', e);
         }
@@ -229,9 +202,25 @@ function InnerLayout() {
       }
     };
 
-    // Trigger sequential scan explicitly when component logic originally mounts fully into reality
-    // or when the user manually triggers a scan (scanTrigger changes)
+    // Trigger initial scan immediately.
     scanSubnet();
+
+    // Keep announcing periodically so desktops that open later still discover this mobile device.
+    const announceInterval = setInterval(() => {
+      if (knownDesktopIps.current.size > 0) {
+        announceToIps(knownDesktopIps.current);
+      }
+    }, 4000);
+
+    // Periodic subnet refresh to discover newly opened desktop apps.
+    const rescanInterval = setInterval(() => {
+      scanSubnet();
+    }, 15000);
+
+    return () => {
+      clearInterval(announceInterval);
+      clearInterval(rescanInterval);
+    };
   }, [serverRunning, deviceName, deviceId, scanTrigger, setIsScanning, setNearbyDevices]); // Listens explicitly to scanTrigger allowing manual user forced rescans remotely
 
   // Blocking logic rendering null securely holding render cycle fully preventing state mismatch before contexts establish

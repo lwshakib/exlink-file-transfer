@@ -1,4 +1,5 @@
 import { app, BrowserWindow, ipcMain, shell, dialog } from 'electron';
+import { autoUpdater } from 'electron-updater';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import express, { Request, Response } from 'express';
@@ -11,6 +12,9 @@ import { uniqueNamesGenerator, adjectives, animals } from 'unique-names-generato
 import { Transform, PassThrough } from 'node:stream';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+app.name = 'ExLink';
+app.setAppUserModelId('com.lwshakib.exlink');
 
 // The built directory structure
 process.env.APP_ROOT = path.join(__dirname, '..');
@@ -77,10 +81,7 @@ function saveConfig() {
   }
 }
 
-// Ensure identity is loaded immediately as app boots
-app.whenReady().then(() => {
-  loadConfig();
-});
+
 
 // File Storage Setup
 let uploadDir = path.join(os.homedir(), 'Downloads', 'ExLink');
@@ -953,23 +954,26 @@ function getLocalIPs() {
   return ips.length > 0 ? [ips[0]] : ['127.0.0.1'];
 }
 
-// Platform-specific icon paths
+/**
+ * Utility function to get the correct icon path based on the current operating system.
+ */
 const getIconPath = (): string => {
   const platform = process.platform;
-  const basePath = process.env.APP_ROOT;
+  // In dev, assets are in 'public'. In prod, Vite copies them to 'dist'.
+  const resourceDir = VITE_DEV_SERVER_URL 
+    ? path.join(process.env.APP_ROOT, 'public') 
+    : RENDERER_DIST;
 
   switch (platform) {
     case 'win32':
-      return path.join(basePath, 'public', 'icons', 'win', 'icon.ico');
+      return path.join(resourceDir, 'icons', 'win', 'icon.ico');
     case 'darwin':
-      return path.join(basePath, 'public', 'icons', 'mac', 'icon.icns');
+      return path.join(resourceDir, 'icons', 'mac', 'icon.icns');
     case 'linux':
     default:
-      return path.join(basePath, 'public', 'icons', 'png', '256x256.png');
+      return path.join(resourceDir, 'icons', 'png', '256x256.png');
   }
 };
-
-const iconPath = getIconPath();
 
 process.env.VITE_PUBLIC = VITE_DEV_SERVER_URL
   ? path.join(process.env.APP_ROOT, 'public')
@@ -978,7 +982,7 @@ process.env.VITE_PUBLIC = VITE_DEV_SERVER_URL
 // --- Main Process Lifecycle ---
 function createWindow() {
   win = new BrowserWindow({
-    icon: iconPath,
+    icon: getIconPath(),
     frame: false, // Frameless window for custom glassmorphism styling
     width: 1000,
     height: 700,
@@ -999,6 +1003,37 @@ function createWindow() {
   }
 }
 
+function setupAutoUpdater() {
+  autoUpdater.autoDownload = true;
+  autoUpdater.autoInstallOnAppQuit = true;
+  autoUpdater.allowPrerelease = false;
+
+  autoUpdater.on('update-available', (info) => {
+    console.log('Update available:', info.version);
+    if (win) {
+      win.webContents.send('update:available', info.version);
+    }
+  });
+
+  autoUpdater.on('update-downloaded', (info) => {
+    console.log('Update downloaded:', info.version);
+    // Updates will be installed automatically on app quit
+    // No dialog is shown to the user as per request
+  });
+
+  autoUpdater.on('error', (err) => {
+    console.error('Error in auto-updater:', err);
+  });
+
+  // Check for updates every 24 hours
+  setInterval(() => {
+    autoUpdater.checkForUpdatesAndNotify();
+  }, 1000 * 60 * 60 * 24);
+
+  // Initial check
+  autoUpdater.checkForUpdatesAndNotify();
+}
+
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     app.quit();
@@ -1010,4 +1045,8 @@ app.on('activate', () => {
   if (BrowserWindow.getAllWindows().length === 0) createWindow();
 });
 
-app.whenReady().then(createWindow);
+app.whenReady().then(() => {
+  loadConfig();
+  createWindow();
+  setupAutoUpdater();
+});
