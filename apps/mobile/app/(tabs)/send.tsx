@@ -364,7 +364,16 @@ export default function SendScreen() {
       >
         {/* Selection Summary Card: Dynamically mounted only if actual items exist in state */}
         {selectedItems.length > 0 && (
-          <Card style={styles.summaryCard} mode="contained">
+          <Card
+            style={[
+              styles.summaryCard,
+              {
+                backgroundColor: theme.colors.surface,
+                borderColor: theme.colors.outlineVariant,
+              },
+            ]}
+            mode="contained"
+          >
             <Card.Content>
               {/* Top grouping binding string labels safely pushing metrics */}
               <View style={styles.summaryHeader}>
@@ -407,17 +416,27 @@ export default function SendScreen() {
                     {item.type === 'media' && item.uri ? (
                       <RNImage source={{ uri: item.uri }} style={styles.thumbnailImage} />
                     ) : (
-                      <MaterialCommunityIcons
-                        name={
-                          item.type === 'media'
-                            ? 'image'
-                            : item.type === 'text'
-                              ? 'text'
-                              : 'file-document'
-                        }
-                        size={32}
-                        color={theme.colors.primary}
-                      />
+                      <View
+                        style={[
+                          styles.thumbnailFallback,
+                          {
+                            backgroundColor: theme.colors.surfaceVariant,
+                            borderColor: theme.colors.outlineVariant,
+                          },
+                        ]}
+                      >
+                        <MaterialCommunityIcons
+                          name={
+                            item.type === 'media'
+                              ? 'image'
+                              : item.type === 'text'
+                                ? 'text'
+                                : 'file-document'
+                          }
+                          size={24}
+                          color={theme.colors.primary}
+                        />
+                      </View>
                     )}
                     <Text
                       variant="labelSmall"
@@ -432,10 +451,13 @@ export default function SendScreen() {
 
               <View style={styles.summaryActions}>
                 <Button
-                  mode="text"
+                  mode="contained-tonal"
                   onPress={() => setSelectionSheetVisible(true)}
-                  textColor={theme.colors.primary}
-                  style={styles.editButton}
+                  textColor={theme.colors.onSecondaryContainer}
+                  buttonColor={theme.colors.secondaryContainer}
+                  style={styles.actionButton}
+                  contentStyle={styles.actionButtonContent}
+                  labelStyle={styles.actionButtonLabel}
                 >
                   Edit
                 </Button>
@@ -444,7 +466,9 @@ export default function SendScreen() {
                   mode="contained"
                   onPress={() => bottomSheetModalRef.current?.present()}
                   icon="plus"
-                  style={styles.addButton}
+                  style={styles.actionButton}
+                  contentStyle={styles.actionButtonContent}
+                  labelStyle={styles.actionButtonLabel}
                   buttonColor={theme.colors.primary}
                   textColor={theme.colors.onPrimary}
                 >
@@ -723,25 +747,26 @@ export default function SendScreen() {
           <View style={styles.bsGrid}>
             {SELECTION_ITEMS.map((item, index) => (
               <View key={index} style={styles.gridItemContainer}>
-                <Card
-                  style={[styles.bsCard, { backgroundColor: theme.colors.surfaceVariant }]}
-                  mode="contained"
-                  onPress={item.onPress}
-                >
-                  <Card.Content style={styles.bsCardContent}>
-                    <MaterialCommunityIcons
-                      name={item.icon as any}
-                      size={28}
-                      color={theme.colors.primary}
-                    />
-                    <Text
-                      variant="labelLarge"
-                      style={[styles.bsCardLabel, { color: theme.colors.onSurfaceVariant }]}
-                    >
-                      {item.label}
-                    </Text>
-                  </Card.Content>
-                </Card>
+                <TouchableOpacity onPress={item.onPress} activeOpacity={0.75}>
+                  <Card
+                    style={[styles.bsCard, { backgroundColor: theme.colors.surfaceVariant }]}
+                    mode="contained"
+                  >
+                    <Card.Content style={styles.bsCardContent}>
+                      <MaterialCommunityIcons
+                        name={item.icon as any}
+                        size={28}
+                        color={theme.colors.primary}
+                      />
+                      <Text
+                        variant="labelLarge"
+                        style={[styles.bsCardLabel, { color: theme.colors.onSurfaceVariant }]}
+                      >
+                        {item.label}
+                      </Text>
+                    </Card.Content>
+                  </Card>
+                </TouchableOpacity>
               </View>
             ))}
           </View>
@@ -868,7 +893,11 @@ const styles = StyleSheet.create({
     marginBottom: 24,
     borderRadius: 24,
     padding: 8,
-    backgroundColor: 'transparent',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 2,
   },
   summaryHeader: {
     flexDirection: 'row',
@@ -899,6 +928,14 @@ const styles = StyleSheet.create({
     height: 48,
     borderRadius: 12,
   },
+  thumbnailFallback: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   thumbnailLabel: {
     marginTop: 4,
     width: '100%',
@@ -912,12 +949,17 @@ const styles = StyleSheet.create({
     marginTop: 8,
     gap: 8,
   },
-  editButton: {
-    marginRight: 8,
+  actionButton: {
+    borderRadius: 12,
+    minWidth: 92,
   },
-  addButton: {
-    borderRadius: 20,
-    paddingHorizontal: 8,
+  actionButtonContent: {
+    height: 40,
+    paddingHorizontal: 10,
+  },
+  actionButtonLabel: {
+    fontSize: 14,
+    fontWeight: '600',
   },
   carouselSection: {
     marginBottom: 20,
