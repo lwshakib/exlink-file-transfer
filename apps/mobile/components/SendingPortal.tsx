@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
-import { StyleSheet, View, ScrollView, Platform } from 'react-native';
-import { Text, useTheme, Button, Modal, Portal } from 'react-native-paper';
+import { StyleSheet, View, ScrollView, Platform, Modal } from 'react-native';
+import { Text, useTheme, Button } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Device from 'expo-device';
@@ -334,18 +334,13 @@ const SendingPortal = ({ visible, onDismiss, targetDevice }: SendingPortalProps)
   };
 
   return (
-    <Portal>
-      <Modal
-        visible={visible}
-        onDismiss={handleCancel}
-        dismissable={
-          status === 'done' || status === 'error' || status === 'refused' || status === 'waiting'
-        }
-        contentContainerStyle={[
-          styles.modalContainer,
-          { backgroundColor: theme.colors.background },
-        ]}
-      >
+    <Modal
+      visible={visible}
+      animationType="slide"
+      transparent={false}
+      onRequestClose={handleCancel}
+    >
+      <View style={[styles.modalContainer, { backgroundColor: theme.colors.background }]}>
         <SafeAreaView style={styles.safeArea} edges={['bottom']}>
           <View style={styles.container}>
             {status === 'waiting' || status === 'refused' ? (
@@ -651,8 +646,8 @@ const SendingPortal = ({ visible, onDismiss, targetDevice }: SendingPortalProps)
             )}
           </View>
         </SafeAreaView>
-      </Modal>
-    </Portal>
+      </View>
+    </Modal>
   );
 };
 

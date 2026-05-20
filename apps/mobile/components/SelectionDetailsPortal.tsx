@@ -1,6 +1,6 @@
 import React from 'react';
-import { StyleSheet, View, ScrollView, Image as RNImage, Platform } from 'react-native';
-import { Text, IconButton, useTheme, Card, Button, Modal, Portal } from 'react-native-paper';
+import { StyleSheet, View, ScrollView, Image as RNImage, Platform, Modal } from 'react-native';
+import { Text, IconButton, useTheme, Card, Button } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSelection } from '@/hooks/useSelection';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -47,16 +47,13 @@ const SelectionDetailsPortal = ({ visible, onDismiss }: SelectionDetailsPortalPr
   };
 
   return (
-    // React Native Paper layout wrapper ensuring this modal escapes relative hierarchies and renders on top of the DOM
-    <Portal>
-      <Modal
-        visible={visible}
-        onDismiss={onDismiss}
-        contentContainerStyle={[
-          styles.modalContainer,
-          { backgroundColor: theme.colors.background }, // Connect global themed color safely
-        ]}
-      >
+    <Modal
+      visible={visible}
+      animationType="slide"
+      transparent={false}
+      onRequestClose={onDismiss}
+    >
+      <View style={[styles.modalContainer, { backgroundColor: theme.colors.background }]}>
         {/* Bounds UI effectively from intruding on gesture controls or hardware cutouts */}
         <SafeAreaView style={styles.safeArea} edges={['bottom']}>
           <View style={styles.container}>
@@ -178,8 +175,8 @@ const SelectionDetailsPortal = ({ visible, onDismiss }: SelectionDetailsPortalPr
             </View>
           </View>
         </SafeAreaView>
-      </Modal>
-    </Portal>
+      </View>
+    </Modal>
   );
 };
 

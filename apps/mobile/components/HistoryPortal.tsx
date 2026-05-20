@@ -1,7 +1,7 @@
 import React from 'react';
-import { IconButton, Text, Button, useTheme, Modal, Portal, Card } from 'react-native-paper';
+import { IconButton, Text, Button, useTheme, Card } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { FlatList, StyleSheet, View, Platform, Linking } from 'react-native';
+import { FlatList, StyleSheet, View, Platform, Linking, Modal } from 'react-native';
 import { useSettingsStore, HistoryItem } from '@/store/useSettingsStore';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
@@ -145,16 +145,13 @@ const HistoryPortal = ({ visible, onDismiss }: HistoryPortalProps) => {
   );
 
   return (
-    // Render Modal within a Portal so it layers natively on top
-    <Portal>
-      <Modal
-        visible={visible}
-        onDismiss={onDismiss}
-        contentContainerStyle={[
-          styles.modalContainer,
-          { backgroundColor: theme.colors.background }, // Themed modal background
-        ]}
-      >
+    <Modal
+      visible={visible}
+      animationType="slide"
+      transparent={false}
+      onRequestClose={onDismiss}
+    >
+      <View style={[styles.modalContainer, { backgroundColor: theme.colors.background }]}>
         {/* Enforce spacing around edge insets including notch or home bar */}
         <SafeAreaView style={styles.safeArea} edges={['bottom']}>
           <View style={styles.container}>
@@ -246,8 +243,8 @@ const HistoryPortal = ({ visible, onDismiss }: HistoryPortalProps) => {
             </View>
           </View>
         </SafeAreaView>
-      </Modal>
-    </Portal>
+      </View>
+    </Modal>
   );
 };
 

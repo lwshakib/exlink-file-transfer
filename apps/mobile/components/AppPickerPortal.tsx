@@ -1,13 +1,11 @@
 import React, { useState, useMemo } from 'react';
-import { StyleSheet, View, ScrollView } from 'react-native';
+import { StyleSheet, View, ScrollView, Modal } from 'react-native';
 import {
   Text,
   IconButton,
   useTheme,
   Card,
   Button,
-  Modal,
-  Portal,
   Searchbar,
   List,
   Checkbox,
@@ -102,16 +100,13 @@ const AppPickerPortal = ({ visible, onDismiss, onSelectApps }: AppPickerPortalPr
   };
 
   return (
-    // Wrap with Portal to ensure the Modal layers on top of everything nicely
-    <Portal>
-      <Modal
-        visible={visible} // Drive visibility from parent's prop
-        onDismiss={onDismiss} // Enables tapping outside to close
-        contentContainerStyle={[
-          styles.modalContainer,
-          { backgroundColor: theme.colors.background }, // Themed background
-        ]}
-      >
+    <Modal
+      visible={visible}
+      animationType="slide"
+      transparent={false}
+      onRequestClose={onDismiss}
+    >
+      <View style={[styles.modalContainer, { backgroundColor: theme.colors.background }]}>
         {/* Enforce spacing around notches and home indicator area */}
         <SafeAreaView style={styles.safeArea} edges={['bottom']}>
           <View style={styles.container}>
@@ -198,8 +193,8 @@ const AppPickerPortal = ({ visible, onDismiss, onSelectApps }: AppPickerPortalPr
             </View>
           </View>
         </SafeAreaView>
-      </Modal>
-    </Portal>
+      </View>
+    </Modal>
   );
 };
 

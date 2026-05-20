@@ -37,7 +37,6 @@ function CustomTabBar({ state, descriptors, navigation, insets }: BottomTabBarPr
           backgroundColor: theme.colors.elevation.level2,
           shadowColor: '#000',
           shadowOpacity: theme.dark ? 0.35 : 0.08,
-          borderColor: theme.colors.outlineVariant,
         },
       ]}
     >
@@ -153,6 +152,12 @@ export default function TabLayout() {
     <Tabs
       screenOptions={{
         headerShown: false,
+        tabBarStyle: {
+          position: 'absolute',
+          backgroundColor: 'transparent',
+          borderTopWidth: 0,
+          elevation: 0,
+        },
       }}
       tabBar={(props) => <CustomTabBar {...props} />}
     >
@@ -188,7 +193,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-around',
-    borderWidth: 1,
     shadowOffset: { width: 0, height: 6 },
     shadowRadius: 12,
     elevation: 6,

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { StyleSheet, View, Platform, ScrollView, Image } from 'react-native';
+import { StyleSheet, View, Platform, ScrollView, Image, Animated, InteractionManager } from 'react-native';
 import {
   IconButton,
   Text,
@@ -87,6 +87,73 @@ export default function ReceiveScreen() {
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
   const [historyVisible, setHistoryVisible] = useState(false);
+  const [deviceIp, setDeviceIp] = useState<string>('');
+
+  // Pulsing sonar radar animations
+  const pulse1 = useRef(new Animated.Value(0)).current;
+  const pulse2 = useRef(new Animated.Value(0)).current;
+  const pulse3 = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (serverRunning) {
+      const createPulse = (pulseVar: Animated.Value, delay: number) => {
+        pulseVar.setValue(0);
+        return Animated.loop(
+          Animated.sequence([
+            Animated.delay(delay),
+            Animated.parallel([
+              Animated.timing(pulseVar, {
+                toValue: 1,
+                duration: 3200,
+                useNativeDriver: true,
+              }),
+            ]),
+          ])
+        );
+      };
+
+      const p1 = createPulse(pulse1, 0);
+      const p2 = createPulse(pulse2, 1000);
+      const p3 = createPulse(pulse3, 2000);
+
+      p1.start();
+      p2.start();
+      p3.start();
+
+      return () => {
+        p1.stop();
+        p2.stop();
+        p3.stop();
+      };
+    } else {
+      pulse1.setValue(0);
+      pulse2.setValue(0);
+      pulse3.setValue(0);
+    }
+  }, [serverRunning]);
+
+  const renderPulseRing = (pulseVar: Animated.Value) => {
+    const scale = pulseVar.interpolate({
+      inputRange: [0, 1],
+      outputRange: [1, 2.4],
+    });
+    const opacity = pulseVar.interpolate({
+      inputRange: [0, 0.1, 0.8, 1],
+      outputRange: [0, 0.25, 0.08, 0],
+    });
+    return (
+      <Animated.View
+        style={[
+          styles.pulseRing,
+          {
+            borderColor: theme.colors.primary,
+            transform: [{ scale }],
+            opacity,
+          },
+        ]}
+      />
+    );
+  };
 
   // Bottom Sheet Ref
   const optionsSheetRef = useRef<BottomSheetModal>(null);
@@ -205,6 +272,9 @@ export default function ReceiveScreen() {
 
     // Generate/Sync device ID
     const ip = await Network.getIpAddressAsync();
+    if (ip) {
+      setDeviceIp(ip);
+    }
     if (ip && !ip.includes(':')) {
       const parts = ip.split('.');
       const lastOctet = parts[parts.length - 1];
@@ -220,9 +290,11 @@ export default function ReceiveScreen() {
 
   useFocusEffect(
     React.useCallback(() => {
-      // Refresh name/id when returning from Settings
-      loadIdentity();
-      return () => {};
+      // Refresh name/id when returning from Settings after transition
+      const task = InteractionManager.runAfterInteractions(() => {
+        loadIdentity();
+      });
+      return () => task.cancel();
     }, [loadIdentity])
   );
 
@@ -824,34 +896,87 @@ export default function ReceiveScreen() {
         {/* Central Animation Placeholder */}
         <View style={styles.centerSection}>
           <View style={styles.outerCircle}>
-            {/* SVG Logo from user */}
-            <Svg width="200" height="200" viewBox="0 0 48 48" fill="none">
-              <G translate="3 0" fill={theme.colors.primary}>
-                <Path d="m14.1061 19.6565c5.499-2.6299 9.8025-7.0929 12.2731-12.67168-1.5939-1.67362-3.666-2.86907-5.8975-3.58634l-1.1954-.39848c-.0797.15939-.1594.39849-.1594.55788-1.9127 5.41936-5.8178 9.80262-11.07766 12.27322-3.66599 1.7533-6.37564 4.9412-7.650763 8.7666l-.398477 1.1955c.159391.0797.39848.1593.557871.1593 1.514209.5579 3.028419 1.2752 4.462939 2.1519 1.99238-3.5864 5.18019-6.6148 9.08529-8.4479z" />
-                <Path
-                  d="m37.2173 19.9753c-2.9487 4.463-7.0132 8.0494-12.034 10.4403-4.0645 1.9127-7.1726 5.499-8.6071 9.8026l-.3985 1.3549c1.5142 1.3548 3.3472 2.3909 5.3396 3.0284l1.1955.3985c.0796-.1594.1593-.3985.1593-.5579 1.9127-5.4193 5.8178-9.8026 11.0777-12.2732 3.666-1.7533 6.4553-4.9412 7.6507-8.7666l.3985-1.1954c-1.6736-.4782-3.2675-1.2752-4.7817-2.2316z"
-                  opacity=".5"
-                />
-                <Path
-                  d="m12.9903 37.4284c1.9924-4.7818 5.6584-8.6869 10.3604-10.9184 4.3035-2.0721 7.8898-5.26 10.3604-9.1651-1.833-1.7533-3.3472-3.7458-4.463-6.1366-2.9487 5.4193-7.571 9.8026-13.2294 12.5123-3.2675 1.5142-5.8974 4.1442-7.49136 7.3321 1.75326 1.6736 3.18786 3.7457 4.30356 6.0569 0 0 .0797.1594.1594.3188z"
-                  opacity=".7"
-                />
-              </G>
-            </Svg>
+            {/* Radar Pulsing Sonar Waves */}
+            {serverRunning && renderPulseRing(pulse1)}
+            {serverRunning && renderPulseRing(pulse2)}
+            {serverRunning && renderPulseRing(pulse3)}
+
+            {/* Glowing Orbit Backdrop when listening */}
+            {serverRunning && (
+              <View style={[styles.glowRing, { borderColor: theme.colors.primary, opacity: 0.1 }]} />
+            )}
+
+            {/* Central Circle Badge hosting the Svg Logo */}
+            <View style={[styles.centralLogoBadge, { backgroundColor: theme.colors.surfaceVariant }]}>
+              {/* SVG Logo from user */}
+              <Svg width="100" height="100" viewBox="0 0 48 48" fill="none">
+                <G fill={theme.colors.primary}>
+                  <Path d="m14.1061 19.6565c5.499-2.6299 9.8025-7.0929 12.2731-12.67168-1.5939-1.67362-3.666-2.86907-5.8975-3.58634l-1.1954-.39848c-.0797.15939-.1594.39849-.1594.55788-1.9127 5.41936-5.8178 9.80262-11.07766 12.27322-3.66599 1.7533-6.37564 4.9412-7.650763 8.7666l-.398477 1.1955c.159391.0797.39848.1593.557871.1593 1.514209.5579 3.028419 1.2752 4.462939 2.1519 1.99238-3.5864 5.18019-6.6148 9.08529-8.4479z" />
+                  <Path
+                    d="m37.2173 19.9753c-2.9487 4.463-7.0132 8.0494-12.034 10.4403-4.0645 1.9127-7.1726 5.499-8.6071 9.8026l-.3985 1.3549c1.5142 1.3548 3.3472 2.3909 5.3396 3.0284l1.1955.3985c.0796-.1594.1593-.3985.1593-.5579 1.9127-5.4193 5.8178-9.8026 11.0777-12.2732 3.666-1.7533 6.4553-4.9412 7.6507-8.7666l.3985-1.1954c-1.6736-.4782-3.2675-1.2752-4.7817-2.2316z"
+                    opacity=".5"
+                  />
+                  <Path
+                    d="m12.9903 37.4284c1.9924-4.7818 5.6584-8.6869 10.3604-10.9184 4.3035-2.0721 7.8898-5.26 10.3604-9.1651-1.833-1.7533-3.3472-3.7458-4.463-6.1366-2.9487 5.4193-7.571 9.8026-13.2294 12.5123-3.2675 1.5142-5.8974 4.1442-7.49136 7.3321 1.75326 1.6736 3.18786 3.7457 4.30356 6.0569 0 0 .0797.1594.1594.3188z"
+                    opacity=".7"
+                  />
+                </G>
+              </Svg>
+            </View>
           </View>
 
-          <Text
-            variant="headlineLarge"
-            style={[styles.deviceName, { color: theme.colors.onBackground }]}
+          {/* Active Status Breathing Badge */}
+          <View
+            style={[
+              styles.statusBadge,
+              {
+                backgroundColor: serverRunning ? theme.colors.primaryContainer : theme.colors.surfaceVariant,
+              },
+            ]}
           >
-            {deviceName || '...'}
-          </Text>
-          <Text
-            variant="titleMedium"
-            style={[styles.deviceId, { color: theme.colors.onSurfaceVariant }]}
-          >
-            #{deviceId}
-          </Text>
+            <View
+              style={[
+                styles.statusIndicatorDot,
+                { backgroundColor: serverRunning ? '#4CAF50' : '#FF5252' },
+              ]}
+            />
+            <Text
+              style={[
+                styles.statusBadgeText,
+                { color: serverRunning ? theme.colors.onPrimaryContainer : theme.colors.onSurfaceVariant },
+              ]}
+            >
+              {serverRunning ? 'Receiving Enabled' : 'Server Off'}
+            </Text>
+          </View>
+
+          {/* High-fidelity Station Info Card */}
+          <Card style={[styles.identityCard, { backgroundColor: theme.colors.elevation.level1 }]} mode="contained">
+            <Card.Content style={styles.identityCardContent}>
+              <View style={styles.identityRow}>
+                <View style={[styles.avatarCircle, { backgroundColor: theme.colors.primary }]}>
+                  <Text style={[styles.avatarText, { color: theme.colors.onPrimary }]}>
+                    {(deviceName || 'E')[0].toUpperCase()}
+                  </Text>
+                </View>
+                <View style={styles.identityMeta}>
+                  <Text variant="titleMedium" style={{ fontWeight: '800' }}>
+                    {deviceName || '...'}
+                  </Text>
+                  <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
+                    ID: #{deviceId || '000'}
+                  </Text>
+                </View>
+              </View>
+              <Divider style={{ marginVertical: 12, opacity: 0.6 }} />
+              <View style={styles.ipRow}>
+                <MaterialCommunityIcons name="wifi" style={{ color: theme.colors.primary }} size={16} />
+                <Text variant="bodySmall" style={[styles.ipText, { color: theme.colors.onSurfaceVariant }]}>
+                  IP Address: <Text style={{ fontWeight: '700', color: theme.colors.onSurface }}>{deviceIp || 'Not connected'}</Text>
+                </Text>
+              </View>
+            </Card.Content>
+          </Card>
         </View>
 
         {/*
@@ -922,7 +1047,6 @@ export default function ReceiveScreen() {
                         styles.iconCircle,
                         {
                           backgroundColor: theme.colors.surfaceVariant,
-                          borderColor: theme.colors.outlineVariant,
                         },
                       ]}
                     >
@@ -946,7 +1070,6 @@ export default function ReceiveScreen() {
                           styles.idBadge,
                           {
                             backgroundColor: theme.colors.surfaceVariant,
-                            borderColor: theme.colors.outlineVariant,
                           },
                         ]}
                       >
@@ -961,7 +1084,6 @@ export default function ReceiveScreen() {
                           styles.osBadge,
                           {
                             backgroundColor: theme.colors.surfaceVariant,
-                            borderColor: theme.colors.outlineVariant,
                           },
                         ]}
                       >
@@ -1119,7 +1241,6 @@ export default function ReceiveScreen() {
                                 styles.modalFileIconContainer,
                                 {
                                   backgroundColor: theme.colors.surfaceVariant,
-                                  borderColor: theme.colors.outlineVariant,
                                 },
                               ]}
                             >
@@ -1198,7 +1319,6 @@ export default function ReceiveScreen() {
                               styles.modalFileIconContainer,
                               {
                                 backgroundColor: theme.colors.surfaceVariant,
-                                borderColor: theme.colors.outlineVariant,
                               },
                             ]}
                           >
@@ -1383,7 +1503,6 @@ export default function ReceiveScreen() {
         </Modal>
       </Portal>
 
-      <HistoryPortal visible={historyVisible} onDismiss={() => setHistoryVisible(false)} />
 
       <BottomSheetModal
         ref={optionsSheetRef}
@@ -1430,8 +1549,6 @@ export default function ReceiveScreen() {
                       alignItems: 'center',
                       justifyContent: 'center',
                       marginRight: 16,
-                      borderWidth: 1,
-                      borderColor: theme.colors.outlineVariant,
                     }}
                   >
                     <MaterialCommunityIcons
@@ -1497,6 +1614,12 @@ export default function ReceiveScreen() {
           </View>
         </BottomSheetView>
       </BottomSheetModal>
+
+      {/* History Modal Portal */}
+      <HistoryPortal 
+        visible={historyVisible} 
+        onDismiss={() => setHistoryVisible(false)} 
+      />
     </SafeAreaView>
   );
 }
@@ -1521,6 +1644,95 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 40,
+  },
+  pulseRing: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    width: 200,
+    height: 200,
+    borderRadius: 100,
+    borderWidth: 2.5,
+  },
+  glowRing: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    width: 200,
+    height: 200,
+    borderRadius: 100,
+    borderWidth: 1.5,
+  },
+  centralLogoBadge: {
+    width: 160,
+    height: 160,
+    borderRadius: 80,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  statusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 6,
+    borderRadius: 20,
+    marginBottom: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  statusIndicatorDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginRight: 8,
+  },
+  statusBadgeText: {
+    fontSize: 13,
+    fontWeight: '700',
+    letterSpacing: 0.3,
+  },
+  identityCard: {
+    width: 280,
+    borderRadius: 20,
+    marginTop: 8,
+  },
+  identityCardContent: {
+    padding: 16,
+  },
+  identityRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  avatarCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarText: {
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  identityMeta: {
+    flex: 1,
+  },
+  ipRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  ipText: {
+    fontSize: 12,
   },
   outerCircle: {
     width: 200,
@@ -1615,7 +1827,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 2,
     borderRadius: 8,
-    borderWidth: 1,
   },
   idBadgeText: {
     fontWeight: '500',
@@ -1625,7 +1836,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 2,
     borderRadius: 8,
-    borderWidth: 1,
   },
   osBadgeText: {
     fontWeight: '500',
@@ -1726,7 +1936,6 @@ const styles = StyleSheet.create({
   modalFileIconContainer: {
     width: 44,
     height: 44,
-    borderWidth: 1,
     borderRadius: 4,
     alignItems: 'center',
     justifyContent: 'center',
@@ -1791,7 +2000,6 @@ const styles = StyleSheet.create({
     width: 20,
     height: 20,
     borderRadius: 10,
-    borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
   },

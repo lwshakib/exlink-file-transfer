@@ -31,7 +31,7 @@ export interface AppSettings {
   // --- Theme Settings ---
   colorScheme: 'system' | 'light' | 'dark'; // Base theme mode
   // The primary accent color for the UI
-  selectedColor: 'ExLink' | 'Emerald' | 'Violet' | 'Blue' | 'Amber' | 'Rose' | 'Random';
+  selectedColor: 'Default' | 'Emerald' | 'Violet' | 'Blue' | 'Amber' | 'Rose' | 'Random';
 }
 
 // Full store shape including both state (AppSettings) and actions mapped to them
@@ -45,9 +45,7 @@ interface AppSettingsStore extends AppSettings {
   addHistoryItem: (item: HistoryItem) => void; // Pushes a new history item
   clearHistory: () => void; // Clears the transfer history
   setColorScheme: (scheme: 'system' | 'light' | 'dark') => void; // Changes base color mode
-  setSelectedColor: (
-    color: 'ExLink' | 'Emerald' | 'Violet' | 'Blue' | 'Amber' | 'Rose' | 'Random'
-  ) => void; // Changes color accent
+  setSelectedColor: (color: 'Default' | 'Emerald' | 'Violet' | 'Blue' | 'Amber' | 'Rose' | 'Random') => void; // Changes color accent
 
   // Utility to revert store back to default settings
   reset: () => void;
@@ -62,7 +60,7 @@ const initialSettings: AppSettings = {
   saveMediaToGallery: true, // Auto-save to gallery defaults to true
   transferHistory: [], // Empty history
   colorScheme: 'system', // Follow system OS dark/light mode preference
-  selectedColor: 'ExLink', // Default brand accent color
+  selectedColor: 'Default', // Default brand accent color
 };
 
 // Create the Settings store using both 'create' and the 'persist' middleware
@@ -91,7 +89,7 @@ export const useSettingsStore = create<AppSettingsStore>()(
       // Update theme preferences
       setColorScheme: (scheme: 'system' | 'light' | 'dark') => set({ colorScheme: scheme }),
       setSelectedColor: (
-        color: 'ExLink' | 'Emerald' | 'Violet' | 'Blue' | 'Amber' | 'Rose' | 'Random'
+        color: 'Default' | 'Emerald' | 'Violet' | 'Blue' | 'Amber' | 'Rose' | 'Random'
       ) => set({ selectedColor: color }),
 
       // Action implementation reverting everything strictly to basic configurations

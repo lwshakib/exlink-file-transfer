@@ -4,11 +4,11 @@ import React, { createContext, useContext, useState, useEffect, useMemo } from '
 import { useSettingsStore } from '../store/useSettingsStore';
 // Import useColorScheme from react-native to detect system OS theme (light/dark mode)
 import { useColorScheme } from 'react-native';
-// Import predefined theme variations (e.g., ExLink, Emerald, etc.) from the constants file
+// Import predefined theme variations (e.g., Default, Emerald, etc.) from the constants file
 import { ThemeVariations } from '../constants/Colors';
 
 // Define the available literal types for our accent colors
-export type ColorTheme = 'ExLink' | 'Emerald' | 'Violet' | 'Blue' | 'Amber' | 'Rose' | 'Random';
+export type ColorTheme = 'Default' | 'Emerald' | 'Violet' | 'Blue' | 'Amber' | 'Rose' | 'Random';
 
 // Define the shape of our Theme Context, mapping out what values/functions are provided to components
 interface ThemeContextType {
@@ -92,7 +92,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       // Provide the randomly selected index variation
       return ThemeVariations[randomVariationIndex];
     }
-    // Attempt to match the array object by name, falling back to the default ExLink
+    // Attempt to match the array object by name, falling back to the default Default
     return ThemeVariations.find((v) => v.name === selectedColor) || ThemeVariations[0];
   }, [selectedColor, randomVariationIndex, isLoaded]);
 

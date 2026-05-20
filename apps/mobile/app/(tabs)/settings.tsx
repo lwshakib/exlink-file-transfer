@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, View, ScrollView, TouchableOpacity, Platform } from 'react-native';
+import { StyleSheet, View, ScrollView, TouchableOpacity, Platform, InteractionManager } from 'react-native';
 import {
   Text,
   useTheme,
@@ -16,17 +16,9 @@ import { useTheme as useAppTheme, ColorTheme } from '@/hooks/useTheme';
 import { uniqueNamesGenerator, adjectives, animals } from 'unique-names-generator';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as DocumentPicker from 'expo-document-picker';
+import * as Network from 'expo-network';
 import Svg, { G, Path } from 'react-native-svg';
 import { useSettingsStore } from '@/store/useSettingsStore';
-
-const SettingRow = ({ label, children }: { label: string; children: React.ReactNode }) => (
-  <View style={styles.settingRow}>
-    <Text variant="bodyLarge" style={styles.settingLabel}>
-      {label}
-    </Text>
-    <View style={styles.settingControl}>{children}</View>
-  </View>
-);
 
 // TonalBox is a styled button container matching Material 3 surface tones
 const TonalBox = ({
@@ -47,7 +39,7 @@ const TonalBox = ({
     >
       <View style={styles.tonalBoxContent}>
         {text && (
-          <Text variant="bodyMedium" style={styles.tonalBoxText}>
+          <Text variant="bodyMedium" style={[styles.tonalBoxText, { color: theme.colors.onSurfaceVariant }]}>
             {text}
           </Text>
         )}
@@ -120,6 +112,61 @@ const SelectableSetting = ({
   );
 };
 
+// PremiumSettingRow implements a beautifully formatted options row with left-side icons, titles, descriptions, and custom controls.
+const PremiumSettingRow = ({
+  icon,
+  label,
+  description,
+  children,
+  isLast = false,
+}: {
+  icon: string;
+  label: string;
+  description?: string;
+  children: React.ReactNode;
+  isLast?: boolean;
+}) => {
+  const theme = useTheme();
+  return (
+    <View>
+      <View style={styles.premiumSettingRow}>
+        <View style={styles.premiumSettingLeft}>
+          <View style={[styles.iconContainer, { backgroundColor: theme.colors.secondaryContainer }]}>
+            <MaterialCommunityIcons name={icon as any} size={20} color={theme.colors.primary} />
+          </View>
+          <View style={styles.premiumSettingText}>
+            <Text variant="bodyLarge" style={{ fontWeight: '600', color: theme.colors.onSurface }}>
+              {label}
+            </Text>
+            {description && (
+              <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant, marginTop: 2, opacity: 0.8 }}>
+                {description}
+              </Text>
+            )}
+          </View>
+        </View>
+        <View style={styles.premiumSettingControl}>{children}</View>
+      </View>
+      {!isLast && <View style={[styles.premiumDivider, { backgroundColor: theme.colors.surfaceVariant }]} />}
+    </View>
+  );
+};
+
+// PremiumSectionCard groups options in unified Material 3 outline elevation cards
+const PremiumSectionCard = ({ title, children }: { title: string; children: React.ReactNode }) => {
+  const theme = useTheme();
+  return (
+    <View style={styles.premiumSection}>
+      <Text variant="titleMedium" style={[styles.premiumSectionHeader, { color: theme.colors.primary }]}>
+        {title}
+      </Text>
+      <View style={[styles.premiumCard, { backgroundColor: theme.colors.elevation.level1 }]}>
+        {children}
+      </View>
+    </View>
+  );
+};
+
 // SettingsScreen manages user preferences for identification, networking, and filesystem behavior
 export default function SettingsScreen() {
   const theme = useTheme();
@@ -128,6 +175,7 @@ export default function SettingsScreen() {
   // --- Persistent Settings Pulls (Zustand) ---
   const deviceName = useSettingsStore((state) => state.deviceName);
   const setDeviceName = useSettingsStore((state) => state.setDeviceName);
+  const deviceId = useSettingsStore((state) => state.deviceId);
   const serverRunning = useSettingsStore((state) => state.serverRunning);
   const setServerRunning = useSettingsStore((state) => state.setServerRunning);
   const saveMediaToGallery = useSettingsStore((state) => state.saveMediaToGallery);
@@ -140,6 +188,31 @@ export default function SettingsScreen() {
   const [deviceNameDialogVisible, setDeviceNameDialogVisible] = useState(false);
   const [deviceNameDraft, setDeviceNameDraft] = useState('');
   const [aboutDialogVisible, setAboutDialogVisible] = useState(false);
+  const [deviceIp, setDeviceIp] = useState<string>('');
+
+  // Fetch active network subnet IP on mount to enrich settings metadata
+  useEffect(() => {
+    let active = true;
+    const fetchIp = async () => {
+      try {
+        const ip = await Network.getIpAddressAsync();
+        if (active) {
+          setDeviceIp(ip);
+        }
+      } catch (e) {
+        console.warn('Could not fetch network IP in settings:', e);
+      }
+    };
+    
+    const task = InteractionManager.runAfterInteractions(() => {
+      fetchIp();
+    });
+    
+    return () => {
+      active = false;
+      task.cancel();
+    };
+  }, []);
 
   useEffect(() => {
     if (saveToFolderPath) {
@@ -157,20 +230,8 @@ export default function SettingsScreen() {
         setSaveToFolder(folderName);
       }
     } else {
-      setSaveToFolder('Internal (Tap to change)');
+      setSaveToFolder('Internal');
     }
-  }, [saveToFolderPath]);
-
-  // First-run SAF check
-  useEffect(() => {
-    const checkFirstRun = async () => {
-      if (Platform.OS === 'android' && !saveToFolderPath) {
-        // We could automatically prompt here, but it might be annoying if done immediately.
-        // Best to just wait for the user to tap, or do it once.
-        // Let's stick to the user's intent if they specifically asked for it.
-      }
-    };
-    checkFirstRun();
   }, [saveToFolderPath]);
 
   const [themeMenuVisible, setThemeMenuVisible] = useState(false);
@@ -212,7 +273,6 @@ export default function SettingsScreen() {
   const handleSelectFolder = async () => {
     try {
       if (Platform.OS === 'android') {
-        // Request persistent folder-level access allowing us to write files without individual prompts
         const permissions =
           await FileSystem.StorageAccessFramework.requestDirectoryPermissionsAsync();
         if (permissions.granted) {
@@ -237,19 +297,64 @@ export default function SettingsScreen() {
     }
   };
 
+  // Extract avatar profile abbreviation (e.g. "Aqua Tiger" -> "AT")
+  const avatarInitials =
+    deviceName && deviceName !== 'Loading...'
+      ? deviceName
+          .split(' ')
+          .map((n) => n[0])
+          .slice(0, 2)
+          .join('')
+          .toUpperCase()
+      : 'EX';
+
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        <Text variant="headlineSmall" style={styles.pageTitle}>
-          Settings
-        </Text>
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        
+        {/* Profile Identity Card */}
+        <View style={[styles.identityCard, { backgroundColor: theme.colors.secondaryContainer }]}>
+          <View style={styles.identityLeft}>
+            {/* Round Avatar Container */}
+            <View style={[styles.avatarCircle, { backgroundColor: theme.colors.primaryContainer }]}>
+              <Text variant="headlineMedium" style={[styles.avatarText, { color: theme.colors.onPrimaryContainer }]}>
+                {avatarInitials}
+              </Text>
+              {serverRunning && (
+                <View style={[styles.activeIndicator, { backgroundColor: '#4CAF50', borderColor: theme.colors.secondaryContainer }]} />
+              )}
+            </View>
+            
+            {/* Identity Info Panel */}
+            <View style={styles.identityInfo}>
+              <View style={styles.nameRow}>
+                <Text variant="titleLarge" numberOfLines={1} style={[styles.deviceNameText, { color: theme.colors.onSecondaryContainer }]}>
+                  {deviceName}
+                </Text>
+                <TouchableOpacity onPress={openDeviceNameDialog} style={styles.editPen} activeOpacity={0.6}>
+                  <MaterialCommunityIcons name="pencil-outline" size={18} color={theme.colors.primary} />
+                </TouchableOpacity>
+              </View>
+              <Text variant="bodyMedium" style={{ color: theme.colors.onSecondaryContainer, opacity: 0.8, marginTop: 2 }}>
+                ID: {deviceId ? deviceId.substring(0, 8) : 'Loading...'}
+              </Text>
+              <View style={[styles.ipBadge, { backgroundColor: theme.colors.surfaceVariant }]}>
+                <MaterialCommunityIcons name="wifi" size={14} color={theme.colors.primary} style={{ marginRight: 4 }} />
+                <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant, fontWeight: '700' }}>
+                  {deviceIp || 'No IP detected'}
+                </Text>
+              </View>
+            </View>
+          </View>
+        </View>
 
-        {/* General Section */}
-        <View style={styles.section}>
-          <Text variant="titleMedium" style={styles.sectionHeader}>
-            General
-          </Text>
-          <SettingRow label="Theme">
+        {/* General Options Card Group */}
+        <PremiumSectionCard title="General">
+          <PremiumSettingRow
+            icon="palette-outline"
+            label="Theme"
+            description="Select light, dark, or system scheme"
+          >
             <SelectableSetting
               label="Select Theme"
               value={colorScheme.charAt(0).toUpperCase() + colorScheme.slice(1)}
@@ -259,27 +364,33 @@ export default function SettingsScreen() {
               onClose={() => setThemeMenuVisible(false)}
               onSelect={(val) => setThemeScheme(val.toLowerCase() as any)}
             />
-          </SettingRow>
-          <SettingRow label="Color">
+          </PremiumSettingRow>
+
+          <PremiumSettingRow
+            icon="palette-swatch-outline"
+            label="Accent Color"
+            description="Customize key application interface colors"
+            isLast={true}
+          >
             <SelectableSetting
               label="Select Color"
               value={selectedColor}
-              options={['ExLink', 'Emerald', 'Violet', 'Blue', 'Amber', 'Rose', 'Random']}
+              options={['Default', 'Emerald', 'Violet', 'Blue', 'Amber', 'Rose', 'Random']}
               visible={colorMenuVisible}
               onOpen={() => setColorMenuVisible(true)}
               onClose={() => setColorMenuVisible(false)}
               onSelect={(val) => setThemeColor(val as ColorTheme)}
             />
-          </SettingRow>
-        </View>
+          </PremiumSettingRow>
+        </PremiumSectionCard>
 
-        {/* Network Section */}
-        <View style={styles.section}>
-          <Text variant="titleMedium" style={styles.sectionHeader}>
-            Network
-          </Text>
-
-          <SettingRow label="Server">
+        {/* Network & Identity Options Card Group */}
+        <PremiumSectionCard title="Network">
+          <PremiumSettingRow
+            icon="server-network"
+            label="Background Server"
+            description="Enable direct local background listening"
+          >
             <View style={[styles.switchBox, { backgroundColor: theme.colors.surfaceVariant }]}>
               <Switch
                 value={serverRunning}
@@ -287,22 +398,34 @@ export default function SettingsScreen() {
                 color={theme.colors.primary}
               />
             </View>
-          </SettingRow>
+          </PremiumSettingRow>
 
-          <SettingRow label="Device name">
+          <PremiumSettingRow
+            icon="laptop"
+            label="Device name"
+            description="Broadcast profile identification label"
+            isLast={true}
+          >
             <TonalBox text={deviceName} onPress={openDeviceNameDialog} />
-          </SettingRow>
-        </View>
+          </PremiumSettingRow>
+        </PremiumSectionCard>
 
-        {/* Receive Section */}
-        <View style={styles.section}>
-          <Text variant="titleMedium" style={styles.sectionHeader}>
-            Receive
-          </Text>
-          <SettingRow label="Save to folder">
+        {/* File Receive Options Card Group */}
+        <PremiumSectionCard title="Receive Options">
+          <PremiumSettingRow
+            icon="folder-open-outline"
+            label="Save to Folder"
+            description="Destination path for received files"
+          >
             <TonalBox text={saveToFolder} icon="chevron-right" onPress={handleSelectFolder} />
-          </SettingRow>
-          <SettingRow label="Save media to gallery">
+          </PremiumSettingRow>
+
+          <PremiumSettingRow
+            icon="image-multiple-outline"
+            label="Gallery Integration"
+            description="Save compatible media files straight to gallery"
+            isLast={true}
+          >
             <View style={[styles.switchBox, { backgroundColor: theme.colors.surfaceVariant }]}>
               <Switch
                 value={saveMediaToGallery}
@@ -310,24 +433,36 @@ export default function SettingsScreen() {
                 color={theme.colors.primary}
               />
             </View>
-          </SettingRow>
-        </View>
+          </PremiumSettingRow>
+        </PremiumSectionCard>
 
-        {/* Other Section */}
-        <View style={styles.section}>
-          <Text variant="titleMedium" style={styles.sectionHeader}>
-            Other
-          </Text>
-          <SettingRow label="About ExLink">
+        {/* App Meta Card Group */}
+        <PremiumSectionCard title="Other">
+          <PremiumSettingRow
+            icon="information-outline"
+            label="About ExLink"
+            description="View version and development details"
+          >
             <TonalBox text="Open" onPress={() => setAboutDialogVisible(true)} />
-          </SettingRow>
-          <SettingRow label="Support ExLink">
+          </PremiumSettingRow>
+
+          <PremiumSettingRow
+            icon="heart-outline"
+            label="Support ExLink"
+            description="Donate to fund developers"
+          >
             <TonalBox text="Donate" />
-          </SettingRow>
-          <SettingRow label="Privacy Policy">
+          </PremiumSettingRow>
+
+          <PremiumSettingRow
+            icon="shield-check-outline"
+            label="Privacy Policy"
+            description="Review details on user data security"
+            isLast={true}
+          >
             <TonalBox text="Open" />
-          </SettingRow>
-        </View>
+          </PremiumSettingRow>
+        </PremiumSectionCard>
 
         {/* Device Name Dialog */}
         <Portal>
@@ -342,6 +477,7 @@ export default function SettingsScreen() {
                 <TouchableOpacity
                   onPress={generateRandomName}
                   style={[styles.diceButton, { backgroundColor: theme.colors.surfaceVariant }]}
+                  activeOpacity={0.7}
                 >
                   <MaterialCommunityIcons name="dice-5" size={32} color={theme.colors.primary} />
                 </TouchableOpacity>
@@ -424,85 +560,161 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    paddingTop: 24,
+    paddingTop: 16,
     paddingBottom: 110,
     paddingHorizontal: 16,
   },
-  pageTitle: {
-    textAlign: 'center',
-    marginBottom: 32,
-    fontWeight: '400',
+  identityCard: {
+    flexDirection: 'row',
+    borderRadius: 20,
+    padding: 16,
+    marginBottom: 24,
+    elevation: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
   },
-  section: {
-    marginBottom: 32,
+  identityLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
   },
-  sectionHeader: {
-    marginBottom: 16,
-    fontWeight: '600',
+  avatarCircle: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    justifyContent: 'center',
+    alignItems: 'center',
+    position: 'relative',
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 3,
   },
-  settingRow: {
+  avatarText: {
+    fontWeight: 'bold',
+    fontSize: 22,
+    letterSpacing: 0.5,
+  },
+  activeIndicator: {
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    borderWidth: 2,
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+  },
+  identityInfo: {
+    marginLeft: 16,
+    flex: 1,
+    justifyContent: 'center',
+  },
+  nameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+  },
+  deviceNameText: {
+    fontWeight: '700',
+    fontSize: 18,
+    marginRight: 4,
+  },
+  editPen: {
+    padding: 4,
+  },
+  ipBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 4,
+    alignSelf: 'flex-start',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  premiumSection: {
+    marginBottom: 24,
+  },
+  premiumSectionHeader: {
+    fontSize: 12,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 1.2,
+    marginBottom: 8,
+    marginLeft: 4,
+    opacity: 0.85,
+  },
+  premiumCard: {
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    elevation: 0.5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+  },
+  premiumSettingRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
-    minHeight: 48,
+    paddingVertical: 14,
+    minHeight: 56,
   },
-  settingLabel: {
+  premiumSettingLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
     flex: 1,
-    paddingRight: 16,
+    paddingRight: 12,
   },
-  settingControl: {
-    flex: 0,
-    minWidth: 120,
+  iconContainer: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  premiumSettingText: {
+    flex: 1,
+  },
+  premiumSettingControl: {
+    justifyContent: 'center',
     alignItems: 'flex-end',
   },
+  premiumDivider: {
+    height: StyleSheet.hairlineWidth,
+    opacity: 0.15,
+    marginLeft: 48,
+  },
   tonalBox: {
-    minWidth: 140,
-    height: 48,
-    borderRadius: 8,
+    minWidth: 100,
+    height: 38,
+    borderRadius: 10,
     justifyContent: 'center',
-    paddingHorizontal: 16,
+    paddingHorizontal: 12,
   },
   tonalBoxContent: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    gap: 8,
+    gap: 4,
   },
   tonalBoxText: {
-    textAlign: 'center',
+    fontWeight: '600',
+    fontSize: 13,
   },
   switchBox: {
-    width: 140,
-    height: 48,
-    borderRadius: 8,
+    width: 60,
+    height: 38,
+    borderRadius: 10,
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  multiIconBox: {
-    width: 140,
-    height: 48,
-    borderRadius: 8,
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    alignItems: 'center',
-  },
-  miniIcon: {
-    margin: 0,
   },
   radioRow: {
     flexDirection: 'row',
     alignItems: 'center',
-  },
-  warningBanner: {
-    padding: 12,
-    borderRadius: 8,
-    marginBottom: 12,
-  },
-  warningText: {
-    fontSize: 12,
-    fontWeight: '500',
-    textAlign: 'center',
   },
   diceContainer: {
     alignItems: 'center',

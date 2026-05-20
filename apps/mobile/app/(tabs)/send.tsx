@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useRef, useMemo, useEffect } from 'react';
-import { StyleSheet, View, ScrollView, Platform, Image as RNImage } from 'react-native';
+import { StyleSheet, View, ScrollView, Platform, Image as RNImage, Animated, TouchableOpacity, RefreshControl, ActivityIndicator, InteractionManager } from 'react-native';
 import {
   Text,
   IconButton,
@@ -26,6 +26,15 @@ import * as FileSystem from 'expo-file-system/legacy';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useDiscoveryStore, NearbyDevice } from '@/store/useDiscoveryStore';
 
+const getOSIcon = (os?: string) => {
+  const clean = (os || '').toLowerCase();
+  if (clean.includes('windows')) return 'microsoft-windows';
+  if (clean.includes('android')) return 'android';
+  if (clean.includes('ios') || clean.includes('mac') || clean.includes('apple')) return 'apple';
+  if (clean.includes('linux')) return 'linux';
+  return 'responsive';
+};
+
 // Main interface for selecting documents, resolving targets, and initiating transfers
 export default function SendScreen() {
   // Global hooks integrating router and UI styling
@@ -41,6 +50,29 @@ export default function SendScreen() {
   const nearbyDevices = useDiscoveryStore((state) => state.nearbyDevices);
   const isScanning = useDiscoveryStore((state) => state.isScanning);
   const triggerScan = useDiscoveryStore((state) => state.triggerScan);
+
+  const scannerPulse = useRef(new Animated.Value(0.4)).current;
+
+  useEffect(() => {
+    if (isScanning) {
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(scannerPulse, {
+            toValue: 1.0,
+            duration: 1200,
+            useNativeDriver: true,
+          }),
+          Animated.timing(scannerPulse, {
+            toValue: 0.4,
+            duration: 1200,
+            useNativeDriver: true,
+          }),
+        ])
+      ).start();
+    } else {
+      scannerPulse.setValue(0.4);
+    }
+  }, [isScanning]);
 
   const [textDialogVisible, setTextDialogVisible] = useState(false);
   const [inputText, setInputText] = useState('');
@@ -65,7 +97,10 @@ export default function SendScreen() {
 
   // Hook booting component immediately trying to find old user preferences asynchronously
   useEffect(() => {
-    loadFavorites();
+    const task = InteractionManager.runAfterInteractions(() => {
+      loadFavorites();
+    });
+    return () => task.cancel();
   }, []);
 
   const loadFavorites = async () => {
@@ -301,144 +336,181 @@ export default function SendScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        {/* Selection Summary Card: Dynamically mounted only if actual items exist in state */}
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        refreshControl={
+          <RefreshControl refreshing={false} onRefresh={startScanning} colors={[theme.colors.primary]} />
+        }
+      >
+        {/* Compact selection preview bar */}
         {selectedItems.length > 0 && (
-          <Card style={styles.summaryCard} mode="contained">
-            <Card.Content>
-              {/* Top grouping binding string labels safely pushing metrics */}
-              <View style={styles.summaryHeader}>
-                <View>
-                  <Text
-                    variant="titleLarge"
-                    style={[styles.summaryTitle, { color: theme.colors.primary }]}
-                  >
-                    Selection
-                  </Text>
-                  <Text
-                    variant="bodyMedium"
-                    style={[styles.summaryStats, { color: theme.colors.onSurfaceVariant }]}
-                  >
-                    Files: {selectedItems.length}
-                  </Text>
-                  <Text
-                    variant="bodyMedium"
-                    style={[styles.summaryStats, { color: theme.colors.onSurfaceVariant }]}
-                  >
-                    Size: {formatSize(totalSize)}
+          <View
+            style={[
+              styles.compactSummaryBar,
+              {
+                backgroundColor: theme.colors.surface,
+                borderWidth: 1,
+                borderColor: theme.colors.primary + '1F',
+                borderLeftWidth: 4,
+                borderLeftColor: theme.colors.primary,
+              },
+            ]}
+          >
+            <View style={styles.compactSummaryLeft}>
+              <View style={[styles.compactIconBox, { backgroundColor: theme.colors.primary + '14' }]}>
+                <MaterialCommunityIcons name="file-multiple" size={20} color={theme.colors.primary} />
+              </View>
+              <View style={styles.compactStats}>
+                <Text variant="titleSmall" style={[styles.compactTitle, { color: theme.colors.onSurface }]}>
+                  Selected Content
+                </Text>
+                <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
+                  {selectedItems.length} files • {formatSize(totalSize)}
+                </Text>
+              </View>
+            </View>
+
+            {/* Overlapping small avatar previews */}
+            <View style={styles.avatarOverlapContainer}>
+              {selectedItems.slice(0, 3).map((item, idx) => (
+                <View
+                  key={item.id}
+                  style={[
+                    styles.overlapAvatar,
+                    {
+                      zIndex: 3 - idx,
+                      marginLeft: idx === 0 ? 0 : -12,
+                      borderColor: theme.colors.surfaceVariant,
+                      backgroundColor: theme.colors.elevation.level3,
+                    },
+                  ]}
+                >
+                  {item.type === 'media' && item.uri ? (
+                    <RNImage source={{ uri: item.uri }} style={styles.overlapAvatarImage} />
+                  ) : (
+                    <MaterialCommunityIcons
+                      name={
+                        item.type === 'media'
+                          ? 'image'
+                          : item.type === 'text'
+                            ? 'text-short'
+                            : item.type === 'app'
+                              ? 'apps'
+                              : 'file-document-outline'
+                      }
+                      size={16}
+                      color={theme.colors.primary}
+                    />
+                  )}
+                </View>
+              ))}
+              {selectedItems.length > 3 && (
+                <View
+                  style={[
+                    styles.overlapAvatarCount,
+                    {
+                      zIndex: 0,
+                      marginLeft: -12,
+                      borderColor: theme.colors.surfaceVariant,
+                      backgroundColor: theme.colors.primaryContainer,
+                    },
+                  ]}
+                >
+                  <Text style={[styles.overlapAvatarCountText, { color: theme.colors.onPrimaryContainer }]}>
+                    +{selectedItems.length - 3}
                   </Text>
                 </View>
-                <IconButton
-                  icon="close"
-                  size={24}
-                  onPress={clearSelection}
-                  style={styles.closeButton}
-                  iconColor={theme.colors.onSurfaceVariant}
-                />
-              </View>
+              )}
+            </View>
 
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                style={styles.thumbnailList}
+            <View style={styles.compactSummaryRight}>
+              <TouchableOpacity
+                onPress={() => setSelectionSheetVisible(true)}
+                style={[styles.compactActionButton, { backgroundColor: theme.colors.primary }]}
+                activeOpacity={0.7}
               >
-                {selectedItems.map((item) => (
-                  <View key={item.id} style={styles.thumbnailContainer}>
-                    {item.type === 'media' && item.uri ? (
-                      <RNImage source={{ uri: item.uri }} style={styles.thumbnailImage} />
-                    ) : (
-                      <MaterialCommunityIcons
-                        name={
-                          item.type === 'media'
-                            ? 'image'
-                            : item.type === 'text'
-                              ? 'text'
-                              : 'file-document'
-                        }
-                        size={32}
-                        color={theme.colors.primary}
-                      />
-                    )}
-                    <Text
-                      variant="labelSmall"
-                      numberOfLines={1}
-                      style={[styles.thumbnailLabel, { color: theme.colors.onSurfaceVariant }]}
-                    >
-                      {item.name}
-                    </Text>
-                  </View>
-                ))}
-              </ScrollView>
+                <MaterialCommunityIcons name="pencil" size={16} color={theme.colors.onPrimary} />
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                onPress={() => bottomSheetModalRef.current?.present()}
+                style={[styles.compactActionButton, { backgroundColor: theme.colors.primaryContainer }]}
+                activeOpacity={0.7}
+              >
+                <MaterialCommunityIcons name="plus" size={16} color={theme.colors.onPrimaryContainer} />
+              </TouchableOpacity>
 
-              <View style={styles.summaryActions}>
-                <Button
-                  mode="text"
-                  onPress={() => setSelectionSheetVisible(true)}
-                  textColor={theme.colors.primary}
-                  style={styles.editButton}
-                >
-                  Edit
-                </Button>
-                <View style={{ flex: 1 }} />
-                <Button
-                  mode="contained"
-                  onPress={() => bottomSheetModalRef.current?.present()}
-                  icon="plus"
-                  style={styles.addButton}
-                  buttonColor={theme.colors.primary}
-                  textColor={theme.colors.onPrimary}
-                >
-                  Add
-                </Button>
-              </View>
-            </Card.Content>
-          </Card>
+              <TouchableOpacity
+                onPress={clearSelection}
+                style={[styles.compactActionButton, { backgroundColor: theme.colors.errorContainer }]}
+                activeOpacity={0.7}
+              >
+                <MaterialCommunityIcons name="trash-can-outline" size={16} color={theme.colors.onErrorContainer} />
+              </TouchableOpacity>
+            </View>
+          </View>
         )}
 
-        {/* Selection Placeholder (when empty) */}
+        {/* Horizontal categories carousel (when empty) */}
         {selectedItems.length === 0 && (
-          <>
-            <Text variant="titleMedium" style={styles.sectionTitle}>
-              Selection
+          <View style={styles.carouselSection}>
+            <Text variant="titleMedium" style={styles.carouselSectionTitle}>
+              Select content to send
             </Text>
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.selectionRow}
+              contentContainerStyle={styles.carouselContainer}
             >
               {SELECTION_ITEMS.map((item, index) => (
-                <Card
+                <TouchableOpacity
                   key={index}
-                  style={styles.selectionCard}
-                  mode="contained"
+                  style={[
+                    styles.carouselItem,
+                    {
+                      backgroundColor: theme.colors.surfaceVariant,
+                    },
+                  ]}
                   onPress={item.onPress}
+                  activeOpacity={0.7}
                 >
-                  <Card.Content style={styles.cardContent}>
+                  <View
+                    style={[
+                      styles.carouselIconCircle,
+                      { backgroundColor: 'transparent' },
+                    ]}
+                  >
                     <MaterialCommunityIcons
                       name={item.icon as any}
-                      size={26}
+                      size={24}
                       color={theme.colors.primary}
                     />
-                    <Text
-                      variant="labelLarge"
-                      style={[styles.cardLabel, { color: theme.colors.onSurfaceVariant }]}
-                    >
-                      {item.label}
-                    </Text>
-                  </Card.Content>
-                </Card>
+                  </View>
+                  <Text
+                    variant="labelMedium"
+                    style={[styles.carouselItemLabel, { color: theme.colors.onSurface }]}
+                  >
+                    {item.label}
+                  </Text>
+                </TouchableOpacity>
               ))}
             </ScrollView>
-          </>
+          </View>
         )}
 
         {/* Nearby Devices Section */}
         <View style={styles.nearbyHeader}>
-          <Text variant="titleMedium" style={styles.sectionTitle}>
-            Nearby devices
-          </Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <Text variant="titleMedium" style={[styles.sectionTitle, { marginBottom: 0 }]}>
+              Nearby Devices
+            </Text>
+          </View>
           <View style={styles.nearbyActions}>
-            <IconButton icon="refresh" size={20} onPress={startScanning} disabled={isScanning} />
+            {isScanning ? (
+              <ActivityIndicator size="small" color={theme.colors.primary} style={{ margin: 12 }} />
+            ) : (
+              <IconButton icon="refresh" size={22} onPress={startScanning} disabled={isScanning} />
+            )}
           </View>
         </View>
 
@@ -446,27 +518,83 @@ export default function SendScreen() {
         {sortedDevices.map((device) => {
           const isFavorite = favoriteIds.includes(device.id);
           return (
-            <Card
+            <TouchableOpacity
               key={device.id}
-              style={styles.deviceCard}
-              mode="contained"
+              style={[
+                styles.deviceContainer,
+                {
+                  backgroundColor: theme.colors.surface,
+                  shadowColor: '#000',
+                  shadowOffset: { width: 0, height: 2 },
+                  shadowOpacity: 0.05,
+                  shadowRadius: 8,
+                  elevation: 2,
+                },
+              ]}
               onPress={() => handleDevicePress(device)}
+              activeOpacity={0.8}
             >
               <View style={styles.deviceCardContent}>
-                <MaterialCommunityIcons
-                  name={device.platform === 'mobile' ? 'cellphone' : 'laptop'}
-                  size={40}
-                  color={theme.colors.onSurfaceVariant}
-                  style={styles.deviceIcon}
-                />
+                <View style={{ position: 'relative' }}>
+                  <View
+                    style={[
+                      styles.deviceAvatarBadge,
+                      {
+                        backgroundColor: isFavorite ? theme.colors.primaryContainer : theme.colors.elevation.level2,
+                        marginRight: 16,
+                      },
+                    ]}
+                  >
+                    <MaterialCommunityIcons
+                      name={device.platform === 'mobile' ? 'cellphone' : 'laptop'}
+                      size={24}
+                      color={isFavorite ? theme.colors.primary : theme.colors.onSurfaceVariant}
+                    />
+                  </View>
+                </View>
                 <View style={styles.deviceInfo}>
-                  <Text variant="titleMedium">{device.name}</Text>
+                  <Text variant="titleMedium" style={{ fontWeight: '700', color: theme.colors.onSurface }}>{device.name}</Text>
                   <View style={styles.badgeRow}>
-                    <View style={[styles.badge, { backgroundColor: theme.colors.surfaceVariant }]}>
-                      <Text variant="labelSmall">{getPortLabel(device.ip)}</Text>
+                    <View
+                      style={[
+                        styles.badge,
+                        {
+                          backgroundColor: theme.colors.primaryContainer,
+                          flexDirection: 'row',
+                          alignItems: 'center',
+                          paddingHorizontal: 8,
+                          paddingVertical: 3,
+                          borderRadius: 8,
+                        },
+                      ]}
+                    >
+                      <MaterialCommunityIcons name="lan" size={12} color={theme.colors.onPrimaryContainer} style={{ marginRight: 4 }} />
+                      <Text variant="labelSmall" style={{ color: theme.colors.onPrimaryContainer, fontWeight: '700', fontSize: 10 }}>
+                        {getPortLabel(device.ip)}
+                      </Text>
                     </View>
-                    <View style={[styles.badge, { backgroundColor: theme.colors.surfaceVariant }]}>
-                      <Text variant="labelSmall">{device.os || device.brand || 'Station'}</Text>
+                    <View
+                      style={[
+                        styles.badge,
+                        {
+                          backgroundColor: theme.colors.surfaceVariant,
+                          flexDirection: 'row',
+                          alignItems: 'center',
+                          paddingHorizontal: 8,
+                          paddingVertical: 3,
+                          borderRadius: 8,
+                        },
+                      ]}
+                    >
+                      <MaterialCommunityIcons
+                        name={getOSIcon(device.os) as any}
+                        size={12}
+                        color={theme.colors.onSurfaceVariant}
+                        style={{ marginRight: 4 }}
+                      />
+                      <Text variant="labelSmall" style={{ color: theme.colors.onSurfaceVariant, fontWeight: '700', fontSize: 10 }}>
+                        {device.os || device.brand || 'Station'}
+                      </Text>
                     </View>
                   </View>
                 </View>
@@ -480,13 +608,27 @@ export default function SendScreen() {
                   }}
                 />
               </View>
-            </Card>
+            </TouchableOpacity>
           );
         })}
 
         {nearbyDevices.length === 0 && (
           <View style={styles.emptyState}>
-            {!isScanning && (
+            {!isScanning ? (
+              <>
+                <MaterialCommunityIcons
+                  name="devices"
+                  size={48}
+                  color={theme.colors.onSurfaceDisabled}
+                />
+                <Text
+                  variant="bodyMedium"
+                  style={{ color: theme.colors.onSurfaceDisabled, marginTop: 12 }}
+                >
+                  No nearby devices found.
+                </Text>
+              </>
+            ) : (
               <>
                 <MaterialCommunityIcons
                   name="radar"
@@ -647,27 +789,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     marginBottom: 12,
   },
-  selectionRow: {
-    paddingHorizontal: 12,
-    paddingBottom: 24,
-    flexDirection: 'row',
-  },
-  selectionCard: {
-    width: 100,
-    height: 80,
-    marginHorizontal: 6,
-    borderRadius: 20,
-  },
-  cardContent: {
-    padding: 0,
-    alignItems: 'center',
-    justifyContent: 'center',
-    height: '100%',
-  },
-  cardLabel: {
-    marginTop: 8,
-    fontWeight: '500',
-  },
   nearbyHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -678,112 +799,44 @@ const styles = StyleSheet.create({
   nearbyActions: {
     flexDirection: 'row',
   },
-  deviceCard: {
-    marginHorizontal: 16,
-    marginTop: 8,
-    borderRadius: 16,
-    marginBottom: 12,
-  },
   deviceCardContent: {
     flexDirection: 'row',
     padding: 16,
     alignItems: 'center',
   },
-  deviceIcon: {
+  deviceAvatarBadge: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
     marginRight: 16,
   },
-  deviceInfo: {
-    flex: 1,
+  activeIndicatorDot: {
+    position: 'absolute',
+    bottom: -2,
+    right: 14,
+    width: 14,
+    height: 14,
+    borderRadius: 7,
   },
-  badgeRow: {
+  activeScanningBadge: {
     flexDirection: 'row',
-    gap: 8,
-    marginTop: 4,
-  },
-  badge: {
+    alignItems: 'center',
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 8,
+    gap: 4,
   },
-  emptyState: {
-    paddingVertical: 40,
-    alignItems: 'center',
-    opacity: 0.6,
+  scanningIndicatorDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
   },
-  bottomSection: {
-    marginTop: 40,
-    alignItems: 'center',
-    paddingHorizontal: 40,
-  },
-  troubleshootButton: {
-    borderRadius: 20,
-    marginBottom: 24,
-  },
-  hintText: {
-    textAlign: 'center',
-    opacity: 0.6,
-    lineHeight: 18,
-  },
-  summaryCard: {
-    marginHorizontal: 16,
-    marginBottom: 24,
-    borderRadius: 24,
-    padding: 8,
-    backgroundColor: 'transparent',
-  },
-  summaryHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-  },
-  summaryTitle: {
-    fontWeight: 'bold',
-  },
-  summaryStats: {
-    opacity: 0.7,
-    marginTop: 2,
-  },
-  closeButton: {
-    margin: 0,
-  },
-  thumbnailList: {
-    marginTop: 16,
-    marginBottom: 8,
-  },
-  thumbnailContainer: {
-    alignItems: 'center',
-    width: 80,
-    marginRight: 12,
-  },
-  thumbnailImage: {
-    width: 48,
-    height: 48,
-    borderRadius: 12,
-  },
-  thumbnailLabel: {
-    marginTop: 4,
-    width: '100%',
-    textAlign: 'center',
-    opacity: 0.7,
-  },
-  summaryActions: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    alignItems: 'center',
-    marginTop: 8,
-    gap: 8,
-  },
-  editButton: {
-    marginRight: 8,
-  },
-  addButton: {
-    borderRadius: 20,
-    paddingHorizontal: 8,
-  },
-  bottomSheetContent: {
-    paddingHorizontal: 20,
-    paddingTop: 8,
-    paddingBottom: 40,
+  scanningBadgeText: {
+    fontSize: 9,
+    fontWeight: '800',
+    letterSpacing: 0.5,
   },
   bsTitle: {
     marginBottom: 20,
@@ -815,4 +868,162 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
   },
+  compactSummaryBar: {
+    marginHorizontal: 16,
+    marginTop: 8,
+    marginBottom: 16,
+    borderRadius: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  compactSummaryLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    flex: 1,
+    marginRight: 8,
+  },
+  compactIconBox: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  compactStats: {
+    justifyContent: 'center',
+  },
+  compactTitle: {
+    fontWeight: '700',
+    fontSize: 14,
+  },
+  avatarOverlapContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginRight: 10,
+  },
+  overlapAvatar: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  overlapAvatarImage: {
+    width: '100%',
+    height: '100%',
+  },
+  overlapAvatarCount: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  overlapAvatarCountText: {
+    fontSize: 9,
+    fontWeight: 'bold',
+  },
+  compactSummaryRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  compactActionButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  carouselSection: {
+    marginBottom: 20,
+  },
+  carouselSectionTitle: {
+    fontWeight: 'bold',
+    marginBottom: 12,
+    opacity: 0.8,
+    paddingHorizontal: 16,
+  },
+  carouselContainer: {
+    gap: 12,
+    paddingHorizontal: 16,
+  },
+  carouselItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 20,
+    shadowColor: '#000',
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+    gap: 8,
+  },
+  carouselIconCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  carouselItemLabel: {
+    fontWeight: '600',
+    fontSize: 13,
+  },
+  deviceContainer: {
+    marginHorizontal: 16,
+    marginTop: 8,
+    borderRadius: 20,
+    marginBottom: 12,
+  },
+  deviceInfo: {
+    flex: 1,
+  },
+  badgeRow: {
+    flexDirection: 'row',
+    gap: 6,
+    marginTop: 4,
+  },
+  badge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  emptyState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 32,
+  },
+  bottomSection: {
+    alignItems: 'center',
+    marginTop: 24,
+    paddingHorizontal: 16,
+  },
+  troubleshootButton: {
+    width: '100%',
+    borderRadius: 12,
+    marginBottom: 8,
+  },
+  hintText: {
+    textAlign: 'center',
+    opacity: 0.6,
+  },
+  bottomSheetContent: {
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 24,
+  },
 });
+

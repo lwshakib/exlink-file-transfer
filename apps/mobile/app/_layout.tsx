@@ -62,8 +62,8 @@ function InnerLayout() {
     });
 
     // Merge standard configurations with our custom color palettes from Colors.ts
-    const customDarkTheme = { ...MD3DarkTheme, colors: selectedVariation.dark };
-    const customLightTheme = { ...MD3LightTheme, colors: selectedVariation.light };
+    const customDarkTheme = { ...MD3DarkTheme, colors: { ...MD3DarkTheme.colors, ...selectedVariation.dark } };
+    const customLightTheme = { ...MD3LightTheme, colors: { ...MD3LightTheme.colors, ...selectedVariation.light } };
 
     // Deep merge both library themes so UI components share one true color map universally
     const CombinedDefaultTheme = merge(LightTheme, customLightTheme);
@@ -233,23 +233,8 @@ function InnerLayout() {
     };
 
     // Trigger sequential scan explicitly when component logic originally mounts fully into reality
+    // or when the user manually triggers a scan (scanTrigger changes)
     scanSubnet();
-
-    // Re-ping discovered list frequently helping connections establish safely when devices roam or wake
-    const announceInterval = setInterval(() => {
-      if (knownDesktopIps.current.size > 0) {
-        announceToIps(knownDesktopIps.current);
-      }
-    }, 10000);
-
-    // Heavy subnet sweeps scheduled on long frequencies capturing completely new dynamic entries
-    const scanInterval = setInterval(scanSubnet, 45000);
-
-    // Standard unmount effect dropping active timeouts explicitly preventing heavy leaks
-    return () => {
-      clearInterval(announceInterval);
-      clearInterval(scanInterval);
-    };
   }, [serverRunning, deviceName, deviceId, scanTrigger, setIsScanning, setNearbyDevices]); // Listens explicitly to scanTrigger allowing manual user forced rescans remotely
 
   // Blocking logic rendering null securely holding render cycle fully preventing state mismatch before contexts establish
