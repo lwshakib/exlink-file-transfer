@@ -89,15 +89,35 @@ export default function SendScreen() {
   // Track specifically chosen target locally before invoking connection attempts
   const [selectedDevice, setSelectedDevice] = useState<NearbyDevice | null>(null);
 
+  // Hoisted useMemo to avoid Rules of Hooks violation when portals are conditionally rendered
+  const sendingTargetDevice = useMemo(
+    () =>
+      selectedDevice
+        ? {
+            name: selectedDevice.name,
+            id: getPortLabel(selectedDevice.ip).replace('#', ''),
+            os: selectedDevice.os || selectedDevice.brand || 'Computer',
+            ip: selectedDevice.ip,
+            port: selectedDevice.port || 3030,
+            platform: selectedDevice.platform,
+          }
+        : null,
+    [selectedDevice]
+  );
+
   // Heavy operation blocking flag (like opening large SAF folders on older droids)
   const [isProcessing, setIsProcessing] = useState(false);
 
   // UI scaling anchors forcing sheet popups precisely partially offscreen
   const snapPoints = useMemo(() => ['45%'], []);
+  
+  // Deferment state ensuring tabs render structurally instantly before spinning up JS heavy rendering
+  const [isReady, setIsReady] = useState(false);
 
   // Hook booting component immediately trying to find old user preferences asynchronously
   useEffect(() => {
     const task = InteractionManager.runAfterInteractions(() => {
+      setIsReady(true);
       loadFavorites();
     });
     return () => task.cancel();
@@ -744,35 +764,26 @@ export default function SendScreen() {
         </BottomSheetView>
       </BottomSheetModal>
 
-      <SelectionDetailsPortal
-        visible={selectionSheetVisible}
-        onDismiss={() => setSelectionSheetVisible(false)}
-      />
+      {isReady && (
+        <>
+          <SelectionDetailsPortal
+            visible={selectionSheetVisible}
+            onDismiss={() => setSelectionSheetVisible(false)}
+          />
 
-      <AppPickerPortal
-        visible={appPickerVisible}
-        onDismiss={() => setAppPickerVisible(false)}
-        onSelectApps={(apps) => addItems(apps)}
-      />
+          <AppPickerPortal
+            visible={appPickerVisible}
+            onDismiss={() => setAppPickerVisible(false)}
+            onSelectApps={(apps) => addItems(apps)}
+          />
 
-      <SendingPortal
-        visible={sendingPortalVisible}
-        onDismiss={() => setSendingPortalVisible(false)}
-        targetDevice={useMemo(
-          () =>
-            selectedDevice
-              ? {
-                  name: selectedDevice.name,
-                  id: getPortLabel(selectedDevice.ip).replace('#', ''),
-                  os: selectedDevice.os || selectedDevice.brand || 'Computer',
-                  ip: selectedDevice.ip,
-                  port: selectedDevice.port || 3030,
-                  platform: selectedDevice.platform,
-                }
-              : null,
-          [selectedDevice]
-        )}
-      />
+          <SendingPortal
+            visible={sendingPortalVisible}
+            onDismiss={() => setSendingPortalVisible(false)}
+            targetDevice={sendingTargetDevice}
+          />
+        </>
+      )}
     </SafeAreaView>
   );
 }

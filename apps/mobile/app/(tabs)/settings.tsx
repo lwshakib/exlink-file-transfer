@@ -1,24 +1,113 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, View, ScrollView, TouchableOpacity, Platform, InteractionManager } from 'react-native';
 import {
-  Text,
-  useTheme,
-  Portal,
-  Dialog,
-  RadioButton,
-  Button,
-  TextInput,
-  Switch,
-} from 'react-native-paper';
+  StyleSheet,
+  View,
+  ScrollView,
+  TouchableOpacity,
+  Platform,
+  InteractionManager,
+  Text as RNText,
+  TextInput as RNTextInput,
+  Switch as RNSwitch,
+  Modal,
+  TextProps,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { useTheme as useAppTheme, ColorTheme } from '@/hooks/useTheme';
+import { useTheme, ColorTheme } from '@/hooks/useTheme';
 import { uniqueNamesGenerator, adjectives, animals } from 'unique-names-generator';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as DocumentPicker from 'expo-document-picker';
 import * as Network from 'expo-network';
 import Svg, { G, Path } from 'react-native-svg';
 import { useSettingsStore } from '@/store/useSettingsStore';
+
+// Custom helper Text component mapping MD3 typography variant sizes
+const Text = ({
+  variant,
+  style,
+  children,
+  numberOfLines,
+  ...props
+}: TextProps & {
+  variant?: 'headlineMedium' | 'headlineSmall' | 'titleLarge' | 'titleMedium' | 'bodyLarge' | 'bodyMedium' | 'bodySmall';
+  numberOfLines?: number;
+}) => {
+  let variantStyle = {};
+  switch (variant) {
+    case 'headlineMedium':
+      variantStyle = { fontSize: 24, fontWeight: 'bold' as const };
+      break;
+    case 'headlineSmall':
+      variantStyle = { fontSize: 20, fontWeight: 'bold' as const };
+      break;
+    case 'titleLarge':
+      variantStyle = { fontSize: 20, fontWeight: '700' as const };
+      break;
+    case 'titleMedium':
+      variantStyle = { fontSize: 16, fontWeight: '700' as const };
+      break;
+    case 'bodyLarge':
+      variantStyle = { fontSize: 16 };
+      break;
+    case 'bodyMedium':
+      variantStyle = { fontSize: 14 };
+      break;
+    case 'bodySmall':
+      variantStyle = { fontSize: 12 };
+      break;
+  }
+  return (
+    <RNText style={[variantStyle, style]} numberOfLines={numberOfLines} {...props}>
+      {children}
+    </RNText>
+  );
+};
+
+// Custom premium Dialog component using React Native standard Modal
+const CustomDialog = ({
+  visible,
+  onDismiss,
+  title,
+  children,
+  actions,
+  themeColors,
+}: {
+  visible: boolean;
+  onDismiss: () => void;
+  title?: string;
+  children: React.ReactNode;
+  actions?: React.ReactNode;
+  themeColors: any;
+}) => {
+  return (
+    <Modal
+      visible={visible}
+      transparent={true}
+      animationType="fade"
+      onRequestClose={onDismiss}
+    >
+      <TouchableOpacity
+        style={styles.modalOverlay}
+        activeOpacity={1}
+        onPress={onDismiss}
+      >
+        <TouchableOpacity
+          activeOpacity={1}
+          style={[styles.dialogContainer, { backgroundColor: themeColors.elevation.level3 }]}
+        >
+          {title && (
+            <Text variant="titleMedium" style={[styles.dialogTitle, { color: themeColors.onSurface }]}>
+              {title}
+            </Text>
+          )}
+          <View style={styles.dialogContent}>{children}</View>
+          {actions && <View style={styles.dialogActions}>{actions}</View>}
+        </TouchableOpacity>
+      </TouchableOpacity>
+    </Modal>
+  );
+};
 
 // TonalBox is a styled button container matching Material 3 surface tones
 const TonalBox = ({
@@ -30,16 +119,17 @@ const TonalBox = ({
   icon?: string;
   onPress?: () => void;
 }) => {
-  const theme = useTheme();
+  const { colorScheme, selectedVariation } = useTheme();
+  const themeColors = selectedVariation[colorScheme];
   return (
     <TouchableOpacity
-      style={[styles.tonalBox, { backgroundColor: theme.colors.surfaceVariant }]}
+      style={[styles.tonalBox, { backgroundColor: themeColors.surfaceVariant }]}
       onPress={onPress}
       activeOpacity={0.7}
     >
       <View style={styles.tonalBoxContent}>
         {text && (
-          <Text variant="bodyMedium" style={[styles.tonalBoxText, { color: theme.colors.onSurfaceVariant }]}>
+          <Text variant="bodyMedium" style={[styles.tonalBoxText, { color: themeColors.onSurfaceVariant }]}>
             {text}
           </Text>
         )}
@@ -47,7 +137,7 @@ const TonalBox = ({
           <MaterialCommunityIcons
             name={icon as any}
             size={20}
-            color={theme.colors.onSurfaceVariant}
+            color={themeColors.onSurfaceVariant}
           />
         )}
       </View>
@@ -72,42 +162,52 @@ const SelectableSetting = ({
   onClose: () => void;
   onSelect: (val: string) => void;
 }) => {
-  const theme = useTheme();
+  const { colorScheme, selectedVariation } = useTheme();
+  const themeColors = selectedVariation[colorScheme];
   return (
     <>
       <TonalBox text={value} icon="menu-down" onPress={onOpen} />
-      <Portal>
-        <Dialog
-          visible={visible}
-          onDismiss={onClose}
-          style={{ backgroundColor: theme.colors.elevation.level3 }}
-        >
-          <Dialog.Title>{label}</Dialog.Title>
-          <Dialog.Content>
-            <RadioButton.Group
-              onValueChange={(val) => {
-                onSelect(val);
-                onClose();
-              }}
-              value={value}
-            >
-              {options.map((option) => (
-                <View key={option} style={styles.radioRow}>
-                  <RadioButton.Item
-                    label={option}
-                    value={option}
-                    style={{ paddingHorizontal: 0, width: '100%' }}
-                    labelStyle={{ color: theme.colors.onSurface }}
-                  />
+      <CustomDialog
+        visible={visible}
+        onDismiss={onClose}
+        title={label}
+        themeColors={themeColors}
+        actions={
+          <TouchableOpacity onPress={onClose} style={styles.dialogButton}>
+            <Text style={{ color: themeColors.primary, fontWeight: '600' }}>Cancel</Text>
+          </TouchableOpacity>
+        }
+      >
+        <View style={styles.radioList}>
+          {options.map((option) => {
+            const isSelected = option === value;
+            return (
+              <TouchableOpacity
+                key={option}
+                style={styles.radioRow}
+                onPress={() => {
+                  onSelect(option);
+                  onClose();
+                }}
+              >
+                <Text style={{ fontSize: 16, color: themeColors.onSurface, flex: 1 }}>
+                  {option}
+                </Text>
+                <View
+                  style={[
+                    styles.radioButtonOuter,
+                    { borderColor: isSelected ? themeColors.primary : themeColors.outline },
+                  ]}
+                >
+                  {isSelected && (
+                    <View style={[styles.radioButtonInner, { backgroundColor: themeColors.primary }]} />
+                  )}
                 </View>
-              ))}
-            </RadioButton.Group>
-          </Dialog.Content>
-          <Dialog.Actions>
-            <Button onPress={onClose}>Cancel</Button>
-          </Dialog.Actions>
-        </Dialog>
-      </Portal>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      </CustomDialog>
     </>
   );
 };
@@ -126,20 +226,21 @@ const PremiumSettingRow = ({
   children: React.ReactNode;
   isLast?: boolean;
 }) => {
-  const theme = useTheme();
+  const { colorScheme, selectedVariation } = useTheme();
+  const themeColors = selectedVariation[colorScheme];
   return (
     <View>
       <View style={styles.premiumSettingRow}>
         <View style={styles.premiumSettingLeft}>
-          <View style={[styles.iconContainer, { backgroundColor: theme.colors.secondaryContainer }]}>
-            <MaterialCommunityIcons name={icon as any} size={20} color={theme.colors.primary} />
+          <View style={[styles.iconContainer, { backgroundColor: themeColors.secondaryContainer }]}>
+            <MaterialCommunityIcons name={icon as any} size={20} color={themeColors.primary} />
           </View>
           <View style={styles.premiumSettingText}>
-            <Text variant="bodyLarge" style={{ fontWeight: '600', color: theme.colors.onSurface }}>
+            <Text variant="bodyLarge" style={{ fontWeight: '600', color: themeColors.onSurface }}>
               {label}
             </Text>
             {description && (
-              <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant, marginTop: 2, opacity: 0.8 }}>
+              <Text variant="bodySmall" style={{ color: themeColors.onSurfaceVariant, marginTop: 2, opacity: 0.8 }}>
                 {description}
               </Text>
             )}
@@ -147,20 +248,21 @@ const PremiumSettingRow = ({
         </View>
         <View style={styles.premiumSettingControl}>{children}</View>
       </View>
-      {!isLast && <View style={[styles.premiumDivider, { backgroundColor: theme.colors.surfaceVariant }]} />}
+      {!isLast && <View style={[styles.premiumDivider, { backgroundColor: themeColors.surfaceVariant }]} />}
     </View>
   );
 };
 
 // PremiumSectionCard groups options in unified Material 3 outline elevation cards
 const PremiumSectionCard = ({ title, children }: { title: string; children: React.ReactNode }) => {
-  const theme = useTheme();
+  const { colorScheme, selectedVariation } = useTheme();
+  const themeColors = selectedVariation[colorScheme];
   return (
     <View style={styles.premiumSection}>
-      <Text variant="titleMedium" style={[styles.premiumSectionHeader, { color: theme.colors.primary }]}>
+      <Text variant="titleMedium" style={[styles.premiumSectionHeader, { color: themeColors.primary }]}>
         {title}
       </Text>
-      <View style={[styles.premiumCard, { backgroundColor: theme.colors.elevation.level1 }]}>
+      <View style={[styles.premiumCard, { backgroundColor: themeColors.elevation.level1 }]}>
         {children}
       </View>
     </View>
@@ -169,8 +271,8 @@ const PremiumSectionCard = ({ title, children }: { title: string; children: Reac
 
 // SettingsScreen manages user preferences for identification, networking, and filesystem behavior
 export default function SettingsScreen() {
-  const theme = useTheme();
-  const { colorScheme, setThemeScheme, selectedColor, setThemeColor } = useAppTheme();
+  const { colorScheme, selectedVariation, setThemeScheme, selectedColor, setThemeColor } = useTheme();
+  const themeColors = selectedVariation[colorScheme];
 
   // --- Persistent Settings Pulls (Zustand) ---
   const deviceName = useSettingsStore((state) => state.deviceName);
@@ -309,38 +411,38 @@ export default function SettingsScreen() {
       : 'EX';
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: themeColors.background }]}>
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         
         {/* Profile Identity Card */}
-        <View style={[styles.identityCard, { backgroundColor: theme.colors.secondaryContainer }]}>
+        <View style={[styles.identityCard, { backgroundColor: themeColors.secondaryContainer }]}>
           <View style={styles.identityLeft}>
             {/* Round Avatar Container */}
-            <View style={[styles.avatarCircle, { backgroundColor: theme.colors.primaryContainer }]}>
-              <Text variant="headlineMedium" style={[styles.avatarText, { color: theme.colors.onPrimaryContainer }]}>
+            <View style={[styles.avatarCircle, { backgroundColor: themeColors.primaryContainer }]}>
+              <Text variant="headlineMedium" style={[styles.avatarText, { color: themeColors.onPrimaryContainer }]}>
                 {avatarInitials}
               </Text>
               {serverRunning && (
-                <View style={[styles.activeIndicator, { backgroundColor: '#4CAF50', borderColor: theme.colors.secondaryContainer }]} />
+                <View style={[styles.activeIndicator, { backgroundColor: '#4CAF50', borderColor: themeColors.secondaryContainer }]} />
               )}
             </View>
             
             {/* Identity Info Panel */}
             <View style={styles.identityInfo}>
               <View style={styles.nameRow}>
-                <Text variant="titleLarge" numberOfLines={1} style={[styles.deviceNameText, { color: theme.colors.onSecondaryContainer }]}>
+                <Text variant="titleLarge" numberOfLines={1} style={[styles.deviceNameText, { color: themeColors.onSecondaryContainer }]}>
                   {deviceName}
                 </Text>
                 <TouchableOpacity onPress={openDeviceNameDialog} style={styles.editPen} activeOpacity={0.6}>
-                  <MaterialCommunityIcons name="pencil-outline" size={18} color={theme.colors.primary} />
+                  <MaterialCommunityIcons name="pencil-outline" size={18} color={themeColors.primary} />
                 </TouchableOpacity>
               </View>
-              <Text variant="bodyMedium" style={{ color: theme.colors.onSecondaryContainer, opacity: 0.8, marginTop: 2 }}>
+              <Text variant="bodyMedium" style={{ color: themeColors.onSecondaryContainer, opacity: 0.8, marginTop: 2 }}>
                 ID: {deviceId ? deviceId.substring(0, 8) : 'Loading...'}
               </Text>
-              <View style={[styles.ipBadge, { backgroundColor: theme.colors.surfaceVariant }]}>
-                <MaterialCommunityIcons name="wifi" size={14} color={theme.colors.primary} style={{ marginRight: 4 }} />
-                <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant, fontWeight: '700' }}>
+              <View style={[styles.ipBadge, { backgroundColor: themeColors.surfaceVariant }]}>
+                <MaterialCommunityIcons name="wifi" size={14} color={themeColors.primary} style={{ marginRight: 4 }} />
+                <Text variant="bodySmall" style={{ color: themeColors.onSurfaceVariant, fontWeight: '700' }}>
                   {deviceIp || 'No IP detected'}
                 </Text>
               </View>
@@ -391,13 +493,12 @@ export default function SettingsScreen() {
             label="Background Server"
             description="Enable direct local background listening"
           >
-            <View style={[styles.switchBox, { backgroundColor: theme.colors.surfaceVariant }]}>
-              <Switch
-                value={serverRunning}
-                onValueChange={handleServerToggle}
-                color={theme.colors.primary}
-              />
-            </View>
+            <RNSwitch
+              value={serverRunning}
+              onValueChange={handleServerToggle}
+              trackColor={{ false: themeColors.outline, true: themeColors.primary }}
+              thumbColor={Platform.OS === 'ios' ? undefined : '#f4f3f4'}
+            />
           </PremiumSettingRow>
 
           <PremiumSettingRow
@@ -426,13 +527,12 @@ export default function SettingsScreen() {
             description="Save compatible media files straight to gallery"
             isLast={true}
           >
-            <View style={[styles.switchBox, { backgroundColor: theme.colors.surfaceVariant }]}>
-              <Switch
-                value={saveMediaToGallery}
-                onValueChange={handleSaveMediaToggle}
-                color={theme.colors.primary}
-              />
-            </View>
+            <RNSwitch
+              value={saveMediaToGallery}
+              onValueChange={handleSaveMediaToggle}
+              trackColor={{ false: themeColors.outline, true: themeColors.primary }}
+              thumbColor={Platform.OS === 'ios' ? undefined : '#f4f3f4'}
+            />
           </PremiumSettingRow>
         </PremiumSectionCard>
 
@@ -465,91 +565,103 @@ export default function SettingsScreen() {
         </PremiumSectionCard>
 
         {/* Device Name Dialog */}
-        <Portal>
-          <Dialog
-            visible={deviceNameDialogVisible}
-            onDismiss={() => setDeviceNameDialogVisible(false)}
-            style={{ backgroundColor: theme.colors.elevation.level3 }}
-          >
-            <Dialog.Title>Device name</Dialog.Title>
-            <Dialog.Content>
-              <View style={styles.diceContainer}>
-                <TouchableOpacity
-                  onPress={generateRandomName}
-                  style={[styles.diceButton, { backgroundColor: theme.colors.surfaceVariant }]}
-                  activeOpacity={0.7}
-                >
-                  <MaterialCommunityIcons name="dice-5" size={32} color={theme.colors.primary} />
-                </TouchableOpacity>
-              </View>
-              <TextInput
-                label="Name"
-                value={deviceNameDraft}
-                onChangeText={setDeviceNameDraft}
-                mode="outlined"
-                autoCapitalize="words"
-                style={{ backgroundColor: 'transparent', marginTop: 12 }}
-              />
-            </Dialog.Content>
-            <Dialog.Actions>
-              <Button onPress={() => setDeviceNameDialogVisible(false)}>Cancel</Button>
-              <Button onPress={saveDeviceName} disabled={!deviceNameDraft.trim()}>
-                Save
-              </Button>
-            </Dialog.Actions>
-          </Dialog>
-        </Portal>
+        <CustomDialog
+          visible={deviceNameDialogVisible}
+          onDismiss={() => setDeviceNameDialogVisible(false)}
+          title="Device name"
+          themeColors={themeColors}
+          actions={
+            <>
+              <TouchableOpacity
+                onPress={() => setDeviceNameDialogVisible(false)}
+                style={styles.dialogButton}
+              >
+                <Text style={{ color: themeColors.primary, fontWeight: '600' }}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={saveDeviceName}
+                disabled={!deviceNameDraft.trim()}
+                style={[styles.dialogButton, !deviceNameDraft.trim() && { opacity: 0.5 }]}
+              >
+                <Text style={{ color: themeColors.primary, fontWeight: 'bold' }}>Save</Text>
+              </TouchableOpacity>
+            </>
+          }
+        >
+          <View style={styles.diceContainer}>
+            <TouchableOpacity
+              onPress={generateRandomName}
+              style={[styles.diceButton, { backgroundColor: themeColors.surfaceVariant }]}
+              activeOpacity={0.7}
+            >
+              <MaterialCommunityIcons name="dice-5" size={32} color={themeColors.primary} />
+            </TouchableOpacity>
+          </View>
+          <View style={[styles.textInputContainer, { borderColor: themeColors.outline }]}>
+            <RNTextInput
+              value={deviceNameDraft}
+              onChangeText={setDeviceNameDraft}
+              autoCapitalize="words"
+              placeholder="Name"
+              placeholderTextColor={themeColors.onSurfaceVariant + '80'}
+              style={[styles.textInput, { color: themeColors.onSurface }]}
+            />
+          </View>
+        </CustomDialog>
 
         {/* About ExLink Dialog */}
-        <Portal>
-          <Dialog
-            visible={aboutDialogVisible}
-            onDismiss={() => setAboutDialogVisible(false)}
-            style={{ backgroundColor: theme.colors.elevation.level3 }}
-          >
-            <Dialog.Content style={styles.aboutContent}>
-              <View style={styles.logoContainer}>
-                <Svg width="80" height="80" viewBox="0 0 48 48" fill="none">
-                  <G translate="3 0" fill={theme.colors.primary}>
-                    <Path d="m14.1061 19.6565c5.499-2.6299 9.8025-7.0929 12.2731-12.67168-1.5939-1.67362-3.666-2.86907-5.8975-3.58634l-1.1954-.39848c-.0797.15939-.1594.39849-.1594.55788-1.9127 5.41936-5.8178 9.80262-11.07766 12.27322-3.66599 1.7533-6.37564 4.9412-7.650763 8.7666l-.398477 1.1955c.159391.0797.39848.1593.557871.1593 1.514209.5579 3.028419 1.2752 4.462939 2.1519 1.99238-3.5864 5.18019-6.6148 9.08529-8.4479z" />
-                    <Path
-                      d="m37.2173 19.9753c-2.9487 4.463-7.0132 8.0494-12.034 10.4403-4.0645 1.9127-7.1726 5.499-8.6071 9.8026l-.3985 1.3549c1.5142 1.3548 3.3472 2.3909 5.3396 3.0284l1.1955.3985c.0796-.1594.1593-.3985.1593-.5579 1.9127-5.4193 5.8178-9.8026 11.0777-12.2732 3.666-1.7533 6.4553-4.9412 7.6507-8.7666l.3985-1.1954c-1.6736-.4782-3.2675-1.2752-4.7817-2.2316z"
-                      opacity=".5"
-                    />
-                    <Path
-                      d="m12.9903 37.4284c1.9924-4.7818 5.6584-8.6869 10.3604-10.9184 4.3035-2.0721 7.8898-5.26 10.3604-9.1651-1.833-1.7533-3.3472-3.7458-4.463-6.1366-2.9487 5.4193-7.571 9.8026-13.2294 12.5123-3.2675 1.5142-5.8974 4.1442-7.49136 7.3321 1.75326 1.6736 3.18786 3.7457 4.30356 6.0569 0 0 .0797.1594.1594.3188z"
-                      opacity=".7"
-                    />
-                  </G>
-                </Svg>
-              </View>
-              <Text
-                variant="headlineSmall"
-                style={{ textAlign: 'center', marginTop: 16, fontWeight: 'bold' }}
-              >
-                ExLink
-              </Text>
-              <Text
-                variant="bodyMedium"
-                style={{ textAlign: 'center', marginTop: 8, opacity: 0.7 }}
-              >
-                Version 1.0.0
-              </Text>
-              <Text
-                variant="bodySmall"
-                style={{ textAlign: 'center', marginTop: 16, opacity: 0.6 }}
-              >
-                Seamless file transfer between desktop and mobile devices over local network.
-              </Text>
-              <Text variant="bodySmall" style={{ textAlign: 'center', marginTop: 8, opacity: 0.6 }}>
-                Created by LW Shakib
-              </Text>
-            </Dialog.Content>
-            <Dialog.Actions>
-              <Button onPress={() => setAboutDialogVisible(false)}>Close</Button>
-            </Dialog.Actions>
-          </Dialog>
-        </Portal>
+        <CustomDialog
+          visible={aboutDialogVisible}
+          onDismiss={() => setAboutDialogVisible(false)}
+          themeColors={themeColors}
+          actions={
+            <TouchableOpacity
+              onPress={() => setAboutDialogVisible(false)}
+              style={styles.dialogButton}
+            >
+              <Text style={{ color: themeColors.primary, fontWeight: 'bold' }}>Close</Text>
+            </TouchableOpacity>
+          }
+        >
+          <View style={styles.aboutContent}>
+            <View style={styles.logoContainer}>
+              <Svg width="80" height="80" viewBox="0 0 48 48" fill="none">
+                <G translate="3 0" fill={themeColors.primary}>
+                  <Path d="m14.1061 19.6565c5.499-2.6299 9.8025-7.0929 12.2731-12.67168-1.5939-1.67362-3.666-2.86907-5.8975-3.58634l-1.1954-.39848c-.0797.15939-.1594.39849-.1594.55788-1.9127 5.41936-5.8178 9.80262-11.07766 12.27322-3.66599 1.7533-6.37564 4.9412-7.650763 8.7666l-.398477 1.1955c.159391.0797.39848.1593.557871.1593 1.514209.5579 3.028419 1.2752 4.462939 2.1519 1.99238-3.5864 5.18019-6.6148 9.08529-8.4479z" />
+                  <Path
+                    d="m37.2173 19.9753c-2.9487 4.463-7.0132 8.0494-12.034 10.4403-4.0645 1.9127-7.1726 5.499-8.6071 9.8026l-.3985 1.3549c1.5142 1.3548 3.3472 2.3909 5.3396 3.0284l1.1955.3985c.0796-.1594.1593-.3985.1593-.5579 1.9127-5.4193 5.8178-9.8026 11.0777-12.2732 3.666-1.7533 6.4553-4.9412 7.6507-8.7666l.3985-1.1954c-1.6736-.4782-3.2675-1.2752-4.7817-2.2316z"
+                    opacity=".5"
+                  />
+                  <Path
+                    d="m12.9903 37.4284c1.9924-4.7818 5.6584-8.6869 10.3604-10.9184 4.3035-2.0721 7.8898-5.26 10.3604-9.1651-1.833-1.7533-3.3472-3.7458-4.463-6.1366-2.9487 5.4193-7.571 9.8026-13.2294 12.5123-3.2675 1.5142-5.8974 4.1442-7.49136 7.3321 1.75326 1.6736 3.18786 3.7457 4.30356 6.0569 0 0 .0797.1594.1594.3188z"
+                    opacity=".7"
+                  />
+                </G>
+              </Svg>
+            </View>
+            <Text
+              variant="headlineSmall"
+              style={{ textAlign: 'center', marginTop: 16, fontWeight: 'bold', color: themeColors.onSurface }}
+            >
+              ExLink
+            </Text>
+            <Text
+              variant="bodyMedium"
+              style={{ textAlign: 'center', marginTop: 8, opacity: 0.7, color: themeColors.onSurface }}
+            >
+              Version 1.0.0
+            </Text>
+            <Text
+              variant="bodySmall"
+              style={{ textAlign: 'center', marginTop: 16, opacity: 0.6, color: themeColors.onSurface }}
+            >
+              Seamless file transfer between desktop and mobile devices over local network.
+            </Text>
+            <Text variant="bodySmall" style={{ textAlign: 'center', marginTop: 8, opacity: 0.6, color: themeColors.onSurface }}>
+              Created by LW Shakib
+            </Text>
+          </View>
+        </CustomDialog>
       </ScrollView>
     </SafeAreaView>
   );
@@ -705,16 +817,26 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     fontSize: 13,
   },
-  switchBox: {
-    width: 60,
-    height: 38,
-    borderRadius: 10,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
   radioRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    paddingVertical: 12,
+  },
+  radioList: {
+    gap: 4,
+  },
+  radioButtonOuter: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  radioButtonInner: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
   },
   diceContainer: {
     alignItems: 'center',
@@ -733,5 +855,50 @@ const styles = StyleSheet.create({
   },
   logoContainer: {
     alignItems: 'center',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.4)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  dialogContainer: {
+    width: '100%',
+    maxWidth: 320,
+    borderRadius: 28,
+    padding: 24,
+    elevation: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+  },
+  dialogTitle: {
+    marginBottom: 16,
+  },
+  dialogContent: {
+    marginBottom: 16,
+  },
+  dialogActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 8,
+  },
+  dialogButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  textInputContainer: {
+    borderWidth: 1.5,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    marginTop: 12,
+  },
+  textInput: {
+    fontSize: 16,
+    padding: 0,
   },
 });

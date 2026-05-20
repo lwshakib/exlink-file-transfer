@@ -29,6 +29,7 @@ import {
   BottomSheetBackdrop,
 } from '@gorhom/bottom-sheet';
 import { useSettingsStore } from '@/store/useSettingsStore';
+import { useDiscoveryStore } from '@/store/useDiscoveryStore';
 
 const getMimeType = (filename: string) => {
   const ext = filename.split('.').pop()?.toLowerCase();
@@ -88,6 +89,12 @@ export default function ReceiveScreen() {
   const [isMinimized, setIsMinimized] = useState(false);
   const [historyVisible, setHistoryVisible] = useState(false);
   const [deviceIp, setDeviceIp] = useState<string>('');
+  
+  // Deferment state ensuring tabs render structurally instantly before spinning up JS network operations
+  const [isReady, setIsReady] = useState(false);
+
+  // Global Discovery integration preventing duplicate expensive subnet scanning
+  const nearbyDevices = useDiscoveryStore((state) => state.nearbyDevices);
 
   // Pulsing sonar radar animations
   const pulse1 = useRef(new Animated.Value(0)).current;
@@ -130,7 +137,7 @@ export default function ReceiveScreen() {
       pulse2.setValue(0);
       pulse3.setValue(0);
     }
-  }, [serverRunning]);
+  }, [serverRunning, isReady]);
 
   const renderPulseRing = (pulseVar: Animated.Value) => {
     const scale = pulseVar.interpolate({
@@ -285,7 +292,12 @@ export default function ReceiveScreen() {
   }, [deviceName, deviceId, setDeviceName, setDeviceId]);
 
   useEffect(() => {
-    loadIdentity();
+    // Wait until transition completes to fetch identity
+    const task = InteractionManager.runAfterInteractions(() => {
+      setIsReady(true);
+      loadIdentity();
+    });
+    return () => task.cancel();
   }, [loadIdentity]);
 
   useFocusEffect(
@@ -300,8 +312,8 @@ export default function ReceiveScreen() {
 
   // Background Discovery & Polling Service: Scans network for desktops and checks them for pending requests
   useEffect(() => {
-    // Kill worker if user manually disabled server functionality
-    if (!serverRunning) return;
+    // Do not initiate heavy polling loops until tab transition completes
+    if (!isReady || !serverRunning) return;
 
     const pollForRequests = async () => {
       try {
@@ -335,37 +347,16 @@ export default function ReceiveScreen() {
           return;
         }
 
-        const subnet = myIp.substring(0, myIp.lastIndexOf('.') + 1);
-        const currentDesktops = [...discoveredDesktops];
-
-        // Occasional Subnet Scan: Refreshes the list of active desktop stations on the LAN
-        if (currentDesktops.length === 0 || Math.random() > 0.7) {
-          const candidates = Array.from({ length: 254 }, (_, i) => i + 1);
-          const batchSize = 50; // Parallelize pings to speed up discovery
-          for (let i = 0; i < candidates.length; i += batchSize) {
-            const batch = candidates.slice(i, i + batchSize);
-            await Promise.all(
-              batch.map(async (suffix) => {
-                const testIp = subnet + suffix;
-                if (testIp === myIp) return;
-                try {
-                  const controller = new AbortController();
-                  const timeout = setTimeout(() => controller.abort(), 400);
-                  // Hit the info endpoint to verify it's an ExLink station
-                  const res = await fetch(`http://${testIp}:3030/get-server-info`, {
-                    signal: controller.signal,
-                  });
-                  clearTimeout(timeout);
-                  if (res.ok) {
-                    if (!currentDesktops.includes(testIp)) {
-                      currentDesktops.push(testIp);
-                    }
-                  }
-                } catch {}
-              })
-            );
-          }
-          setDiscoveredDesktops(currentDesktops);
+        // Collect desktop IPs from globally synchronized discovery store (populated by _layout.tsx)
+        const activeDesktopIps = nearbyDevices
+          .filter(d => d.platform === 'desktop' && d.ip !== myIp)
+          .map(d => d.ip);
+          
+        // Combine newly discovered desktops with fallback historical state
+        const currentDesktops = Array.from(new Set([...discoveredDesktops, ...activeDesktopIps]));
+        
+        if (currentDesktops.length > discoveredDesktops.length) {
+           setDiscoveredDesktops(currentDesktops);
         }
 
         // Search for new requests from known desktops in parallel
@@ -397,7 +388,7 @@ export default function ReceiveScreen() {
 
     const interval = setInterval(pollForRequests, 1000);
     return () => clearInterval(interval);
-  }, [discoveredDesktops, transferStatus, serverRunning, pendingRequest, deviceId]);
+  }, [discoveredDesktops, transferStatus, serverRunning, pendingRequest, deviceId, isReady, nearbyDevices]);
 
   // Core logic for processing a list of files and downloading them sequentially
   const downloadFiles = useCallback(
