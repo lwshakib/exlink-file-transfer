@@ -1514,7 +1514,8 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 60,
+    paddingTop: 40,
+    paddingBottom: 100,
   },
   centerSection: {
     alignItems: 'center',

@@ -424,7 +424,8 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    paddingVertical: 24,
+    paddingTop: 24,
+    paddingBottom: 110,
     paddingHorizontal: 16,
   },
   pageTitle: {

@@ -640,7 +640,8 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    paddingVertical: 16,
+    paddingTop: 16,
+    paddingBottom: 110,
   },
   sectionTitle: {
     paddingHorizontal: 16,
