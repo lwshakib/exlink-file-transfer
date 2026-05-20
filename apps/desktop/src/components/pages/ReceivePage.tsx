@@ -1,8 +1,8 @@
 import { History, Info, X, Trash2, FolderOpen, FileText, Clock } from 'lucide-react';
-import { Button } from '@workspace/ui/components/button';
+import { Button } from '@/components/ui/button';
 import { LogoIcon } from '../common/Logo';
 import { useState, useEffect } from 'react';
-import { ScrollArea } from '@workspace/ui/components/scroll-area';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 interface HistoryItem {
   id: string;

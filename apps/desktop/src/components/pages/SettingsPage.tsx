@@ -1,16 +1,16 @@
-import { Card } from '@workspace/ui/components/card';
+import { Card } from '@/components/ui/card';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@workspace/ui/components/select';
+} from '@/components/ui/select';
 
 import { useTheme, ColorTheme } from '@/components/theme-provider';
-import { Input } from '@workspace/ui/components/input';
-import { Button } from '@workspace/ui/components/button';
-import { Label } from '@workspace/ui/components/label';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import { Label } from '@/components/ui/label';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { LogoIcon } from '../common/Logo';
@@ -20,7 +20,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogFooter,
-} from '@workspace/ui/components/dialog';
+} from '@/components/ui/dialog';
 import { Dices } from 'lucide-react';
 import { uniqueNamesGenerator, adjectives, animals } from 'unique-names-generator';
 
